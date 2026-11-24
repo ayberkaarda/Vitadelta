@@ -19,7 +19,7 @@ Date: 2026-11-24. Branch: `feat/phase-0-scaffold`.
 
 | Area | Files |
 |---|---|
-| Root | `README.md`, `.env.example`, `.editorconfig`, `.gitignore`, `.gitattributes`, `.dockerignore`, `.github/workflows/ci.yml`, `.github/dependabot.yml` |
+| Root | `README.md`, `README.tr.md`, `.env.example`, `.editorconfig`, `.gitignore`, `.gitattributes`, `.dockerignore`, `.github/workflows/ci.yml`, `.github/dependabot.yml` |
 | Docs | `docs/adr/0001` to `0011`, `docs/reports/phase-0.md` |
 | Contracts | `public-api.openapi.yaml` (42 paths, 48 operations, 148 schemas), `scoring-api.openapi.yaml` (3 paths, 42 schemas), `schemas/import-products.schema.json`, `schemas/offers-csv.columns.md` |
 | Infra | `infra/docker-compose.yml`, `infra/nginx/Dockerfile`, `nginx.conf`, `snippets/security-headers.conf`, `templates/default.conf.template` |
