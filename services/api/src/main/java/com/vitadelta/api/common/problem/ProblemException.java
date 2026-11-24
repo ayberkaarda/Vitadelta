@@ -1,5 +1,6 @@
 package com.vitadelta.api.common.problem;
 
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -80,8 +81,9 @@ public class ProblemException extends RuntimeException {
     return detail;
   }
 
+  /** The extension members in the order they were added. */
   public Map<String, Object> properties() {
-    return Map.copyOf(properties);
+    return Collections.unmodifiableMap(new LinkedHashMap<>(properties));
   }
 
   public List<FieldViolation> errors() {

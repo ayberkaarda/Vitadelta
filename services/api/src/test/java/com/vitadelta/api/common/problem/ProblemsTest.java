@@ -15,6 +15,7 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.web.cors.CorsConfiguration;
 
 class ProblemsTest {
 
@@ -60,6 +61,59 @@ class ProblemsTest {
     assertThat(validationBody.keySet())
         .containsExactly("type", "title", "status", "detail", "requestId", "errors");
     assertThat(validationBody.get("requestId").toString()).matches(RequestIds.FORMAT);
+  }
+
+  @Test
+  void extensionMembersKeepTheirInsertionOrder() {
+    List<String> names =
+        List.of("used", "limit", "action", "upgradeHint", "plan", "window", "z", "a");
+    ProblemException exception = ProblemException.of(ProblemCode.QUOTA_EXCEEDED, "Used up.");
+    for (String name : names) {
+      exception.with(name, name.length());
+    }
+    assertThat(exception.properties().keySet()).containsExactlyElementsOf(names);
+    assertThat(ProblemBodies.toBody(Problems.of(exception, request("/x"))).keySet())
+        .endsWith(names.toArray(String[]::new));
+    assertThatThrownBy(() -> exception.properties().put("other", 1))
+        .isInstanceOf(UnsupportedOperationException.class);
+  }
+
+  @Test
+  void rejectedCorsRequestsGetTheForbiddenProblem() throws Exception {
+    CorsConfiguration configuration = new CorsConfiguration();
+    configuration.setAllowedOrigins(List.of("https://web.example"));
+    configuration.setAllowedMethods(List.of("GET"));
+
+    MockHttpServletRequest foreign = request("/api/v1/products");
+    foreign.addHeader("Origin", "https://evil.example");
+    MockHttpServletResponse rejected = new MockHttpServletResponse();
+    assertThat(
+            ProblemSecurityHandlers.corsProcessor()
+                .processRequest(configuration, foreign, rejected))
+        .isFalse();
+    assertThat(rejected.getStatus()).isEqualTo(403);
+    assertThat(rejected.getContentType()).startsWith(Problems.MEDIA_TYPE);
+    assertThat(rejected.getContentAsString())
+        .contains("\"type\":\"https://vitadelta.dev/problems/forbidden\"")
+        .contains("rid-7")
+        .doesNotContain("Invalid CORS request");
+
+    MockHttpServletRequest allowed = request("/api/v1/products");
+    allowed.addHeader("Origin", "https://web.example");
+    MockHttpServletResponse accepted = new MockHttpServletResponse();
+    assertThat(
+            ProblemSecurityHandlers.corsProcessor()
+                .processRequest(configuration, allowed, accepted))
+        .isTrue();
+    assertThat(accepted.getHeader("Access-Control-Allow-Origin")).isEqualTo("https://web.example");
+
+    MockHttpServletResponse committed = new MockHttpServletResponse();
+    committed.setCommitted(true);
+    assertThat(
+            ProblemSecurityHandlers.corsProcessor()
+                .processRequest(configuration, foreign, committed))
+        .isFalse();
+    assertThat(committed.getContentAsString()).isEmpty();
   }
 
   @Test
