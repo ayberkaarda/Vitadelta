@@ -1,0 +1,11 @@
+# Local development profile (infra/docker-compose.yml): plain HTTP, Mailpit.
+spring:
+  mail:
+    host: ${VITADELTA_SMTP_HOST:mailpit}
+    port: ${VITADELTA_SMTP_PORT:1025}
+
+vitadelta:
+  web:
+    # The local stack runs on http://localhost:8080; cookies cannot carry Secure there.
+    require-https: false
+    secure-cookies: false
