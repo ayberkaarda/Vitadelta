@@ -2,12 +2,16 @@ package com.vitadelta.api.identity;
 
 import static com.vitadelta.api.identity.UserRepository.ts;
 
+import com.vitadelta.api.common.ratelimit.RateLimitPolicy;
+import com.vitadelta.api.common.ratelimit.RateLimiter;
+import com.vitadelta.api.common.web.ClientIpResolver;
 import com.vitadelta.api.config.properties.SecretsProperties;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
@@ -33,8 +37,25 @@ public class AnonymousIdentityService {
   private final byte[] signingKey;
   private final Clock clock;
 
+  /**
+   * Client IP: creations of anonymous identities (requests without a valid {@code vd_anon} cookie,
+   * including tampered ones), 60 per hour. Requests with a valid cookie are never limited by it.
+   */
+  public static final RateLimitPolicy CREATION_PER_IP =
+      RateLimitPolicy.of("anonymous-create-ip", 60, Duration.ofHours(1));
+
+  private final RateLimiter rateLimiter;
+  private final ClientIpResolver clientIp;
+
   public AnonymousIdentityService(
-      JdbcClient jdbc, AuthCookies cookies, SecretsProperties secrets, Clock clock) {
+      JdbcClient jdbc,
+      AuthCookies cookies,
+      SecretsProperties secrets,
+      Clock clock,
+      RateLimiter rateLimiter,
+      ClientIpResolver clientIp) {
+    this.rateLimiter = rateLimiter;
+    this.clientIp = clientIp;
     this.jdbc = jdbc;
     this.cookies = cookies;
     this.signingKey = secrets.cookieSecretBytes();
@@ -57,12 +78,16 @@ public class AnonymousIdentityService {
   /**
    * Resolves the identity of the request, creating it (row and {@code Set-Cookie}) when the cookie
    * is missing or invalid, and records that it was seen now.
+   *
+   * @throws com.vitadelta.api.common.problem.ProblemException {@code 429 rate_limited} with {@code
+   *     Retry-After} when a creation exceeds {@link #CREATION_PER_IP}
    */
   public AnonymousIdentity resolve(HttpServletRequest request, HttpServletResponse response) {
     Optional<String> existing = currentIdHash(request);
     boolean created = existing.isEmpty();
     String idHash;
     if (created) {
+      rateLimiter.check(CREATION_PER_IP, clientIp.resolve(request));
       byte[] id = SecureTokens.randomBytes(ID_BYTES);
       idHash = SecureTokens.sha256Hex(id);
       response.addHeader(HttpHeaders.SET_COOKIE, cookies.anonymous(sign(id)));
