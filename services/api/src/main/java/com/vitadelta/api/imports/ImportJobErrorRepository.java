@@ -7,5 +7,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 /** Repository of {@link ImportJobError}. */
 public interface ImportJobErrorRepository extends JpaRepository<ImportJobError, UUID> {
 
-  List<ImportJobError> findByJobIdOrderByRowNumberAscIdAsc(UUID jobId);
+  List<ImportJobError> findByJobIdOrderByRowNumberAscSeqAsc(UUID jobId);
 }
