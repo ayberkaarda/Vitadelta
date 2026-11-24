@@ -1,0 +1,157 @@
+# Local full stack for development and end-to-end tests.
+# Start it with scripts/dev-up.sh, which creates the root .env and runs:
+#   docker compose --env-file .env -f infra/docker-compose.yml up -d --build --wait
+#
+# Exposure rules (project specification section 15.2):
+# - web (nginx) is the single public entry point and the only service published on all interfaces.
+# - api and scoring have no published ports; scoring is reachable only from api.
+# - postgres and mailpit are published on 127.0.0.1 only.
+
+name: vitadelta
+
+services:
+  postgres:
+    image: postgres:18.7-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: vitadelta
+      POSTGRES_USER: ${VITADELTA_DB_USERNAME:?VITADELTA_DB_USERNAME must be set in .env}
+      POSTGRES_PASSWORD: ${VITADELTA_DB_PASSWORD:?VITADELTA_DB_PASSWORD must be set in .env}
+    volumes:
+      # The PostgreSQL 18 image keeps PGDATA under /var/lib/postgresql/18/docker,
+      # so the volume is mounted on the parent directory.
+      - postgres-data:/var/lib/postgresql
+    ports:
+      # Host port 54320 avoids clashing with a PostgreSQL installed on the host.
+      - "127.0.0.1:54320:5432"
+    networks:
+      - data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\" -h 127.0.0.1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  mailpit:
+    image: axllent/mailpit:v1.34.0
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:1025:1025"
+      - "127.0.0.1:8025:8025"
+    networks:
+      - data
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+
+  scoring:
+    build:
+      context: ../services/scoring
+      dockerfile: Dockerfile
+    image: vitadelta/scoring:dev
+    restart: unless-stopped
+    networks:
+      - scoring
+    healthcheck:
+      test:
+        - "CMD"
+        - "python"
+        - "-c"
+        - "import sys, urllib.request; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/internal/v1/health', timeout=3).status == 200 else 1)"
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+
+  api:
+    build:
+      context: ../services/api
+      dockerfile: Dockerfile
+    image: vitadelta/api:dev
+    restart: unless-stopped
+    environment:
+      VITADELTA_DB_URL: ${VITADELTA_DB_URL:?VITADELTA_DB_URL must be set in .env}
+      VITADELTA_DB_USERNAME: ${VITADELTA_DB_USERNAME:?VITADELTA_DB_USERNAME must be set in .env}
+      VITADELTA_DB_PASSWORD: ${VITADELTA_DB_PASSWORD:?VITADELTA_DB_PASSWORD must be set in .env}
+      VITADELTA_JWT_SECRET: ${VITADELTA_JWT_SECRET:?VITADELTA_JWT_SECRET must be set in .env}
+      VITADELTA_JWT_SECRET_PREVIOUS: ${VITADELTA_JWT_SECRET_PREVIOUS:-}
+      VITADELTA_COOKIE_SECRET: ${VITADELTA_COOKIE_SECRET:?VITADELTA_COOKIE_SECRET must be set in .env}
+      VITADELTA_WEB_ORIGINS: ${VITADELTA_WEB_ORIGINS:?VITADELTA_WEB_ORIGINS must be set in .env}
+      VITADELTA_WEB_BASE_URL: ${VITADELTA_WEB_BASE_URL:?VITADELTA_WEB_BASE_URL must be set in .env}
+      # nginx is the only peer allowed to supply X-Forwarded-For; the CIDR equals the edge network subnet below.
+      VITADELTA_TRUST_PROXY: "true"
+      VITADELTA_TRUSTED_PROXIES: 172.30.80.0/24
+      VITADELTA_UNVERIFIED_ACCOUNT_TTL_DAYS: ${VITADELTA_UNVERIFIED_ACCOUNT_TTL_DAYS:-30}
+      VITADELTA_JOBS_ENABLED: ${VITADELTA_JOBS_ENABLED:-true}
+      VITADELTA_PRIVACY_CONTACT: ${VITADELTA_PRIVACY_CONTACT:-}
+      VITADELTA_SCORING_BASE_URL: ${VITADELTA_SCORING_BASE_URL:?VITADELTA_SCORING_BASE_URL must be set in .env}
+      VITADELTA_SMTP_HOST: ${VITADELTA_SMTP_HOST:?VITADELTA_SMTP_HOST must be set in .env}
+      VITADELTA_SMTP_PORT: ${VITADELTA_SMTP_PORT:?VITADELTA_SMTP_PORT must be set in .env}
+      VITADELTA_SMTP_USERNAME: ${VITADELTA_SMTP_USERNAME:-}
+      VITADELTA_SMTP_PASSWORD: ${VITADELTA_SMTP_PASSWORD:-}
+      VITADELTA_SMTP_STARTTLS: ${VITADELTA_SMTP_STARTTLS:-false}
+      VITADELTA_MAIL_FROM: ${VITADELTA_MAIL_FROM:?VITADELTA_MAIL_FROM must be set in .env}
+      VITADELTA_FX_BASE_URL: ${VITADELTA_FX_BASE_URL:?VITADELTA_FX_BASE_URL must be set in .env}
+      VITADELTA_FX_EXTRA_CURRENCIES: ${VITADELTA_FX_EXTRA_CURRENCIES:-}
+      VITADELTA_ANON_QUERY_LIMIT: ${VITADELTA_ANON_QUERY_LIMIT:-3}
+      VITADELTA_ANON_VISIBLE_RESULTS: ${VITADELTA_ANON_VISIBLE_RESULTS:-3}
+      VITADELTA_BOOTSTRAP_ADMIN_EMAIL: ${VITADELTA_BOOTSTRAP_ADMIN_EMAIL:-}
+      VITADELTA_BOOTSTRAP_ADMIN_PASSWORD: ${VITADELTA_BOOTSTRAP_ADMIN_PASSWORD:-}
+    networks:
+      edge:
+      data:
+      scoring:
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mailpit:
+        condition: service_healthy
+      scoring:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:8080/api/v1/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+
+  web:
+    build:
+      context: ..
+      dockerfile: infra/nginx/Dockerfile
+    image: vitadelta/web:dev
+    restart: unless-stopped
+    environment:
+      VITADELTA_TLS: ${VITADELTA_TLS:-false}
+    ports:
+      - "8080:8080"
+    networks:
+      - edge
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+
+networks:
+  # nginx <-> api. Fixed subnet so the api can trust exactly this range as proxy peers.
+  edge:
+    ipam:
+      config:
+        - subnet: 172.30.80.0/24
+  # api <-> postgres and mailpit. Not internal because both publish loopback ports.
+  data: {}
+  # api <-> scoring only; no route to the outside.
+  scoring:
+    internal: true
+
+volumes:
+  postgres-data: {}

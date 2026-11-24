@@ -1,0 +1,210 @@
+:host {
+  display: block;
+  min-height: 100vh;
+}
+
+// Shared content column for the header bar and the page body.
+.shell-bar,
+.shell-main {
+  width: 100%;
+  max-width: var(--vd-content-max-width);
+  margin-inline: auto;
+  padding-inline: var(--vd-space-4);
+}
+
+.shell-header {
+  border-bottom: 1px solid var(--vd-color-border);
+  background: var(--vd-color-surface);
+}
+
+.shell-bar {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--vd-space-3);
+  padding-block: var(--vd-space-4);
+
+  @media (min-width: 36rem) {
+    align-items: center;
+  }
+}
+
+.brand-mark {
+  width: 2.5rem;
+  height: 2.5rem;
+}
+
+.brand-mark-tile {
+  fill: var(--vd-color-accent);
+}
+
+.brand-mark-delta {
+  fill: none;
+  stroke: var(--vd-color-on-accent);
+  stroke-width: 2.25;
+  stroke-linejoin: round;
+}
+
+.brand-text {
+  min-width: 0;
+}
+
+.shell-title {
+  font-size: var(--vd-font-size-xl);
+  font-weight: var(--vd-font-weight-bold);
+  line-height: var(--vd-line-height-tight);
+  letter-spacing: var(--vd-letter-spacing-tight);
+}
+
+.shell-tagline {
+  margin-top: var(--vd-space-1);
+  font-size: var(--vd-font-size-sm);
+  line-height: var(--vd-line-height-tight);
+  color: var(--vd-color-text-muted);
+}
+
+.shell-main {
+  padding-block: var(--vd-space-6) var(--vd-space-7);
+}
+
+.health-panel {
+  padding: var(--vd-space-5);
+  border: 1px solid var(--vd-color-border);
+  border-radius: var(--vd-radius-lg);
+  background: var(--vd-color-surface);
+  box-shadow: var(--vd-shadow-raised);
+}
+
+.health-heading {
+  margin-bottom: var(--vd-space-3);
+  font-size: var(--vd-font-size-xs);
+  font-weight: var(--vd-font-weight-semibold);
+  letter-spacing: var(--vd-letter-spacing-caps);
+  text-transform: uppercase;
+  color: var(--vd-color-text-muted);
+}
+
+.health-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--vd-space-4);
+}
+
+.health-value {
+  min-height: var(--vd-control-height);
+  display: flex;
+  align-items: center;
+}
+
+// Status badge: tone colour, tinted fill and a distinct icon shape per state,
+// so the state never depends on colour alone.
+.health-badge {
+  --tone: var(--vd-status-unknown);
+  --tone-bg: var(--vd-status-unknown-bg);
+
+  display: inline-flex;
+  align-items: center;
+  gap: var(--vd-space-2);
+  min-height: var(--vd-control-height);
+  padding: var(--vd-space-1) var(--vd-space-4) var(--vd-space-1) var(--vd-space-3);
+  border: 1px solid color-mix(in srgb, var(--tone) 30%, transparent);
+  border-radius: var(--vd-radius-pill);
+  background: var(--tone-bg);
+  color: var(--tone);
+  font-weight: var(--vd-font-weight-semibold);
+  line-height: var(--vd-line-height-tight);
+
+  &[data-tone='pending'] {
+    --tone: var(--vd-color-text-muted);
+    --tone-bg: var(--vd-color-surface-subtle);
+
+    font-weight: var(--vd-font-weight-medium);
+  }
+
+  &[data-status='UP'] {
+    --tone: var(--vd-status-up);
+    --tone-bg: var(--vd-status-up-bg);
+  }
+
+  &[data-status='DEGRADED'] {
+    --tone: var(--vd-status-degraded);
+    --tone-bg: var(--vd-status-degraded-bg);
+  }
+
+  &[data-status='DOWN'] {
+    --tone: var(--vd-status-down);
+    --tone-bg: var(--vd-status-down-bg);
+  }
+}
+
+.health-icon,
+.health-retry-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.health-icon-track {
+  opacity: 0.25;
+}
+
+.is-spinning {
+  animation: vd-spin var(--vd-duration-spin) linear infinite;
+}
+
+@keyframes vd-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+.health-retry {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--vd-space-2);
+  min-height: var(--vd-control-height);
+  padding: 0 var(--vd-space-4) 0 var(--vd-space-3);
+  border: 1px solid var(--vd-color-border-strong);
+  border-radius: var(--vd-radius-md);
+  background: var(--vd-color-surface);
+  color: var(--vd-color-text);
+  font-size: var(--vd-font-size-sm);
+  font-weight: var(--vd-font-weight-semibold);
+  cursor: pointer;
+  transition:
+    background-color var(--vd-duration-fast) var(--vd-ease-standard),
+    border-color var(--vd-duration-fast) var(--vd-ease-standard);
+
+  .health-retry-icon {
+    width: 1rem;
+    height: 1rem;
+    stroke-width: 2;
+    color: var(--vd-color-accent);
+  }
+
+  &:hover:not(:disabled) {
+    border-color: var(--vd-color-text-muted);
+    background: var(--vd-color-surface-subtle);
+  }
+
+  &:disabled {
+    border-color: var(--vd-color-border);
+    color: var(--vd-color-text-muted);
+    cursor: not-allowed;
+
+    .health-retry-icon {
+      color: inherit;
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .is-spinning {
+    animation: none;
+  }
+}

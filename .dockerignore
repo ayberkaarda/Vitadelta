@@ -1,0 +1,23 @@
+# Build context of the repository root is used only by the web image
+# (infra/nginx/Dockerfile), which needs apps/web, contracts and infra/nginx.
+# services/api and services/scoring build from their own directories.
+
+.git
+.github
+.env
+.env.*
+!.env.example
+
+docs
+data
+scripts
+services
+
+**/node_modules
+**/dist
+**/.angular
+**/coverage
+**/test-results
+**/playwright-report
+**/*.log
+**/.DS_Store

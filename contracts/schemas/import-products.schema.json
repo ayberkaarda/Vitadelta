@@ -1,0 +1,199 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vitadelta.dev/schemas/import-products.schema.json",
+  "title": "Vitadelta products import document",
+  "description": "Document accepted by the admin products import (POST /api/v1/admin/imports/products, at most 20 MB). Products are upserted by `code`; the internal uuid id is stable once created. The whole document is validated against this schema and the semantic rules below before anything is written; any error fails the job and writes nothing. Per listed product: the nutrient set is replaced by `nutrients`; `availability` rows are upserted per country (countries not listed keep their rows); `offers` are upserted by the natural key (product, country_code, retailer) with replace-set per (product, country_code) pair present in the product's `offers` (offers of that pair whose retailer is not listed are deleted; pairs not listed are untouched). Semantic rules checked by the importer: product codes are unique in the document; nutrient codes exist in the registry and appear at most once per product; `form_code` exists in the form registry (an unknown or missing form is stored as `UNKNOWN` with the raw text in `form_label`); `ul_amount_per_serving <= amount_per_serving`; units are normalised (`µg`, `μg`, `ug` to `mcg`, `iu` to `IU`); `IU` is accepted only for VIT_A, VIT_D and VIT_E; VIT_A in IU requires RETINOL, RETINYL_ACETATE or RETINYL_PALMITATE (`unsupported_iu_form` otherwise); `units_per_container >= units_per_serving`; country codes exist; `currency` equals the country's currency (`currency_mismatch`); `checked_at` is not in the future; each country appears at most once in `availability` and each (country_code, retailer) at most once in `offers`; money has at most 2 decimals, nutrient amounts at most 4 decimals, `servings_per_day` at most 2 decimals.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "products"],
+  "properties": {
+    "schema_version": {
+      "description": "Version of this document format. Only version 1 exists.",
+      "const": 1
+    },
+    "products": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/product" }
+    }
+  },
+  "$defs": {
+    "productCode": {
+      "type": "string",
+      "description": "Business key of the product, used by fixtures, this document, the offers CSV and tests.",
+      "pattern": "^[A-Z0-9][A-Z0-9-]{1,39}$"
+    },
+    "registryCode": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9_]{0,39}$"
+    },
+    "countryCode": {
+      "type": "string",
+      "description": "ISO 3166-1 alpha-2 country code of the country registry.",
+      "pattern": "^[A-Z]{2}$"
+    },
+    "nutrientAmount": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 9999999999.9999
+    },
+    "product": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "brand",
+        "name",
+        "dosage_form",
+        "units_per_container",
+        "units_per_serving",
+        "servings_per_day",
+        "nutrients",
+        "availability"
+      ],
+      "properties": {
+        "code": { "$ref": "#/$defs/productCode" },
+        "brand": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "name": { "type": "string", "minLength": 1, "maxLength": 300 },
+        "dosage_form": {
+          "type": "string",
+          "enum": ["TABLET", "CAPSULE", "SOFTGEL", "GUMMY", "POWDER", "LIQUID"]
+        },
+        "units_per_container": {
+          "description": "Count of the smallest labelled unit (tablet, capsule, scoop, millilitre) per container.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "units_per_serving": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "servings_per_day": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 99.99
+        },
+        "gtin": {
+          "description": "GTIN-8, GTIN-12, GTIN-13 or GTIN-14 digits; null or absent when unknown.",
+          "type": ["string", "null"],
+          "pattern": "^(?:[0-9]{8}|[0-9]{12,14})$"
+        },
+        "source": {
+          "description": "Provenance of the record (label photo, manufacturer page, fixture set).",
+          "type": ["string", "null"],
+          "maxLength": 500
+        },
+        "synthetic": {
+          "description": "True for fictional fixture products.",
+          "type": "boolean",
+          "default": false
+        },
+        "nutrients": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/productNutrient" }
+        },
+        "availability": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/availability" }
+        },
+        "offers": {
+          "type": "array",
+          "default": [],
+          "items": { "$ref": "#/$defs/offer" }
+        }
+      }
+    },
+    "productNutrient": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["nutrient_code", "amount_per_serving", "unit"],
+      "properties": {
+        "nutrient_code": { "$ref": "#/$defs/registryCode" },
+        "amount_per_serving": {
+          "description": "Labelled amount per serving; must be greater than 0.",
+          "$ref": "#/$defs/nutrientAmount"
+        },
+        "unit": {
+          "description": "Accepted units are mg, mcg, g and IU; the spellings µg, μg and ug are normalised to mcg and iu to IU.",
+          "type": "string",
+          "enum": ["mg", "mcg", "g", "IU", "µg", "μg", "ug", "iu"]
+        },
+        "ul_amount_per_serving": {
+          "description": "UL-relevant amount per serving in the same unit, set only when it differs from the labelled amount (preformed vitamin A next to beta-carotene, folic acid next to a DFE total); null or absent means the full amount is UL-relevant.",
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 9999999999.9999
+        },
+        "form_code": {
+          "description": "Form of the UL-relevant part from the form registry, or UNKNOWN. ANY is not a product form.",
+          "type": ["string", "null"],
+          "pattern": "^[A-Z][A-Z0-9_]{0,39}$",
+          "not": { "const": "ANY" }
+        },
+        "form_label": {
+          "description": "Form text as printed on the label.",
+          "type": ["string", "null"],
+          "maxLength": 200
+        }
+      }
+    },
+    "availability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["country_code", "status"],
+      "properties": {
+        "country_code": { "$ref": "#/$defs/countryCode" },
+        "status": {
+          "type": "string",
+          "enum": ["AVAILABLE", "NOT_SOLD", "DISCONTINUED"]
+        },
+        "note": {
+          "type": ["string", "null"],
+          "maxLength": 500
+        }
+      }
+    },
+    "offer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["country_code", "retailer", "price", "currency", "in_stock", "url", "checked_at"],
+      "properties": {
+        "country_code": { "$ref": "#/$defs/countryCode" },
+        "retailer": {
+          "description": "Retailer name; part of the offer natural key (compared case-sensitively).",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "pattern": "^\\S(?:.*\\S)?$"
+        },
+        "price": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 9999999999.99
+        },
+        "currency": {
+          "description": "ISO 4217 alphabetic code; must equal the country's currency.",
+          "type": "string",
+          "pattern": "^[A-Z]{3}$"
+        },
+        "in_stock": { "type": "boolean" },
+        "url": {
+          "description": "Absolute http or https URI of at most 2048 characters.",
+          "type": "string",
+          "format": "uri",
+          "maxLength": 2048,
+          "pattern": "^[Hh][Tt][Tt][Pp][Ss]?://[^\\s/?#]+(?:[/?#]\\S*)?$"
+        },
+        "checked_at": {
+          "description": "Time the price was checked (RFC 3339 with offset); must not be in the future.",
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,1309 @@
+openapi: 3.1.0
+info:
+  title: Vitadelta Scoring Service
+  version: 1.0.0
+  summary: Internal scoring engine for supplement content, value and pairwise marginal analysis.
+  description: |
+    Internal HTTP API of the scoring service. It is reachable only from the core API
+    on the internal network and is never exposed publicly.
+
+    Conventions:
+    - JSON property names are snake_case, except the `explanation.params` keys, which are
+      i18n template parameters and use camelCase.
+    - All amounts are already expressed in the nutrient's canonical unit. The service never
+      converts units; any nutrient whose `unit` differs from the registry's `canonical_unit`
+      is rejected with `422 validation_failed`.
+    - All money values are in the country's native currency. The service never converts
+      currency. Every candidate in one request carries the same `currency`.
+    - All numbers are returned as unrounded IEEE-754 doubles. Rounding happens only in the
+      core API's response assembly.
+    - Two numbers `x` and `y` are equal when `|x - y| <= comparison_epsilon * max(1, |x|, |y|)`.
+    - Medians: values sorted ascending; middle value for an odd count, mean of the two middle
+      values for an even count.
+    - Ordering: `breakdown` rows are sorted by nutrient `code` ascending (binary order);
+      `top_contributors` holds the first five breakdown rows by `contribution` descending, ties
+      broken by `code` ascending; `nutrient_deltas` rows are sorted by `code` ascending.
+      Equal inputs produce byte-identical JSON.
+    - Errors use RFC 9457 `application/problem+json`.
+servers:
+  - url: /internal/v1
+    description: Scoring service base path (internal network only)
+security: []
+tags:
+  - name: health
+    description: Liveness and engine configuration
+  - name: scoring
+    description: Content score, value score and ranking of a candidate set
+  - name: comparison
+    description: Pairwise marginal analysis of two products against a market rate
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      tags: [health]
+      summary: Liveness and engine configuration
+      description: Returns `UP` while the service can score requests, together with the engine configuration in effect.
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          description: Service is up.
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              examples:
+                defaults:
+                  summary: Default engine configuration
+                  value:
+                    status: UP
+                    config:
+                      diminishing_beta: 0.35
+                      utility_ceiling: 1.5
+                      comparison_epsilon: 1.0e-9
+                      verdict_worth_it_max_ratio: 1.0
+                      verdict_marginal_max_ratio: 1.5
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /score:
+    post:
+      operationId: scoreCandidates
+      tags: [scoring]
+      summary: Score and rank a candidate set
+      description: |
+        Normalises cost per day, resolves references (REGULATORY, MARKET_MEDIAN, PRESENCE_ONLY),
+        computes utilities with the diminishing-returns curve, the upper-limit cap and the
+        utility ceiling, applies the pre-scoring filters (`required_nutrients`, then
+        `exclude_exceeding_ul`), computes content and value scores and ranks the surviving
+        candidates by the requested mode. Returns one `ScoredProduct` per surviving candidate,
+        ordered by `rank`.
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScoreRequest'
+            examples:
+              gt1ValueMode:
+                $ref: '#/components/examples/Gt1ScoreRequest'
+      responses:
+        '200':
+          description: Scored and ranked candidates.
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScoreResponse'
+              examples:
+                gt1ValueMode:
+                  $ref: '#/components/examples/Gt1ScoreResponse'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /compare:
+    post:
+      operationId: compareProducts
+      tags: [comparison]
+      summary: Pairwise marginal analysis
+      description: |
+        Scores baseline, candidate and market, orders the pair so that A is the cheaper product
+        by `cost_per_day` (equal cost: lower `content_score`, then lower `product_id`), computes
+        `delta_cost`, `delta_content`, the market rate `m_ref`, `marginal_rate`, `ratio` and the
+        verdict, and returns per-nutrient delta rows and an i18n explanation. The result does not
+        depend on request order; `swapped` is true when A is not the request's baseline.
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompareRequest'
+            examples:
+              gt1:
+                $ref: '#/components/examples/Gt1CompareRequest'
+      responses:
+        '200':
+          description: Comparison result.
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompareResponse'
+              examples:
+                gt1:
+                  $ref: '#/components/examples/Gt1CompareResponse'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '500':
+          $ref: '#/components/responses/InternalError'
+components:
+  parameters:
+    RequestId:
+      name: X-Request-Id
+      in: header
+      required: false
+      description: Correlation id propagated by the core API. When absent or not matching the pattern, the service generates a new id.
+      schema:
+        type: string
+        pattern: '^[A-Za-z0-9-]{1,64}$'
+      example: 7f3c9b2e-1d4a-4c8e-9f61-2b0d5a7e8c13
+  headers:
+    XRequestId:
+      description: Correlation id of this request (the accepted incoming id or a newly generated one).
+      required: true
+      schema:
+        type: string
+        pattern: '^[A-Za-z0-9-]{1,64}$'
+  responses:
+    ValidationFailed:
+      description: The request violates a structural or semantic rule (`validation_failed`).
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/XRequestId'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            weightsAllZero:
+              summary: Every registry nutrient has weight 0
+              value:
+                type: https://vitadelta.dev/problems/validation_failed
+                title: Validation failed
+                status: 422
+                detail: The request contains invalid values.
+                instance: /internal/v1/score
+                requestId: 7f3c9b2e-1d4a-4c8e-9f61-2b0d5a7e8c13
+                errors:
+                  - field: weights
+                    code: weights_all_zero
+                    message: The weights make every registry nutrient 0.
+            unitMismatch:
+              summary: Candidate nutrient unit differs from the canonical unit
+              value:
+                type: https://vitadelta.dev/problems/validation_failed
+                title: Validation failed
+                status: 422
+                detail: The request contains invalid values.
+                instance: /internal/v1/score
+                requestId: 7f3c9b2e-1d4a-4c8e-9f61-2b0d5a7e8c13
+                errors:
+                  - field: candidates[0].nutrients[1].unit
+                    code: unit_mismatch
+                    message: Unit IU differs from the canonical unit mcg of VIT_D.
+    InternalError:
+      description: Unexpected server error (`internal_error`).
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/XRequestId'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            internalError:
+              value:
+                type: https://vitadelta.dev/problems/internal_error
+                title: Internal error
+                status: 500
+                detail: An unexpected error occurred.
+                instance: /internal/v1/compare
+                requestId: 7f3c9b2e-1d4a-4c8e-9f61-2b0d5a7e8c13
+  schemas:
+    NutrientCode:
+      type: string
+      description: Nutrient registry code (for example `VIT_C`, `OMEGA3_EPA`).
+      pattern: '^[A-Z][A-Z0-9_]{0,39}$'
+    FormCode:
+      type: string
+      description: Form registry code or a sentinel (`ANY` in reference rows, `UNKNOWN` in product rows).
+      pattern: '^[A-Z][A-Z0-9_]{0,39}$'
+    ProductId:
+      type: string
+      description: Product identifier assigned by the core API (a UUID string). Compared in binary string order for tie-breaks.
+      minLength: 1
+      maxLength: 64
+    CanonicalUnit:
+      type: string
+      description: Canonical unit of a nutrient in the registry.
+      enum: [mg, mcg]
+    NutrientCategory:
+      type: string
+      enum: [VITAMIN, MINERAL, COENZYME, OTHER]
+    CurrencyCode:
+      type: string
+      description: ISO 4217 alphabetic currency code.
+      pattern: '^[A-Z]{3}$'
+    RankingMode:
+      type: string
+      enum: [PRICE, RICHNESS, VALUE, CUSTOM]
+    ReferenceSource:
+      type: string
+      enum: [REGULATORY, MARKET_MEDIAN, PRESENCE_ONLY]
+    UlBasis:
+      type: string
+      enum: [TOTAL, SUPPLEMENTAL]
+    Verdict:
+      type: string
+      enum: [WORTH_IT, MARGINAL, NOT_WORTH_IT, DOMINATES, EQUIVALENT, INSUFFICIENT_DATA]
+    FlagCode:
+      type: string
+      description: |
+        Product-level safety and data flags.
+        - `EXCEEDS_UL`: a UL applies and the UL-relevant daily amount exceeds it (any reference source).
+        - `UL_FORM_DEPENDENT`: the UL set has only form-specific rows for the nutrient and none matches the product form.
+        - `CONVERSION_ASSUMED`: a nutrient amount was converted with an assumed form.
+        - `PRICE_STALE`: the selected offer is stale or out of stock.
+        - `OUT_OF_STOCK`: only out-of-stock offers exist for the product.
+        - `MARKET_MEDIAN_REFERENCE_USED`: at least one nutrient uses a market-median reference.
+        - `PRESENCE_ONLY_NUTRIENTS`: at least one nutrient is scored by presence only.
+        - `BELOW_PRESENCE_FLOOR`: at least one presence-only nutrient is below 10 % of its presence floor.
+      enum:
+        - EXCEEDS_UL
+        - UL_FORM_DEPENDENT
+        - CONVERSION_ASSUMED
+        - PRICE_STALE
+        - OUT_OF_STOCK
+        - MARKET_MEDIAN_REFERENCE_USED
+        - PRESENCE_ONLY_NUTRIENTS
+        - BELOW_PRESENCE_FLOOR
+    DeltaRowFlag:
+      type: string
+      description: |
+        Per-nutrient delta row flags. Rows with `delta_amount = 0` carry no flags.
+        - `NEW_IN_B`: absent in A and present in B.
+        - `REMOVED_IN_B`: present in A and absent in B.
+        - `DIMINISHING`: `delta_amount > 0` and `r_A >= 1`.
+        - `ABOVE_CEILING_NO_CREDIT`: `delta_amount > 0` and B's row has `capped_at_u_max = true`.
+        - `ABOVE_UL_NO_CREDIT`: `delta_amount > 0`, a UL applies and B's UL-relevant daily amount exceeds it.
+      enum: [NEW_IN_B, REMOVED_IN_B, DIMINISHING, ABOVE_CEILING_NO_CREDIT, ABOVE_UL_NO_CREDIT]
+    HealthResponse:
+      type: object
+      additionalProperties: false
+      required: [status, config]
+      properties:
+        status:
+          type: string
+          enum: [UP]
+        config:
+          $ref: '#/components/schemas/EngineConfig'
+    EngineConfig:
+      type: object
+      additionalProperties: false
+      required:
+        - diminishing_beta
+        - utility_ceiling
+        - comparison_epsilon
+        - verdict_worth_it_max_ratio
+        - verdict_marginal_max_ratio
+      properties:
+        diminishing_beta:
+          type: number
+          description: Slope `beta` of the logarithmic segment of the utility curve.
+          exclusiveMinimum: 0
+        utility_ceiling:
+          type: number
+          description: Utility ceiling `u_max`.
+          minimum: 1
+        comparison_epsilon:
+          type: number
+          description: Relative tolerance of the epsilon equality rule.
+          exclusiveMinimum: 0
+        verdict_worth_it_max_ratio:
+          type: number
+          description: Largest `ratio` that still yields `WORTH_IT`.
+          exclusiveMinimum: 0
+        verdict_marginal_max_ratio:
+          type: number
+          description: Largest `ratio` that still yields `MARGINAL`.
+          exclusiveMinimum: 0
+    RegistryNutrient:
+      type: object
+      description: Nutrient registry entry. The registry block must cover every nutrient code used anywhere in the request.
+      additionalProperties: false
+      required: [code, category, canonical_unit, presence_floor_per_day]
+      properties:
+        code:
+          $ref: '#/components/schemas/NutrientCode'
+        category:
+          $ref: '#/components/schemas/NutrientCategory'
+        canonical_unit:
+          $ref: '#/components/schemas/CanonicalUnit'
+        presence_floor_per_day:
+          description: Fallback daily amount (canonical unit) for the PRESENCE_ONLY minimum check; null when unknown, which skips the check.
+          type: [number, 'null']
+          exclusiveMinimum: 0
+    ReferenceValue:
+      type: object
+      description: Regulatory reference value of the country's reference set.
+      additionalProperties: false
+      required: [nutrient_code, amount, unit]
+      properties:
+        nutrient_code:
+          $ref: '#/components/schemas/NutrientCode'
+        amount:
+          type: number
+          exclusiveMinimum: 0
+        unit:
+          $ref: '#/components/schemas/CanonicalUnit'
+    UpperLimit:
+      type: object
+      description: |
+        Upper-limit row of the country's UL set. `form_code = ANY` applies to every product form,
+        including `UNKNOWN`. An exempt row (`amount`, `unit` and `basis` all null) marks a form
+        explicitly without a UL.
+      additionalProperties: false
+      required: [nutrient_code, form_code, amount, unit, basis]
+      properties:
+        nutrient_code:
+          $ref: '#/components/schemas/NutrientCode'
+        form_code:
+          allOf:
+            - $ref: '#/components/schemas/FormCode'
+            - not:
+                const: UNKNOWN
+        amount:
+          description: Daily limit in the canonical unit; null for an exempt row.
+          type: [number, 'null']
+          exclusiveMinimum: 0
+        unit:
+          description: Canonical unit of `amount`; null for an exempt row.
+          anyOf:
+            - $ref: '#/components/schemas/CanonicalUnit'
+            - type: 'null'
+        basis:
+          description: Basis of the limit; null for an exempt row. Both bases are applied to the supplement's UL-relevant daily amount.
+          anyOf:
+            - $ref: '#/components/schemas/UlBasis'
+            - type: 'null'
+    CategoryWeights:
+      type: object
+      additionalProperties: false
+      required: [VITAMIN, MINERAL, COENZYME, OTHER]
+      properties:
+        VITAMIN:
+          type: number
+          minimum: 0
+          maximum: 2
+          default: 1.0
+        MINERAL:
+          type: number
+          minimum: 0
+          maximum: 2
+          default: 1.0
+        COENZYME:
+          type: number
+          minimum: 0
+          maximum: 2
+          default: 0.8
+        OTHER:
+          type: number
+          minimum: 0
+          maximum: 2
+          default: 0.5
+    Weights:
+      type: object
+      description: |
+        `w_n = category_weights[category(n)] * overrides[n]` (override default 1.0). Override keys
+        must be registry codes of the request. Weights under which every registry nutrient has
+        `w_n = 0` are rejected with `weights_all_zero`.
+      additionalProperties: false
+      required: [category_weights]
+      properties:
+        category_weights:
+          $ref: '#/components/schemas/CategoryWeights'
+        overrides:
+          type: object
+          propertyNames:
+            $ref: '#/components/schemas/NutrientCode'
+          additionalProperties:
+            type: number
+            minimum: 0
+            maximum: 3
+          default: {}
+    Ranking:
+      type: object
+      additionalProperties: false
+      required: [mode]
+      properties:
+        mode:
+          $ref: '#/components/schemas/RankingMode'
+        lambda:
+          description: Weight of the content term in `CUSTOM` mode (default 0.5). Must be null or absent for every other mode (`lambda_requires_custom`).
+          type: [number, 'null']
+          minimum: 0
+          maximum: 1
+    RequiredNutrient:
+      type: object
+      description: The product must contain the nutrient with `amount_per_day > 0`, and at least `min_amount_per_day` when a minimum is given.
+      additionalProperties: false
+      required: [code]
+      dependentRequired:
+        min_amount_per_day: [unit]
+      properties:
+        code:
+          $ref: '#/components/schemas/NutrientCode'
+        min_amount_per_day:
+          description: Minimum daily amount in the canonical unit.
+          type: [number, 'null']
+          exclusiveMinimum: 0
+        unit:
+          description: Unit of `min_amount_per_day`; must equal the registry's canonical unit.
+          $ref: '#/components/schemas/CanonicalUnit'
+    MarketProfileNutrient:
+      type: object
+      additionalProperties: false
+      required: [code, amount_per_day]
+      properties:
+        code:
+          $ref: '#/components/schemas/NutrientCode'
+        amount_per_day:
+          type: number
+          exclusiveMinimum: 0
+    MarketProfileProduct:
+      type: object
+      additionalProperties: false
+      required: [product_id, nutrients]
+      properties:
+        product_id:
+          $ref: '#/components/schemas/ProductId'
+        nutrients:
+          type: array
+          items:
+            $ref: '#/components/schemas/MarketProfileNutrient'
+    MarketProfile:
+      type: object
+      description: |
+        Every product in market (AVAILABLE) in the request's country at `catalog_version`,
+        independent of stock, offers, required nutrients, weights and UL filters. Used for
+        MARKET_MEDIAN references (at least 3 products containing the nutrient). Products are
+        de-duplicated by `product_id`.
+      additionalProperties: false
+      required: [catalog_version, products]
+      properties:
+        catalog_version:
+          type: integer
+          format: int64
+          minimum: 0
+        products:
+          type: array
+          items:
+            $ref: '#/components/schemas/MarketProfileProduct'
+    CandidateNutrient:
+      type: object
+      additionalProperties: false
+      required: [code, amount_per_serving, unit, form_code, conversion_assumed]
+      properties:
+        code:
+          $ref: '#/components/schemas/NutrientCode'
+        amount_per_serving:
+          description: Amount per serving in the canonical unit.
+          type: number
+          exclusiveMinimum: 0
+        unit:
+          description: Must equal the registry's `canonical_unit` for `code` (`unit_mismatch` otherwise).
+          $ref: '#/components/schemas/CanonicalUnit'
+        ul_amount_per_serving:
+          description: UL-relevant amount per serving when it differs from `amount_per_serving` (`0 <= value <= amount_per_serving`); null or absent means the full amount is UL-relevant.
+          type: [number, 'null']
+          minimum: 0
+        form_code:
+          description: Product form of the UL-relevant part; `UNKNOWN` when the label form is not in the registry or not stated. `ANY` is not a valid product form.
+          allOf:
+            - $ref: '#/components/schemas/FormCode'
+            - not:
+                const: ANY
+        conversion_assumed:
+          type: boolean
+          description: True when the importer converted the amount with an assumed form.
+    Candidate:
+      type: object
+      description: |
+        One product with its effective price in one country. Constraints:
+        `units_per_serving >= 1`, `units_per_container >= units_per_serving`,
+        `servings_per_day > 0`, `effective_price > 0`, each nutrient code at most once.
+      additionalProperties: false
+      required:
+        - product_id
+        - units_per_container
+        - units_per_serving
+        - servings_per_day
+        - effective_price
+        - currency
+        - price_stale
+        - out_of_stock
+        - nutrients
+      properties:
+        product_id:
+          $ref: '#/components/schemas/ProductId'
+        units_per_container:
+          type: integer
+          minimum: 1
+        units_per_serving:
+          type: integer
+          minimum: 1
+        servings_per_day:
+          type: number
+          exclusiveMinimum: 0
+          maximum: 99.99
+        effective_price:
+          type: number
+          exclusiveMinimum: 0
+        currency:
+          $ref: '#/components/schemas/CurrencyCode'
+        price_stale:
+          type: boolean
+        out_of_stock:
+          type: boolean
+        nutrients:
+          type: array
+          items:
+            $ref: '#/components/schemas/CandidateNutrient'
+    ScoreRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - nutrients
+        - reference_values
+        - upper_limits
+        - weights
+        - ranking
+        - required_nutrients
+        - exclude_exceeding_ul
+        - market_profile
+        - candidates
+      properties:
+        nutrients:
+          type: array
+          description: Nutrient registry block; must cover every code used in the request (`unknown_nutrient_code` otherwise).
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/RegistryNutrient'
+        reference_values:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReferenceValue'
+        upper_limits:
+          type: array
+          items:
+            $ref: '#/components/schemas/UpperLimit'
+        weights:
+          $ref: '#/components/schemas/Weights'
+        ranking:
+          $ref: '#/components/schemas/Ranking'
+        required_nutrients:
+          type: array
+          items:
+            $ref: '#/components/schemas/RequiredNutrient'
+        exclude_exceeding_ul:
+          type: boolean
+        market_profile:
+          $ref: '#/components/schemas/MarketProfile'
+        candidates:
+          type: array
+          description: Scoreable candidates after the core API's availability and stock filtering; de-duplicated by `product_id`.
+          items:
+            $ref: '#/components/schemas/Candidate'
+    Cost:
+      type: object
+      additionalProperties: false
+      required:
+        - effective_price
+        - currency
+        - servings_per_container
+        - days_supply
+        - cost_per_day
+        - price_stale
+        - out_of_stock
+      properties:
+        effective_price:
+          type: number
+          x-money: true
+        currency:
+          $ref: '#/components/schemas/CurrencyCode'
+        servings_per_container:
+          type: number
+          description: '`units_per_container / units_per_serving`'
+        days_supply:
+          type: number
+          description: '`servings_per_container / servings_per_day`'
+        cost_per_day:
+          type: number
+          description: '`effective_price / days_supply`'
+          x-money: true
+        price_stale:
+          type: boolean
+        out_of_stock:
+          type: boolean
+    Flag:
+      type: object
+      additionalProperties: false
+      required: [code, nutrient_codes]
+      properties:
+        code:
+          $ref: '#/components/schemas/FlagCode'
+        nutrient_codes:
+          type: array
+          description: Affected nutrient codes, sorted ascending; empty for product-only flags (`PRICE_STALE`, `OUT_OF_STOCK`).
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/NutrientCode'
+    BreakdownRow:
+      type: object
+      additionalProperties: false
+      required:
+        - code
+        - category
+        - amount_per_day
+        - ul_amount_per_day
+        - unit
+        - reference
+        - reference_source
+        - coverage_ratio
+        - utility
+        - weight
+        - contribution
+        - capped_at_ul
+        - capped_at_u_max
+        - ul_below_reference
+        - below_presence_floor
+      properties:
+        code:
+          $ref: '#/components/schemas/NutrientCode'
+        category:
+          $ref: '#/components/schemas/NutrientCategory'
+        amount_per_day:
+          type: number
+        ul_amount_per_day:
+          type: number
+          description: UL-relevant daily amount (`ul_amount_per_serving * servings_per_day`, else `amount_per_day`).
+        unit:
+          $ref: '#/components/schemas/CanonicalUnit'
+        reference:
+          description: Resolved reference amount; null under PRESENCE_ONLY.
+          type: [number, 'null']
+        reference_source:
+          $ref: '#/components/schemas/ReferenceSource'
+        coverage_ratio:
+          description: Ratio `r` after the UL cap; null under PRESENCE_ONLY.
+          type: [number, 'null']
+        utility:
+          type: number
+          minimum: 0
+        weight:
+          type: number
+          minimum: 0
+        contribution:
+          type: number
+          description: '`weight * utility`'
+        capped_at_ul:
+          type: boolean
+          description: The UL cap reduced the creditable amount.
+        capped_at_u_max:
+          type: boolean
+          description: The utility ceiling `u_max` applied.
+        ul_below_reference:
+          type: boolean
+          description: The applicable UL is lower than the resolved reference.
+        below_presence_floor:
+          type: boolean
+          description: PRESENCE_ONLY row whose daily amount is below 10 % of `presence_floor_per_day` (utility 0).
+    ScoredProduct:
+      type: object
+      additionalProperties: false
+      required:
+        - product_id
+        - rank
+        - cost
+        - content_score
+        - content_score_display
+        - value_score
+        - value_score_display
+        - custom_score
+        - flags
+        - breakdown
+        - top_contributors
+      properties:
+        product_id:
+          $ref: '#/components/schemas/ProductId'
+        rank:
+          type: integer
+          minimum: 1
+        cost:
+          $ref: '#/components/schemas/Cost'
+        content_score:
+          type: number
+          description: Raw content score `C`.
+          minimum: 0
+        content_score_display:
+          type: number
+          description: '`100 * C / max(C)` over the surviving set; 0 when `max(C) = 0`.'
+          minimum: 0
+          maximum: 100
+        value_score:
+          type: number
+          description: '`V = C / cost_per_day`, per unit of the native currency.'
+          minimum: 0
+        value_score_display:
+          type: number
+          description: '`100 * V / max(V)` over the surviving set; 0 when `max(V) = 0`.'
+          minimum: 0
+          maximum: 100
+        custom_score:
+          description: '`S` in CUSTOM mode; null for every other mode.'
+          type: [number, 'null']
+          minimum: 0
+          maximum: 1
+        flags:
+          type: array
+          description: Sorted by `code` in enum order; each code at most once.
+          items:
+            $ref: '#/components/schemas/Flag'
+        breakdown:
+          type: array
+          items:
+            $ref: '#/components/schemas/BreakdownRow'
+        top_contributors:
+          type: array
+          maxItems: 5
+          items:
+            $ref: '#/components/schemas/BreakdownRow'
+    ExcludedCounts:
+      type: object
+      description: Candidates removed by the pre-scoring filters, counted in filter order.
+      additionalProperties: false
+      required: [required_nutrients, exceeds_ul]
+      properties:
+        required_nutrients:
+          type: integer
+          minimum: 0
+          description: Removed by `required_nutrients`.
+        exceeds_ul:
+          type: integer
+          minimum: 0
+          description: Removed by `exclude_exceeding_ul`.
+    ScoreMeta:
+      type: object
+      additionalProperties: false
+      required: [m_ref, market_size, excluded]
+      properties:
+        m_ref:
+          description: Median of `cost_per_day / C` over the candidate set before the required-nutrient and UL filters (products with `C > 0`); fewer than 3 such products or none yields null.
+          type: [number, 'null']
+          x-money: true
+        market_size:
+          type: integer
+          minimum: 0
+          description: De-duplicated number of candidates before the pre-scoring filters.
+        excluded:
+          $ref: '#/components/schemas/ExcludedCounts'
+    ScoreResponse:
+      type: object
+      additionalProperties: false
+      required: [items, meta]
+      properties:
+        items:
+          type: array
+          description: Surviving candidates ordered by `rank`.
+          items:
+            $ref: '#/components/schemas/ScoredProduct'
+        meta:
+          $ref: '#/components/schemas/ScoreMeta'
+    CompareRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - baseline
+        - candidate
+        - market
+        - market_profile
+        - nutrients
+        - reference_values
+        - upper_limits
+        - weights
+      properties:
+        baseline:
+          $ref: '#/components/schemas/Candidate'
+        candidate:
+          $ref: '#/components/schemas/Candidate'
+        market:
+          type: array
+          description: Full scoreable candidate set of the country under the request's stock filter, including baseline and candidate. The service de-duplicates by `product_id` and adds A or B when missing.
+          items:
+            $ref: '#/components/schemas/Candidate'
+        market_profile:
+          $ref: '#/components/schemas/MarketProfile'
+        nutrients:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/RegistryNutrient'
+        reference_values:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReferenceValue'
+        upper_limits:
+          type: array
+          items:
+            $ref: '#/components/schemas/UpperLimit'
+        weights:
+          $ref: '#/components/schemas/Weights'
+    ComparedProduct:
+      type: object
+      description: One side of the comparison, scored against the request's market.
+      additionalProperties: false
+      required: [product_id, cost, content_score, value_score, flags, breakdown]
+      properties:
+        product_id:
+          $ref: '#/components/schemas/ProductId'
+        cost:
+          $ref: '#/components/schemas/Cost'
+        content_score:
+          type: number
+          minimum: 0
+        value_score:
+          type: number
+          minimum: 0
+        flags:
+          type: array
+          items:
+            $ref: '#/components/schemas/Flag'
+        breakdown:
+          type: array
+          items:
+            $ref: '#/components/schemas/BreakdownRow'
+    NutrientDeltaRow:
+      type: object
+      description: Per-nutrient delta over the union of nutrients in A and B. Amounts are daily amounts; an absent nutrient has amount 0 and utility 0.
+      additionalProperties: false
+      required:
+        - code
+        - category
+        - amount_A
+        - amount_B
+        - delta_amount
+        - unit
+        - r_A
+        - r_B
+        - u_A
+        - u_B
+        - weight
+        - delta_contribution
+        - flags
+      properties:
+        code:
+          $ref: '#/components/schemas/NutrientCode'
+        category:
+          $ref: '#/components/schemas/NutrientCategory'
+        amount_A:
+          type: number
+          minimum: 0
+        amount_B:
+          type: number
+          minimum: 0
+        delta_amount:
+          type: number
+          description: '`amount_B - amount_A`; 0 under the epsilon rule is reported as exactly 0.'
+        unit:
+          $ref: '#/components/schemas/CanonicalUnit'
+        r_A:
+          description: Coverage ratio of A; null under PRESENCE_ONLY.
+          type: [number, 'null']
+        r_B:
+          description: Coverage ratio of B; null under PRESENCE_ONLY.
+          type: [number, 'null']
+        u_A:
+          type: number
+          minimum: 0
+        u_B:
+          type: number
+          minimum: 0
+        weight:
+          type: number
+          minimum: 0
+        delta_contribution:
+          type: number
+          description: '`weight * (u_B - u_A)`'
+        flags:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/DeltaRowFlag'
+    ExplanationParams:
+      type: object
+      description: |
+        i18n template parameters. Money-typed parameters are marked with `x-money: true`; the
+        core API converts them with the other money fields and rewrites `currency`.
+        Parameters whose value is null are omitted.
+      additionalProperties: false
+      required: [currency]
+      properties:
+        currency:
+          $ref: '#/components/schemas/CurrencyCode'
+        deltaCostPerDay:
+          type: number
+          x-money: true
+        deltaContent:
+          type: number
+        marginalRate:
+          type: number
+          x-money: true
+        mRef:
+          type: number
+          x-money: true
+        ratio:
+          type: number
+    Explanation:
+      type: object
+      additionalProperties: false
+      required: [key, params]
+      properties:
+        key:
+          type: string
+          enum:
+            - explain.verdict.worth_it
+            - explain.verdict.marginal
+            - explain.verdict.not_worth_it
+            - explain.verdict.dominates
+            - explain.verdict.equivalent
+            - explain.verdict.insufficient_data
+        params:
+          $ref: '#/components/schemas/ExplanationParams'
+    CompareResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - a
+        - b
+        - swapped
+        - currency
+        - delta_cost
+        - delta_content
+        - m_ref
+        - market_size
+        - marginal_rate
+        - ratio
+        - verdict
+        - nutrient_deltas
+        - explanation
+      properties:
+        a:
+          $ref: '#/components/schemas/ComparedProduct'
+        b:
+          $ref: '#/components/schemas/ComparedProduct'
+        swapped:
+          type: boolean
+          description: True when A is not the request's baseline.
+        currency:
+          $ref: '#/components/schemas/CurrencyCode'
+        delta_cost:
+          type: number
+          minimum: 0
+          description: '`cost_per_day_B - cost_per_day_A`; 0 under the epsilon rule is reported as exactly 0.'
+          x-money: true
+        delta_content:
+          type: number
+          description: '`C_B - C_A`; non-negative when `delta_cost = 0`.'
+        m_ref:
+          description: Market rate (median of `cost_per_day / C` over market products with `C > 0`; with fewer than 3 such products `cost_per_day_A / C_A`; null when that is undefined).
+          type: [number, 'null']
+          x-money: true
+        market_size:
+          type: integer
+          minimum: 2
+          description: De-duplicated size of the market including A and B.
+        marginal_rate:
+          description: '`delta_cost / delta_content`; null unless `delta_cost > 0`, `delta_content > 0` and `m_ref` is not null.'
+          type: [number, 'null']
+          x-money: true
+        ratio:
+          description: '`marginal_rate / m_ref`; null under the same conditions as `marginal_rate`.'
+          type: [number, 'null']
+        verdict:
+          $ref: '#/components/schemas/Verdict'
+        nutrient_deltas:
+          type: array
+          items:
+            $ref: '#/components/schemas/NutrientDeltaRow'
+        explanation:
+          $ref: '#/components/schemas/Explanation'
+    ValidationError:
+      type: object
+      additionalProperties: false
+      required: [field, code, message]
+      properties:
+        field:
+          type: string
+          description: JSON path of the offending value (for example `candidates[0].nutrients[1].unit`).
+        code:
+          type: string
+          description: |
+            Machine-readable error code. Values used by this service: `required`, `invalid_type`,
+            `out_of_range`, `invalid_format`, `unknown_field`, `unknown_nutrient_code`,
+            `unit_mismatch`, `duplicate_nutrient`, `duplicate_registry_code`,
+            `container_smaller_than_serving`, `ul_amount_exceeds_amount`, `currency_mismatch`,
+            `lambda_requires_custom`, `weights_all_zero`.
+          pattern: '^[a-z][a-z0-9_]{0,63}$'
+        message:
+          type: string
+    Problem:
+      type: object
+      description: RFC 9457 problem details.
+      required: [type, title, status, requestId]
+      properties:
+        type:
+          type: string
+          format: uri
+          description: '`https://vitadelta.dev/problems/<code>`'
+        title:
+          type: string
+        status:
+          type: integer
+          minimum: 400
+          maximum: 599
+        detail:
+          type: string
+        instance:
+          type: string
+          format: uri-reference
+        requestId:
+          type: string
+          pattern: '^[A-Za-z0-9-]{1,64}$'
+        errors:
+          type: array
+          description: Present for `validation_failed`.
+          items:
+            $ref: '#/components/schemas/ValidationError'
+  examples:
+    Gt1ScoreRequest:
+      summary: GT-1 canonical pair (TR, EU_NRV / EFSA, default weights, VALUE mode)
+      value:
+        nutrients:
+          - {code: MAGNESIUM, category: MINERAL, canonical_unit: mg, presence_floor_per_day: null}
+          - {code: VIT_B12, category: VITAMIN, canonical_unit: mcg, presence_floor_per_day: null}
+          - {code: VIT_C, category: VITAMIN, canonical_unit: mg, presence_floor_per_day: null}
+          - {code: VIT_D, category: VITAMIN, canonical_unit: mcg, presence_floor_per_day: null}
+          - {code: ZINC, category: MINERAL, canonical_unit: mg, presence_floor_per_day: null}
+        reference_values:
+          - {nutrient_code: VIT_C, amount: 80, unit: mg}
+          - {nutrient_code: VIT_D, amount: 5, unit: mcg}
+          - {nutrient_code: VIT_B12, amount: 2.5, unit: mcg}
+          - {nutrient_code: ZINC, amount: 10, unit: mg}
+          - {nutrient_code: MAGNESIUM, amount: 375, unit: mg}
+        upper_limits:
+          - {nutrient_code: VIT_D, form_code: ANY, amount: 100, unit: mcg, basis: TOTAL}
+          - {nutrient_code: ZINC, form_code: ANY, amount: 25, unit: mg, basis: TOTAL}
+          - {nutrient_code: MAGNESIUM, form_code: ANY, amount: 250, unit: mg, basis: SUPPLEMENTAL}
+          - {nutrient_code: VIT_A, form_code: BETA_CAROTENE, amount: null, unit: null, basis: null}
+        weights:
+          category_weights: {VITAMIN: 1.0, MINERAL: 1.0, COENZYME: 0.8, OTHER: 0.5}
+          overrides: {}
+        ranking: {mode: VALUE, lambda: null}
+        required_nutrients: []
+        exclude_exceeding_ul: false
+        market_profile:
+          catalog_version: 42
+          products:
+            - product_id: 6a0f4c1e-2b7d-4e59-8c3a-1d2e3f4a5b01
+              nutrients:
+                - {code: MAGNESIUM, amount_per_day: 100}
+                - {code: VIT_B12, amount_per_day: 2.5}
+                - {code: VIT_C, amount_per_day: 300}
+                - {code: VIT_D, amount_per_day: 10}
+                - {code: ZINC, amount_per_day: 10}
+            - product_id: 6a0f4c1e-2b7d-4e59-8c3a-1d2e3f4a5b02
+              nutrients:
+                - {code: MAGNESIUM, amount_per_day: 100}
+                - {code: VIT_B12, amount_per_day: 2.5}
+                - {code: VIT_C, amount_per_day: 350}
+                - {code: VIT_D, amount_per_day: 10}
+                - {code: ZINC, amount_per_day: 10}
+        candidates:
+          - &goldA
+            product_id: 6a0f4c1e-2b7d-4e59-8c3a-1d2e3f4a5b01
+            units_per_container: 60
+            units_per_serving: 1
+            servings_per_day: 1
+            effective_price: 800.00
+            currency: TRY
+            price_stale: false
+            out_of_stock: false
+            nutrients:
+              - {code: VIT_C, amount_per_serving: 300, unit: mg, form_code: UNKNOWN, conversion_assumed: false}
+              - {code: VIT_D, amount_per_serving: 10, unit: mcg, form_code: D3_CHOLECALCIFEROL, conversion_assumed: false}
+              - {code: VIT_B12, amount_per_serving: 2.5, unit: mcg, form_code: CYANOCOBALAMIN, conversion_assumed: false}
+              - {code: ZINC, amount_per_serving: 10, unit: mg, form_code: ZINC_GLUCONATE, conversion_assumed: false}
+              - {code: MAGNESIUM, amount_per_serving: 100, unit: mg, form_code: MAGNESIUM_CITRATE, conversion_assumed: false}
+          - &goldB
+            product_id: 6a0f4c1e-2b7d-4e59-8c3a-1d2e3f4a5b02
+            units_per_container: 60
+            units_per_serving: 1
+            servings_per_day: 1
+            effective_price: 900.00
+            currency: TRY
+            price_stale: false
+            out_of_stock: false
+            nutrients:
+              - {code: VIT_C, amount_per_serving: 350, unit: mg, form_code: UNKNOWN, conversion_assumed: false}
+              - {code: VIT_D, amount_per_serving: 10, unit: mcg, form_code: D3_CHOLECALCIFEROL, conversion_assumed: false}
+              - {code: VIT_B12, amount_per_serving: 2.5, unit: mcg, form_code: CYANOCOBALAMIN, conversion_assumed: false}
+              - {code: ZINC, amount_per_serving: 10, unit: mg, form_code: ZINC_GLUCONATE, conversion_assumed: false}
+              - {code: MAGNESIUM, amount_per_serving: 100, unit: mg, form_code: MAGNESIUM_CITRATE, conversion_assumed: false}
+    Gt1ScoreResponse:
+      summary: GT-1 result in VALUE mode (GOLD-A ranks 1, GOLD-B ranks 2)
+      value:
+        items:
+          - product_id: 6a0f4c1e-2b7d-4e59-8c3a-1d2e3f4a5b01
+            rank: 1
+            cost: &costA
+              effective_price: 800.0
+              currency: TRY
+              servings_per_container: 60.0
+              days_supply: 60.0
+              cost_per_day: 13.333333333333334
+              price_stale: false
+              out_of_stock: false
+            content_score: 4.971882723856459
+            content_score_display: 99.25367429604829
+            value_score: 0.37289120428923445
+            value_score_display: 100.0
+            custom_score: null
+            flags: []
+            breakdown: &breakdownA
+              - &mgRow {code: MAGNESIUM, category: MINERAL, amount_per_day: 100.0, ul_amount_per_day: 100.0, unit: mg, reference: 375.0, reference_source: REGULATORY, coverage_ratio: 0.26666666666666666, utility: 0.26666666666666666, weight: 1.0, contribution: 0.26666666666666666, capped_at_ul: false, capped_at_u_max: false, ul_below_reference: true, below_presence_floor: false}
+              - &b12Row {code: VIT_B12, category: VITAMIN, amount_per_day: 2.5, ul_amount_per_day: 2.5, unit: mcg, reference: 2.5, reference_source: REGULATORY, coverage_ratio: 1.0, utility: 1.0, weight: 1.0, contribution: 1.0, capped_at_ul: false, capped_at_u_max: false, ul_below_reference: false, below_presence_floor: false}
+              - &vitCRowA {code: VIT_C, category: VITAMIN, amount_per_day: 300.0, ul_amount_per_day: 300.0, unit: mg, reference: 80.0, reference_source: REGULATORY, coverage_ratio: 3.75, utility: 1.4626145439938119, weight: 1.0, contribution: 1.4626145439938119, capped_at_ul: false, capped_at_u_max: false, ul_below_reference: false, below_presence_floor: false}
+              - &vitDRow {code: VIT_D, category: VITAMIN, amount_per_day: 10.0, ul_amount_per_day: 10.0, unit: mcg, reference: 5.0, reference_source: REGULATORY, coverage_ratio: 2.0, utility: 1.242601513195981, weight: 1.0, contribution: 1.242601513195981, capped_at_ul: false, capped_at_u_max: false, ul_below_reference: false, below_presence_floor: false}
+              - &znRow {code: ZINC, category: MINERAL, amount_per_day: 10.0, ul_amount_per_day: 10.0, unit: mg, reference: 10.0, reference_source: REGULATORY, coverage_ratio: 1.0, utility: 1.0, weight: 1.0, contribution: 1.0, capped_at_ul: false, capped_at_u_max: false, ul_below_reference: false, below_presence_floor: false}
+            top_contributors:
+              - *vitCRowA
+              - *vitDRow
+              - *b12Row
+              - *znRow
+              - *mgRow
+          - product_id: 6a0f4c1e-2b7d-4e59-8c3a-1d2e3f4a5b02
+            rank: 2
+            cost: &costB
+              effective_price: 900.0
+              currency: TRY
+              servings_per_container: 60.0
+              days_supply: 60.0
+              cost_per_day: 15.0
+              price_stale: false
+              out_of_stock: false
+            content_score: 5.009268179862648
+            content_score_display: 100.0
+            value_score: 0.3339512119908432
+            value_score_display: 89.55727787341766
+            custom_score: null
+            flags: []
+            breakdown: &breakdownB
+              - *mgRow
+              - *b12Row
+              - &vitCRowB {code: VIT_C, category: VITAMIN, amount_per_day: 350.0, ul_amount_per_day: 350.0, unit: mg, reference: 80.0, reference_source: REGULATORY, coverage_ratio: 4.375, utility: 1.5, weight: 1.0, contribution: 1.5, capped_at_ul: false, capped_at_u_max: true, ul_below_reference: false, below_presence_floor: false}
+              - *vitDRow
+              - *znRow
+            top_contributors:
+              - *vitCRowB
+              - *vitDRow
+              - *b12Row
+              - *znRow
+              - *mgRow
+        meta:
+          m_ref: 2.6817473528400697
+          market_size: 2
+          excluded: {required_nutrients: 0, exceeds_ul: 0}
+    Gt1CompareRequest:
+      summary: GT-1 compare, baseline GOLD-A, candidate GOLD-B, market of two
+      value:
+        baseline: *goldA
+        candidate: *goldB
+        market: [*goldA, *goldB]
+        market_profile:
+          catalog_version: 42
+          products:
+            - product_id: 6a0f4c1e-2b7d-4e59-8c3a-1d2e3f4a5b01
+              nutrients:
+                - {code: MAGNESIUM, amount_per_day: 100}
+                - {code: VIT_B12, amount_per_day: 2.5}
+                - {code: VIT_C, amount_per_day: 300}
+                - {code: VIT_D, amount_per_day: 10}
+                - {code: ZINC, amount_per_day: 10}
+            - product_id: 6a0f4c1e-2b7d-4e59-8c3a-1d2e3f4a5b02
+              nutrients:
+                - {code: MAGNESIUM, amount_per_day: 100}
+                - {code: VIT_B12, amount_per_day: 2.5}
+                - {code: VIT_C, amount_per_day: 350}
+                - {code: VIT_D, amount_per_day: 10}
+                - {code: ZINC, amount_per_day: 10}
+        nutrients:
+          - {code: MAGNESIUM, category: MINERAL, canonical_unit: mg, presence_floor_per_day: null}
+          - {code: VIT_B12, category: VITAMIN, canonical_unit: mcg, presence_floor_per_day: null}
+          - {code: VIT_C, category: VITAMIN, canonical_unit: mg, presence_floor_per_day: null}
+          - {code: VIT_D, category: VITAMIN, canonical_unit: mcg, presence_floor_per_day: null}
+          - {code: ZINC, category: MINERAL, canonical_unit: mg, presence_floor_per_day: null}
+        reference_values:
+          - {nutrient_code: VIT_C, amount: 80, unit: mg}
+          - {nutrient_code: VIT_D, amount: 5, unit: mcg}
+          - {nutrient_code: VIT_B12, amount: 2.5, unit: mcg}
+          - {nutrient_code: ZINC, amount: 10, unit: mg}
+          - {nutrient_code: MAGNESIUM, amount: 375, unit: mg}
+        upper_limits:
+          - {nutrient_code: VIT_D, form_code: ANY, amount: 100, unit: mcg, basis: TOTAL}
+          - {nutrient_code: ZINC, form_code: ANY, amount: 25, unit: mg, basis: TOTAL}
+          - {nutrient_code: MAGNESIUM, form_code: ANY, amount: 250, unit: mg, basis: SUPPLEMENTAL}
+        weights:
+          category_weights: {VITAMIN: 1.0, MINERAL: 1.0, COENZYME: 0.8, OTHER: 0.5}
+          overrides: {}
+    Gt1CompareResponse:
+      summary: GT-1 compare result (NOT_WORTH_IT, ratio about 16.62, not swapped)
+      value:
+        a:
+          product_id: 6a0f4c1e-2b7d-4e59-8c3a-1d2e3f4a5b01
+          cost: *costA
+          content_score: 4.971882723856459
+          value_score: 0.37289120428923445
+          flags: []
+          breakdown: *breakdownA
+        b:
+          product_id: 6a0f4c1e-2b7d-4e59-8c3a-1d2e3f4a5b02
+          cost: *costB
+          content_score: 5.009268179862648
+          value_score: 0.3339512119908432
+          flags: []
+          breakdown: *breakdownB
+        swapped: false
+        currency: TRY
+        delta_cost: 1.666666666666666
+        delta_content: 0.03738545600618881
+        m_ref: 2.6817473528400697
+        market_size: 2
+        marginal_rate: 44.580616226555186
+        ratio: 16.623719672676348
+        verdict: NOT_WORTH_IT
+        nutrient_deltas:
+          - {code: MAGNESIUM, category: MINERAL, amount_A: 100.0, amount_B: 100.0, delta_amount: 0, unit: mg, r_A: 0.26666666666666666, r_B: 0.26666666666666666, u_A: 0.26666666666666666, u_B: 0.26666666666666666, weight: 1.0, delta_contribution: 0.0, flags: []}
+          - {code: VIT_B12, category: VITAMIN, amount_A: 2.5, amount_B: 2.5, delta_amount: 0, unit: mcg, r_A: 1.0, r_B: 1.0, u_A: 1.0, u_B: 1.0, weight: 1.0, delta_contribution: 0.0, flags: []}
+          - {code: VIT_C, category: VITAMIN, amount_A: 300.0, amount_B: 350.0, delta_amount: 50.0, unit: mg, r_A: 3.75, r_B: 4.375, u_A: 1.4626145439938119, u_B: 1.5, weight: 1.0, delta_contribution: 0.037385456006188145, flags: [DIMINISHING, ABOVE_CEILING_NO_CREDIT]}
+          - {code: VIT_D, category: VITAMIN, amount_A: 10.0, amount_B: 10.0, delta_amount: 0, unit: mcg, r_A: 2.0, r_B: 2.0, u_A: 1.242601513195981, u_B: 1.242601513195981, weight: 1.0, delta_contribution: 0.0, flags: []}
+          - {code: ZINC, category: MINERAL, amount_A: 10.0, amount_B: 10.0, delta_amount: 0, unit: mg, r_A: 1.0, r_B: 1.0, u_A: 1.0, u_B: 1.0, weight: 1.0, delta_contribution: 0.0, flags: []}
+        explanation:
+          key: explain.verdict.not_worth_it
+          params:
+            currency: TRY
+            deltaCostPerDay: 1.666666666666666
+            deltaContent: 0.03738545600618881
+            marginalRate: 44.580616226555186
+            mRef: 2.6817473528400697
+            ratio: 16.623719672676348
