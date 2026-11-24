@@ -215,6 +215,7 @@ public class AuthService {
     transactions.executeWithoutResult(status -> {
       Instant now = clock.instant();
       UUID userId = consumed(emailTokens.consume(token, Kind.RESET_PASSWORD, now));
+      users.findByIdForUpdate(userId);
       users.updatePassword(userId, passwordHash, now);
       emailTokens.invalidateAll(userId, Kind.RESET_PASSWORD, now);
       refreshTokens.revokeAllForUser(userId);
@@ -235,28 +236,42 @@ public class AuthService {
   /** Logs in and starts a new refresh-token family. */
   public Session login(LoginRequest request, String userAgent) {
     String email = Emails.normalize(request.email());
-    throttle.checkAllowed(email);
-    Optional<UserAccount> found = users.findByEmail(email);
-    if (found.isEmpty()) {
-      hasher.verifyAgainstDummy(request.password());
-      throttle.recordFailure(email);
-      throw invalidCredentials();
+    LoginThrottle.Attempt attempt = throttle.begin(email);
+    try {
+      Optional<UserAccount> found = users.findByEmail(email);
+      if (found.isEmpty()) {
+        hasher.verifyAgainstDummy(request.password());
+        attempt.failed();
+        throw invalidCredentials();
+      }
+      UserAccount verified = found.get();
+      if (!hasher.matches(request.password(), verified.passwordHash())) {
+        attempt.failed();
+        throw invalidCredentials();
+      }
+      Session session =
+          transactions.execute(status -> {
+            UserAccount user =
+                users
+                    .findByIdForUpdate(verified.id())
+                    .filter(current -> current.passwordHash().equals(verified.passwordHash()))
+                    .orElse(null);
+            if (user == null) {
+              attempt.failed();
+              throw invalidCredentials();
+            }
+            attempt.succeeded();
+            if (user.status() == UserStatus.DISABLED) {
+              throw ProblemException.of(ProblemCode.ACCOUNT_DISABLED, "The account is disabled.");
+            }
+            users.markLoggedIn(user.id(), clock.instant());
+            String refreshToken = refreshTokens.issueNewFamily(user.id(), userAgent);
+            return new Session(user, issueAccessToken(user), refreshToken);
+          });
+      return session;
+    } finally {
+      attempt.release();
     }
-    UserAccount user = found.get();
-    if (!hasher.matches(request.password(), user.passwordHash())) {
-      throttle.recordFailure(email);
-      throw invalidCredentials();
-    }
-    throttle.recordSuccess(email);
-    if (user.status() == UserStatus.DISABLED) {
-      throw ProblemException.of(ProblemCode.ACCOUNT_DISABLED, "The account is disabled.");
-    }
-    String refreshToken =
-        transactions.execute(status -> {
-          users.markLoggedIn(user.id(), clock.instant());
-          return refreshTokens.issueNewFamily(user.id(), userAgent);
-        });
-    return new Session(user, issueAccessToken(user), refreshToken);
   }
 
   static ProblemException invalidCredentials() {
