@@ -81,6 +81,7 @@ class AuthServiceTest {
             clock.instant(),
             clock.instant());
     when(users.findByEmail("someone@example.org")).thenReturn(Optional.of(user));
+    when(users.findByIdForUpdate(user.id())).thenReturn(Optional.of(user));
     when(hasher.matches("wrong", "$argon2id$stored")).thenReturn(false);
     when(hasher.matches("right-password", "$argon2id$stored")).thenReturn(true);
     AuthService auth = service();

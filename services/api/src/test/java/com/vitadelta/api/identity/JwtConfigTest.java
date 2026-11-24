@@ -131,4 +131,14 @@ class JwtConfigTest {
     clock.advance(Duration.ofMinutes(17));
     assertThatThrownBy(() -> decoder.decode(token)).isInstanceOf(JwtException.class);
   }
+
+  @Test
+  void tokensAreRejectedTheSecondTheyExpireWithoutClockSkew() {
+    JwtDecoder decoder = decoder(current, null);
+    String token = issuer(current).issue(UUID.randomUUID(), Role.USER, true).value();
+    clock.advance(AccessTokenService.LIFETIME.minusSeconds(1));
+    assertThat(decoder.decode(token).getSubject()).isNotBlank();
+    clock.advance(Duration.ofSeconds(2));
+    assertThatThrownBy(() -> decoder.decode(token)).isInstanceOf(JwtException.class);
+  }
 }
