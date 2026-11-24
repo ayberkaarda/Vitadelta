@@ -26,6 +26,14 @@ A recommendation query or a pairwise comparison needs the scoring result before 
 - **No resources held across the call:** catalog data for the scoring input is read in a separate read-only transaction that is closed before the call; no database connection or transaction is held while waiting for the scoring service.
 - Circuit-breaker state and scoring latency are exposed as metrics.
 
+Implemented (Phase 4):
+
+- The client is generated from `contracts/scoring-api.openapi.yaml` at build time and runs on the JDK HTTP client (HTTP/1.1, no redirects) with the timeouts above.
+- Retry: 2 attempts in total (one retry) with a 100 ms wait, only for connection errors (connect failure, connect timeout, unknown host, no route). Read timeouts, resets and every HTTP status are not retried. The retry wraps the circuit breaker, so every attempt is recorded.
+- Circuit breaker: count-based window of 20 calls, minimum 20 calls, 50 % failure threshold, 30 s open, 10 permitted calls in the half-open state (the Resilience4j default). Only unavailability counts as a failure (I/O errors and 5xx answers); 4xx answers are ignored.
+- Cache hits are served while the circuit is open; the ranking cache holds 500 entries for 10 minutes. Anything else answers `503 scoring_unavailable`.
+- A reserved anonymous quota unit is refunded on any failure after the reservation.
+
 ## Consequences
 
 - Worst-case latency of a failing call is bounded (connect timeout plus one retry, or the read timeout), and an outage of the scoring service degrades to fast `503` responses once the circuit opens.
