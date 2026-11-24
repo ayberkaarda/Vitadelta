@@ -1,0 +1,4 @@
+# Profile used by scripts/seed.sh: loads reference data and fixtures, then exits.
+spring:
+  main:
+    web-application-type: none
