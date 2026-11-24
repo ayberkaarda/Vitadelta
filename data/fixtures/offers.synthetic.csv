@@ -1,0 +1,68 @@
+product_code,country_code,retailer,price,currency,in_stock,url,checked_at
+GOLD-A,TR,Fixture Pharmacy,800.00,TRY,true,https://fixture-pharmacy.example/tr/p/gold-a,2026-11-21T09:00:00Z
+GOLD-A,TR,Anatolia Wellness Depot,845.50,TRY,true,https://anatolia-wellness.example/tr/p/gold-a,2026-11-22T14:30:00Z
+GOLD-B,TR,Fixture Pharmacy,900.00,TRY,true,https://fixture-pharmacy.example/tr/p/gold-b,2026-11-21T09:00:00Z
+GOLD-B,TR,"Kadikoy Health Corner, Moda",949.90,TRY,false,https://kadikoy-health.example/tr/p/gold-b,2026-11-20T07:45:00Z
+ZN40,TR,Fixture Pharmacy,240.00,TRY,true,https://fixture-pharmacy.example/tr/p/zn40,2026-11-21T09:00:00Z
+ZN40,TR,Anatolia Wellness Depot,259.90,TRY,true,https://anatolia-wellness.example/tr/p/zn40,2026-11-23T08:15:00Z
+BH-DAILY,TR,Fixture Pharmacy,349.90,TRY,true,https://fixture-pharmacy.example/tr/p/bh-daily,2026-11-21T09:00:00Z
+BH-DAILY,TR,Anatolia Wellness Depot,329.00,TRY,true,https://anatolia-wellness.example/tr/p/bh-daily,2026-11-22T14:30:00Z
+BH-DAILY,TR,"Kadikoy Health Corner, Moda",359.90,TRY,false,https://kadikoy-health.example/tr/p/bh-daily,2026-11-20T07:45:00Z
+BH-COQ10-100,TR,Anatolia Wellness Depot,649.90,TRY,true,https://anatolia-wellness.example/tr/p/bh-coq10-100,2026-11-22T14:30:00Z
+BH-COQ10-100,TR,"Kadikoy Health Corner, Moda",689.00,TRY,true,https://kadikoy-health.example/tr/p/bh-coq10-100,2026-11-20T07:45:00Z
+BH-FAMILY-GUMMY,TR,Fixture Pharmacy,329.90,TRY,false,https://fixture-pharmacy.example/tr/p/bh-family-gummy,2026-11-21T09:00:00Z
+BH-FAMILY-GUMMY,TR,Anatolia Wellness Depot,344.00,TRY,false,https://anatolia-wellness.example/tr/p/bh-family-gummy,2026-11-22T14:30:00Z
+BH-MAG-B6,TR,Anatolia Wellness Depot,289.90,TRY,false,https://anatolia-wellness.example/tr/p/bh-mag-b6,2026-11-22T14:30:00Z
+FL-VISION-30,TR,Fixture Pharmacy,579.90,TRY,true,https://fixture-pharmacy.example/tr/p/fl-vision-30,2026-11-21T09:00:00Z
+FL-VISION-30,DE,Lindenhof Online Pharmacy,19.95,EUR,true,https://lindenhof-pharmacy.example/de/p/fl-vision-30,2026-11-23T08:15:00Z
+FL-VISION-30,DE,Rhine Valley Health Shop,21.49,EUR,true,https://rhine-valley-health.example/de/p/fl-vision-30,2026-11-20T07:45:00Z
+FL-D3K2,TR,Fixture Pharmacy,389.90,TRY,true,https://fixture-pharmacy.example/tr/p/fl-d3k2,2026-11-21T09:00:00Z
+FL-D3K2,TR,"Kadikoy Health Corner, Moda",374.50,TRY,true,https://kadikoy-health.example/tr/p/fl-d3k2,2026-11-23T08:15:00Z
+FL-D3K2,GB,Thamesbank Chemist,11.99,GBP,true,https://thamesbank-chemist.example/gb/p/fl-d3k2,2026-11-22T14:30:00Z
+FL-OMEGA-LIQUID,TR,Anatolia Wellness Depot,459.90,TRY,true,https://anatolia-wellness.example/tr/p/fl-omega-liquid,2026-11-22T14:30:00Z
+FL-OMEGA-LIQUID,DE,Lindenhof Online Pharmacy,17.49,EUR,true,https://lindenhof-pharmacy.example/de/p/fl-omega-liquid,2026-11-23T08:15:00Z
+FL-HAIR,TR,Fixture Pharmacy,399.90,TRY,false,https://fixture-pharmacy.example/tr/p/fl-hair,2026-11-21T09:00:00Z
+FL-HAIR,TR,"Kadikoy Health Corner, Moda",419.00,TRY,false,https://kadikoy-health.example/tr/p/fl-hair,2026-11-20T07:45:00Z
+FL-HAIR,DE,Rhine Valley Health Shop,12.95,EUR,true,https://rhine-valley-health.example/de/p/fl-hair,2026-11-20T07:45:00Z
+FL-IRON,TR,Anatolia Wellness Depot,219.90,TRY,true,https://anatolia-wellness.example/tr/p/fl-iron,2026-08-14T07:30:00Z
+FL-IRON,GB,Northgate Health Store,6.49,GBP,true,https://northgate-health.example/gb/p/fl-iron,2026-11-22T14:30:00Z
+MV-UBIQ-200,TR,Fixture Pharmacy,1199.00,TRY,true,https://fixture-pharmacy.example/tr/p/mv-ubiq-200,2026-11-21T09:00:00Z
+MV-UBIQ-200,TR,Anatolia Wellness Depot,1249.90,TRY,true,https://anatolia-wellness.example/tr/p/mv-ubiq-200,2026-11-22T14:30:00Z
+MV-UBIQ-200,DE,Lindenhof Online Pharmacy,39.90,EUR,true,https://lindenhof-pharmacy.example/de/p/mv-ubiq-200,2026-11-23T08:15:00Z
+MV-UBIQ-200,GB,Thamesbank Chemist,34.99,GBP,true,https://thamesbank-chemist.example/gb/p/mv-ubiq-200,2026-11-22T14:30:00Z
+MV-UBIQ-200,US,Lakeside Vitamin Outlet,44.99,USD,true,https://lakeside-vitamins.example/us/p/mv-ubiq-200,2026-11-21T09:00:00Z
+MV-UBIQ-200,US,Prairie Corner Pharmacy,47.50,USD,false,https://prairie-pharmacy.example/us/p/mv-ubiq-200,2026-11-20T07:45:00Z
+NN-ESSENTIAL,TR,Fixture Pharmacy,749.90,TRY,true,https://fixture-pharmacy.example/tr/p/nn-essential,2026-11-21T09:00:00Z
+NN-ESSENTIAL,TR,Anatolia Wellness Depot,729.00,TRY,true,https://anatolia-wellness.example/tr/p/nn-essential,2026-11-22T14:30:00Z
+NN-ESSENTIAL,TR,"Kadikoy Health Corner, Moda",769.90,TRY,true,https://kadikoy-health.example/tr/p/nn-essential,2026-11-20T07:45:00Z
+NN-ESSENTIAL,DE,Lindenhof Online Pharmacy,14.99,EUR,true,https://lindenhof-pharmacy.example/de/p/nn-essential,2026-11-23T08:15:00Z
+NN-ESSENTIAL,DE,Rhine Valley Health Shop,15.49,EUR,true,https://rhine-valley-health.example/de/p/nn-essential,2026-11-20T07:45:00Z
+NN-ESSENTIAL,GB,Thamesbank Chemist,12.49,GBP,true,https://thamesbank-chemist.example/gb/p/nn-essential,2026-11-22T14:30:00Z
+NN-ESSENTIAL,US,Lakeside Vitamin Outlet,17.99,USD,true,https://lakeside-vitamins.example/us/p/nn-essential,2026-11-21T09:00:00Z
+NN-ESSENTIAL,US,Prairie Corner Pharmacy,16.49,USD,true,https://prairie-pharmacy.example/us/p/nn-essential,2026-11-23T08:15:00Z
+NN-GUMMY,TR,"Kadikoy Health Corner, Moda",499.00,TRY,true,https://kadikoy-health.example/tr/p/nn-gummy,2026-11-23T08:15:00Z
+NN-GUMMY,DE,Rhine Valley Health Shop,16.99,EUR,true,https://rhine-valley-health.example/de/p/nn-gummy,2026-11-20T07:45:00Z
+NN-GUMMY,GB,Northgate Health Store,14.99,GBP,true,https://northgate-health.example/gb/p/nn-gummy,2026-11-22T14:30:00Z
+NN-GUMMY,US,Lakeside Vitamin Outlet,19.99,USD,true,https://lakeside-vitamins.example/us/p/nn-gummy,2026-11-21T09:00:00Z
+MV-ACTIVE-50,DE,Lindenhof Online Pharmacy,13.95,EUR,true,https://lindenhof-pharmacy.example/de/p/mv-active-50,2026-11-23T08:15:00Z
+MV-ACTIVE-50,GB,Thamesbank Chemist,11.99,GBP,true,https://thamesbank-chemist.example/gb/p/mv-active-50,2026-11-22T14:30:00Z
+MV-ACTIVE-50,GB,Northgate Health Store,12.49,GBP,false,https://northgate-health.example/gb/p/mv-active-50,2026-11-20T07:45:00Z
+MV-IMMUNE,DE,Lindenhof Online Pharmacy,5.95,EUR,true,https://lindenhof-pharmacy.example/de/p/mv-immune,2026-11-23T08:15:00Z
+MV-IMMUNE,DE,Rhine Valley Health Shop,6.29,EUR,true,https://rhine-valley-health.example/de/p/mv-immune,2026-11-20T07:45:00Z
+MV-IMMUNE,GB,Northgate Health Store,4.99,GBP,true,https://northgate-health.example/gb/p/mv-immune,2026-11-22T14:30:00Z
+NN-WOMENS,DE,Rhine Valley Health Shop,16.95,EUR,true,https://rhine-valley-health.example/de/p/nn-womens,2026-11-20T07:45:00Z
+NN-WOMENS,GB,Thamesbank Chemist,14.49,GBP,true,https://thamesbank-chemist.example/gb/p/nn-womens,2026-11-22T14:30:00Z
+MV-COMPLETE-4,DE,Lindenhof Online Pharmacy,34.95,EUR,true,https://lindenhof-pharmacy.example/de/p/mv-complete-4,2026-11-23T08:15:00Z
+MV-COMPLETE-4,GB,Thamesbank Chemist,29.99,GBP,true,https://thamesbank-chemist.example/gb/p/mv-complete-4,2026-11-22T14:30:00Z
+MV-COMPLETE-4,US,Prairie Corner Pharmacy,39.99,USD,true,https://prairie-pharmacy.example/us/p/mv-complete-4,2026-11-23T08:15:00Z
+RD-ADULT,US,Lakeside Vitamin Outlet,12.99,USD,true,https://lakeside-vitamins.example/us/p/rd-adult,2026-11-21T09:00:00Z
+RD-ADULT,US,Prairie Corner Pharmacy,14.49,USD,true,https://prairie-pharmacy.example/us/p/rd-adult,2026-11-23T08:15:00Z
+RD-BONE,US,Lakeside Vitamin Outlet,15.99,USD,true,https://lakeside-vitamins.example/us/p/rd-bone,2026-11-21T09:00:00Z
+RD-EYE,US,Lakeside Vitamin Outlet,24.99,USD,true,https://lakeside-vitamins.example/us/p/rd-eye,2026-11-21T09:00:00Z
+RD-EYE,US,Prairie Corner Pharmacy,26.49,USD,false,https://prairie-pharmacy.example/us/p/rd-eye,2026-11-23T08:15:00Z
+RD-BCOMPLEX,US,Prairie Corner Pharmacy,9.99,USD,true,https://prairie-pharmacy.example/us/p/rd-bcomplex,2026-11-23T08:15:00Z
+RD-COQ10-ENERGY,US,Lakeside Vitamin Outlet,29.99,USD,true,https://lakeside-vitamins.example/us/p/rd-coq10-energy,2026-11-21T09:00:00Z
+RD-COQ10-ENERGY,US,Prairie Corner Pharmacy,31.49,USD,true,https://prairie-pharmacy.example/us/p/rd-coq10-energy,2026-08-14T07:30:00Z
+NN-ELECTRO,US,Lakeside Vitamin Outlet,24.99,USD,true,https://lakeside-vitamins.example/us/p/nn-electro,2026-11-21T09:00:00Z
+NN-ELECTRO,US,Prairie Corner Pharmacy,22.99,USD,true,https://prairie-pharmacy.example/us/p/nn-electro,2026-11-23T08:15:00Z
+RD-MEN-50,US,Prairie Corner Pharmacy,16.99,USD,true,https://prairie-pharmacy.example/us/p/rd-men-50,2026-11-23T08:15:00Z
