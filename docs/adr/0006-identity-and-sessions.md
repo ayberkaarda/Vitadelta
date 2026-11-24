@@ -34,6 +34,14 @@ For an unknown e-mail, login verifies the password against a fixed dummy Argon2i
 
 **Request forgery protection.** Refresh and logout require `X-Requested-With: vitadelta`; every cookie-setting or cookie-reading auth endpoint also requires `Content-Type: application/json` and, when an `Origin` header is present, an origin in `VITADELTA_WEB_ORIGINS`. Same-origin deployment is required for the `SameSite` model.
 
+**Login back-off.** Per account (keyed by the normalized submitted e-mail, whether or not an account exists), after 10 failed logins within 15 minutes the address is locked for 1 minute (`429 rate_limited` with `Retry-After`); every further failure while failures remain in the window doubles the lock (2, 4, 8 ... minutes, capped at 60). A successful login resets the state. The state is kept in memory per instance (ADR-0011).
+
+**Implementation details.**
+
+- `kid` is computed over the UTF-8 bytes of the secret, lowercase hex.
+- The grace successor is encrypted with AES-256-GCM (random 12-byte IV, 128-bit tag). The key is `HMAC-SHA256(VITADELTA_COOKIE_SECRET, "vitadelta/refresh-grace-successor/v1")`; the predecessor token id is the associated data, so a ciphertext cannot be replayed against another token.
+- The anonymous cookie value is `base64url(id) "." base64url(HMAC-SHA256(VITADELTA_COOKIE_SECRET, base64url(id)))`; a value with a wrong signature is ignored and a new identity is issued.
+
 ## Consequences
 
 - Password hashes cost 19 MiB of memory per verification; login and registration rate limits bound the total cost.
