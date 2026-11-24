@@ -1,0 +1,52 @@
+form_name,nutrient_code,form_code,note
+Retinol,VIT_A,RETINOL,
+Retinyl Acetate,VIT_A,RETINYL_ACETATE,
+Vitamin A Acetate,VIT_A,RETINYL_ACETATE,Common label name of retinyl acetate
+Retinyl Palmitate,VIT_A,RETINYL_PALMITATE,
+Vitamin A Palmitate,VIT_A,RETINYL_PALMITATE,Common label name of retinyl palmitate
+Retinol Palmitate,VIT_A,RETINYL_PALMITATE,Label spelling of retinyl palmitate
+Beta-Carotene,VIT_A,BETA_CAROTENE,
+Beta Carotene,VIT_A,BETA_CAROTENE,
+Natural Beta-Carotene,VIT_A,BETA_CAROTENE,
+Ergocalciferol,VIT_D,D2_ERGOCALCIFEROL,
+Vitamin D2,VIT_D,D2_ERGOCALCIFEROL,
+Cholecalciferol,VIT_D,D3_CHOLECALCIFEROL,
+Vitamin D3,VIT_D,D3_CHOLECALCIFEROL,
+D-Alpha-Tocopherol,VIT_E,D_ALPHA_TOCOPHEROL,Natural (RRR) alpha-tocopherol
+D-Alpha-Tocopheryl Acetate,VIT_E,D_ALPHA_TOCOPHEROL,Natural (RRR) ester
+D-Alpha-Tocopheryl Succinate,VIT_E,D_ALPHA_TOCOPHEROL,Natural (RRR) ester
+D-Alpha-Tocopheryl Acid Succinate,VIT_E,D_ALPHA_TOCOPHEROL,Natural (RRR) ester
+D-Alpha-Tocopherol Succinate,VIT_E,D_ALPHA_TOCOPHEROL,Natural (RRR) ester
+D-Alpha-Tocopherol Acetate,VIT_E,D_ALPHA_TOCOPHEROL,Natural (RRR) ester
+DL-Alpha-Tocopherol,VIT_E,DL_ALPHA_TOCOPHEROL,Synthetic (all-rac) alpha-tocopherol
+DL-Alpha-Tocopheryl Acetate,VIT_E,DL_ALPHA_TOCOPHEROL,Synthetic (all-rac) ester
+DL-Alpha-Tocopherol Acetate,VIT_E,DL_ALPHA_TOCOPHEROL,Synthetic (all-rac) ester
+Nicotinic Acid,VIT_B3,NICOTINIC_ACID,
+Niacinamide,VIT_B3,NICOTINAMIDE,
+Nicotinamide,VIT_B3,NICOTINAMIDE,
+Folic Acid,VIT_B9,FOLIC_ACID,
+Folacin,VIT_B9,FOLIC_ACID,Older label name of folic acid
+L-5-Methyltetrahydrofolate,VIT_B9,METHYLFOLATE,
+5-Methyltetrahydrofolate,VIT_B9,METHYLFOLATE,
+5-Methyltetrahydrofolic Acid,VIT_B9,METHYLFOLATE,
+Calcium L-5-Methyltetrahydrofolate,VIT_B9,METHYLFOLATE,
+L-5-Methylfolate,VIT_B9,METHYLFOLATE,
+L-Methylfolate,VIT_B9,METHYLFOLATE,
+L-Methylfolate Calcium,VIT_B9,METHYLFOLATE,
+Calcium L-5-MTHF,VIT_B9,METHYLFOLATE,
+L-5-MTHF,VIT_B9,METHYLFOLATE,
+Metafolin L-5-Methyltetrahydrofolate,VIT_B9,METHYLFOLATE,
+"(6S)-5-Methyltetrahydrofolate Acid, Glucosamine Salt",VIT_B9,METHYLFOLATE,
+"(6S)-5-Methyltetrahydrofolic Acid, Glucosamine Salt",VIT_B9,METHYLFOLATE,
+Cyanocobalamin,VIT_B12,CYANOCOBALAMIN,
+Methylcobalamin,VIT_B12,METHYLCOBALAMIN,
+Magnesium Citrate,MAGNESIUM,MAGNESIUM_CITRATE,
+Magnesium Oxide,MAGNESIUM,MAGNESIUM_OXIDE,
+Magnesium Bisglycinate,MAGNESIUM,MAGNESIUM_BISGLYCINATE,
+Magnesium Bisglycinate Chelate,MAGNESIUM,MAGNESIUM_BISGLYCINATE,
+Magnesium Glycinate,MAGNESIUM,MAGNESIUM_BISGLYCINATE,Label name of magnesium bisglycinate
+Zinc Picolinate,ZINC,ZINC_PICOLINATE,
+Zinc Gluconate,ZINC,ZINC_GLUCONATE,
+Ubiquinone,COQ10,UBIQUINONE,
+Ubiquinol,COQ10,UBIQUINOL,
+Calcium Salt,*,IGNORE,Qualifier of the preceding form (methylfolate calcium salt)
