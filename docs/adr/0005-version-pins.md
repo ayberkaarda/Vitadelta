@@ -104,6 +104,19 @@ These versions were checked on 2026-11-24 and are the pins to use when the corre
 - **Image digests:** images are pinned by exact tag, not by digest. The index digests of the exact tags were recorded during verification; floating tags can show a different index digest for identical content.
 - **Runtime image packages:** the API runtime image installs `curl` from the Ubuntu noble package archive without a pinned package version.
 
+### Added in Phase 1
+
+| Item | Pin | Where pinned | Notes |
+|---|---|---|---|
+| Spring Data JPA, Flyway (`spring-boot-starter-flyway`, `flyway-database-postgresql`), PostgreSQL JDBC driver | managed by the Spring Boot 4.2.0 BOM | `services/api/build.gradle.kts` | Flyway 12.11.0 as managed |
+| Testcontainers (`testcontainers-junit-jupiter`, `testcontainers-postgresql`, `spring-boot-testcontainers`) | managed by the Spring Boot 4.2.0 BOM | `services/api/build.gradle.kts` | test scope; uses the `postgres:18.7-alpine` image, so the API test suite needs a Docker daemon |
+| JaCoCo | 0.8.16 | `services/api/build.gradle.kts` | 85 % line coverage gate in `check` |
+| `com.networknt:json-schema-validator` | 3.0.9 | `services/api/build.gradle.kts` | test scope; schema and reader parity test; Maven Central, released 2026-11-03 |
+| `jsonschema` | 4.26.0 | `services/scoring/pyproject.toml` | dev dependency for the data suite |
+| `rfc3339-validator`, `rfc3986-validator` | 0.1.4, 0.1.1 | `services/scoring/pyproject.toml` | format checks for `date-time` and `uri` |
+| `types-jsonschema` | 4.26.0.20261006 | `services/scoring/pyproject.toml` | typing stubs for strict mypy |
+| pytest for the label-converter tests | 9.2.0 | `scripts/test-all.sh` | same version as the scoring service |
+
 ## Consequences
 
 - Builds are reproducible from the manifests and lock files (`uv.lock`, `package-lock.json`, the Gradle wrapper checksum).
