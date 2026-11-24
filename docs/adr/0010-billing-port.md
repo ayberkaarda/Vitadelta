@@ -10,7 +10,7 @@ PRO must be obtainable in v1, but integrating a payment provider requires a prov
 ## Decision
 
 - Port `BillingProvider { ActivationResult activate(ActivationRequest) }` in package `billing`, with two adapters in v1:
-  - `PromoCodeBillingProvider` behind `POST /me/subscription/promo { code }` (subscription `source = PROMO_CODE`);
+  - `PromoCodeBillingProvider` behind `POST /me/subscription/promo { code }` (subscription `source = PROMO`);
   - `ManualGrantBillingProvider` behind the admin endpoint `POST /admin/users/{id}/subscription { planCode: "PRO", durationDays }` (subscription `source = MANUAL`).
 - **Promo codes** are generated server-side by `POST /admin/promo-codes` (optional human prefix only): `<PREFIX>-` plus 16 characters of Crockford base32 from a CSPRNG (80 bits of entropy); lookups are case-insensitive. The generated code is returned once.
 - **Redemption** requires a verified e-mail and is rate limited per IP (10 per hour) and per user (5 per hour). It runs in one transaction: lock the user row, insert `promo_redemption` (unique per code and user), then `UPDATE promo_code SET redeemed_count = redeemed_count + 1 WHERE code = ? AND redeemed_count < max_redemptions AND (expires_at IS NULL OR expires_at > now()) RETURNING ...`; zero rows roll the transaction back. PRO is then activated for `duration_days`.
