@@ -1,0 +1,3783 @@
+openapi: 3.1.0
+info:
+  title: Vitadelta Public API
+  version: 1.0.0
+  summary: Multivitamin ranking, comparison, accounts, watchlists and alerts.
+  description: |
+    Public REST API of the Vitadelta core service. All paths are relative to the
+    base path `/api/v1`.
+
+    Conventions:
+    - JSON property names are camelCase; enumeration values are UPPER_SNAKE.
+    - Money and score values are JSON numbers rounded once to 4 decimals
+      (round-half-even). FX rates are returned unrounded with their stored
+      8 decimals.
+    - Every monetary field is expressed in `meta.currency` (the display currency).
+      Native-currency values are additionally returned in `*Native` fields of
+      cost and offer objects. `valueScore` is never converted: it is content
+      points per unit of `meta.nativeCurrency` per day.
+    - Errors use RFC 9457 `application/problem+json`. The problem `type` is
+      `https://vitadelta.dev/problems/<code>`; generic HTTP errors without
+      additional semantics (for example an unknown alert id) use `about:blank`.
+    - Every request may carry `X-Request-Id`; every response echoes the id in
+      effect for that request in `X-Request-Id`.
+    - Principals: `ANONYMOUS` (signed `vd_anon` cookie), `USER` and `ADMIN`
+      (bearer access token). Operations with `security: []` need no credentials.
+      Operations that list an empty security requirement next to `bearerAuth`
+      and `anonCookie` accept every principal and adapt the response to it.
+servers:
+  - url: /api/v1
+    description: Same-origin deployment; the web server proxies `/api/` to the API.
+tags:
+  - name: System
+    description: Liveness and legal information.
+  - name: Reference
+    description: Countries, nutrient registry and default weights.
+  - name: Session
+    description: Anonymous trial quota and usage summary of the current principal.
+  - name: Recommendations
+    description: Ranked recommendations and pairwise marginal analysis.
+  - name: Products
+    description: Product search and product detail within one country.
+  - name: Plans
+    description: Plan limits and prices.
+  - name: FX
+    description: Display currencies and exchange rates used for display conversion.
+  - name: Auth
+    description: Registration, e-mail verification, login, token refresh, logout and password reset.
+  - name: Account
+    description: Profile, plan, usage meters and account deletion of the signed-in user.
+  - name: SavedProducts
+    description: Products saved by the signed-in user per country.
+  - name: Alerts
+    description: Alert subscriptions on products (price drop, back in stock, any price change).
+  - name: Notifications
+    description: In-app notification inbox.
+  - name: Subscription
+    description: Plan activation by promo code.
+  - name: AdminImports
+    description: Catalog, availability and offer imports. Requires role ADMIN.
+  - name: AdminUsers
+    description: User administration and manual plan grants. Requires role ADMIN.
+  - name: AdminPromoCodes
+    description: Promo code management. Requires role ADMIN.
+  - name: AdminOperations
+    description: Detailed health, FX refresh and outbox statistics. Requires role ADMIN.
+
+paths:
+  /health:
+    get:
+      tags: [System]
+      operationId: getHealth
+      summary: Minimal liveness status
+      description: |
+        Returns only the aggregated status. No dependency names, versions or
+        backlog figures are exposed. `DOWN` is returned with status 503.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+      responses:
+        '200':
+          description: The service is up or degraded.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Health' }
+              example: { status: UP }
+        '503':
+          description: The service is down.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Health' }
+              example: { status: DOWN }
+
+  /legal:
+    get:
+      tags: [System]
+      operationId: getLegal
+      summary: Privacy notice information
+      description: Returns the controller contact rendered on the privacy notice page.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+      responses:
+        '200':
+          description: Legal information.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LegalInfo' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /countries:
+    get:
+      tags: [Reference]
+      operationId: listCountries
+      summary: List supported countries
+      description: Supported countries with currency, reference set, upper-limit set and default locale.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+      responses:
+        '200':
+          description: Supported countries.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CountryList' }
+              example:
+                items:
+                  - { code: TR, nameEn: Türkiye, currency: TRY, referenceSetCode: EU_NRV, ulSetCode: EFSA, defaultLocale: tr }
+                  - { code: DE, nameEn: Germany, currency: EUR, referenceSetCode: EU_NRV, ulSetCode: EFSA, defaultLocale: en }
+                  - { code: GB, nameEn: United Kingdom, currency: GBP, referenceSetCode: EU_NRV, ulSetCode: EFSA, defaultLocale: en }
+                  - { code: US, nameEn: United States, currency: USD, referenceSetCode: US_DV, ulSetCode: IOM, defaultLocale: en }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /nutrients:
+    get:
+      tags: [Reference]
+      operationId: listNutrients
+      summary: Nutrient registry
+      description: Registry with categories, canonical units and the reference sets that define a value for each nutrient.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+      responses:
+        '200':
+          description: Nutrient registry ordered by `sortOrder`.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NutrientList' }
+              example:
+                items:
+                  - { code: VIT_C, nameEn: Vitamin C, category: VITAMIN, canonicalUnit: mg, presenceFloorPerDay: null, sortOrder: 30, referenceSetCodes: [EU_NRV, US_DV] }
+                  - { code: COQ10, nameEn: Coenzyme Q10, category: COENZYME, canonicalUnit: mg, presenceFloorPerDay: null, sortOrder: 300, referenceSetCodes: [] }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /weights/defaults:
+    get:
+      tags: [Reference]
+      operationId: getDefaultWeights
+      summary: Default weights and allowed ranges
+      description: |
+        Default category weights, the default per-nutrient override and the
+        allowed ranges of category weights, overrides and the CUSTOM-mode lambda.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+      responses:
+        '200':
+          description: Default category weights, override default and the allowed ranges.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DefaultWeights' }
+              example:
+                categories: { VITAMIN: 1.0, MINERAL: 1.0, COENZYME: 0.8, OTHER: 0.5 }
+                categoryRange: { min: 0.0, max: 2.0 }
+                overrideDefault: 1.0
+                overrideRange: { min: 0.0, max: 3.0 }
+                lambdaDefault: 0.5
+                lambdaRange: { min: 0.0, max: 1.0 }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /session/quota:
+    get:
+      tags: [Session]
+      operationId: getSessionQuota
+      summary: Quota counters of the current principal
+      description: |
+        For anonymous callers returns the trial counters and creates the `vd_anon`
+        cookie when it is missing. For signed-in users returns the plan usage
+        summary of `GET /me`.
+      security:
+        - {}
+        - bearerAuth: []
+        - anonCookie: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+      responses:
+        '200':
+          description: Quota or usage summary.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+            Set-Cookie: { $ref: '#/components/headers/SetCookieAnon' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SessionQuota' }
+              examples:
+                anonymous:
+                  summary: Anonymous principal after one query
+                  value: { principal: ANONYMOUS, queriesUsed: 1, queriesLimit: 3, visibleResults: 3 }
+                freeUser:
+                  summary: FREE user
+                  value:
+                    principal: USER
+                    plan: FREE
+                    usage:
+                      savedProducts: { used: 2, limit: 5 }
+                      alertSubscriptions: { used: 1, limit: 3 }
+                      notificationsThisMonth: { used: 4, limit: 30, periodMonth: '2026-11-01' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /recommendations/query:
+    post:
+      tags: [Recommendations]
+      operationId: queryRecommendations
+      summary: Ranked recommendations
+      description: |
+        Scores every in-market product of the country and returns the ranking.
+
+        - ANONYMOUS: consumes one trial query (3 per anonymous identity); the
+          response contains only the top 3 items of the full ranking regardless
+          of `page`; `page > 1` returns an empty `items` array with the same
+          `meta.visibility`. Locked items are not sent in any form. The `vd_anon`
+          cookie is created when missing. A query failing with 503 does not
+          consume quota.
+        - USER / ADMIN: unlimited, full paged results.
+
+        Problem codes: `validation_failed` (422; `errors[].code` includes
+        `weights_all_zero`, `unit_requires_form`), `country_not_found` (422),
+        `fx_unsupported_currency` (422), `quota_exceeded` (403),
+        `unauthorized` (401, invalid bearer token), `rate_limited` (429,
+        anonymous callers 30 per day per IP), `scoring_unavailable` (503),
+        request body larger than 64 kB (413).
+      security:
+        - {}
+        - bearerAuth: []
+        - anonCookie: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RecommendationQueryRequest' }
+            example:
+              country: TR
+              stockFilter: IN_STOCK_ONLY
+              ranking: { mode: VALUE }
+              weights:
+                categories: { VITAMIN: 1.0, MINERAL: 1.0, COENZYME: 0.8, OTHER: 0.5 }
+                overrides: { VIT_C: 1.5 }
+              requiredNutrients:
+                - { code: VIT_C, minAmountPerDay: 300, unit: mg }
+              excludeExceedingUl: false
+              displayCurrency: USD
+              page: 1
+              pageSize: 20
+      responses:
+        '200':
+          description: Ranked page of recommendations.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+            Set-Cookie: { $ref: '#/components/headers/SetCookieAnon' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RecommendationQueryResponse' }
+              examples:
+                goldenPairValueMode:
+                  summary: GOLD-A / GOLD-B in TR, VALUE mode, FREE user, native currency
+                  value:
+                    meta:
+                      country: TR
+                      nativeCurrency: TRY
+                      currency: TRY
+                      fx: { base: TRY, quote: TRY, rate: 1, asOf: null, source: null, stale: false, status: OK }
+                      catalogVersion: 42
+                      marketSize: 2
+                      mRef: 2.8381
+                      excluded: { noStock: 0, noOffer: 0, requiredNutrients: 0, exceedsUl: 0 }
+                      visibility: { shown: 2, total: 2, locked: 0, reason: null }
+                      principal: { type: USER, plan: FREE }
+                      page: 1
+                      pageSize: 20
+                      total: 2
+                    items:
+                      - productId: 3b2f0c4e-6a1d-4f0e-9c3a-1a2b3c4d5e01
+                        code: GOLD-A
+                        rank: 1
+                        brand: Gold
+                        name: Gold A Multivitamin
+                        dosageForm: TABLET
+                        cost: { effectivePrice: 800.0, effectivePriceNative: 800.0, currency: TRY, servingsPerContainer: 60, daysSupply: 60, costPerDay: 13.3333, costPerDayNative: 13.3333, priceStale: false, outOfStock: false }
+                        contentScore: 4.9719
+                        contentScoreDisplay: 99.2534
+                        valueScore: 0.3729
+                        valueScoreDisplay: 100.0
+                        customScore: null
+                        flags: []
+                        breakdown:
+                          - { code: VIT_C, category: VITAMIN, amountPerDay: 300, ulAmountPerDay: 300, unit: mg, reference: 80, referenceSource: REGULATORY, coverageRatio: 3.75, utility: 1.4626, weight: 1.0, contribution: 1.4626, cappedAtUl: false, cappedAtUMax: false, ulBelowReference: false }
+                          - { code: VIT_D, category: VITAMIN, amountPerDay: 10, ulAmountPerDay: 10, unit: mcg, reference: 5, referenceSource: REGULATORY, coverageRatio: 2.0, utility: 1.2426, weight: 1.0, contribution: 1.2426, cappedAtUl: false, cappedAtUMax: false, ulBelowReference: false }
+                          - { code: VIT_B12, category: VITAMIN, amountPerDay: 2.5, ulAmountPerDay: 2.5, unit: mcg, reference: 2.5, referenceSource: REGULATORY, coverageRatio: 1.0, utility: 1.0, weight: 1.0, contribution: 1.0, cappedAtUl: false, cappedAtUMax: false, ulBelowReference: false }
+                          - { code: ZINC, category: MINERAL, amountPerDay: 10, ulAmountPerDay: 10, unit: mg, reference: 10, referenceSource: REGULATORY, coverageRatio: 1.0, utility: 1.0, weight: 1.0, contribution: 1.0, cappedAtUl: false, cappedAtUMax: false, ulBelowReference: false }
+                          - { code: MAGNESIUM, category: MINERAL, amountPerDay: 100, ulAmountPerDay: 100, unit: mg, reference: 375, referenceSource: REGULATORY, coverageRatio: 0.2667, utility: 0.2667, weight: 1.0, contribution: 0.2667, cappedAtUl: false, cappedAtUMax: false, ulBelowReference: false }
+                        topContributors:
+                          - { code: VIT_C, category: VITAMIN, amountPerDay: 300, ulAmountPerDay: 300, unit: mg, reference: 80, referenceSource: REGULATORY, coverageRatio: 3.75, utility: 1.4626, weight: 1.0, contribution: 1.4626, cappedAtUl: false, cappedAtUMax: false, ulBelowReference: false }
+                          - { code: VIT_D, category: VITAMIN, amountPerDay: 10, ulAmountPerDay: 10, unit: mcg, reference: 5, referenceSource: REGULATORY, coverageRatio: 2.0, utility: 1.2426, weight: 1.0, contribution: 1.2426, cappedAtUl: false, cappedAtUMax: false, ulBelowReference: false }
+                        selectedOffer: { retailer: Retailer One, url: 'https://shop.example.com/products/gold-a', checkedAt: '2026-11-20T09:00:00Z' }
+                        saved: false
+                        alerts: []
+                      - productId: 3b2f0c4e-6a1d-4f0e-9c3a-1a2b3c4d5e02
+                        code: GOLD-B
+                        rank: 2
+                        brand: Gold
+                        name: Gold B Multivitamin
+                        dosageForm: TABLET
+                        cost: { effectivePrice: 900.0, effectivePriceNative: 900.0, currency: TRY, servingsPerContainer: 60, daysSupply: 60, costPerDay: 15.0, costPerDayNative: 15.0, priceStale: false, outOfStock: false }
+                        contentScore: 5.0093
+                        contentScoreDisplay: 100.0
+                        valueScore: 0.334
+                        valueScoreDisplay: 89.5682
+                        customScore: null
+                        flags: []
+                        breakdown:
+                          - { code: VIT_C, category: VITAMIN, amountPerDay: 350, ulAmountPerDay: 350, unit: mg, reference: 80, referenceSource: REGULATORY, coverageRatio: 4.375, utility: 1.5, weight: 1.0, contribution: 1.5, cappedAtUl: false, cappedAtUMax: true, ulBelowReference: false }
+                          - { code: VIT_D, category: VITAMIN, amountPerDay: 10, ulAmountPerDay: 10, unit: mcg, reference: 5, referenceSource: REGULATORY, coverageRatio: 2.0, utility: 1.2426, weight: 1.0, contribution: 1.2426, cappedAtUl: false, cappedAtUMax: false, ulBelowReference: false }
+                          - { code: VIT_B12, category: VITAMIN, amountPerDay: 2.5, ulAmountPerDay: 2.5, unit: mcg, reference: 2.5, referenceSource: REGULATORY, coverageRatio: 1.0, utility: 1.0, weight: 1.0, contribution: 1.0, cappedAtUl: false, cappedAtUMax: false, ulBelowReference: false }
+                          - { code: ZINC, category: MINERAL, amountPerDay: 10, ulAmountPerDay: 10, unit: mg, reference: 10, referenceSource: REGULATORY, coverageRatio: 1.0, utility: 1.0, weight: 1.0, contribution: 1.0, cappedAtUl: false, cappedAtUMax: false, ulBelowReference: false }
+                          - { code: MAGNESIUM, category: MINERAL, amountPerDay: 100, ulAmountPerDay: 100, unit: mg, reference: 375, referenceSource: REGULATORY, coverageRatio: 0.2667, utility: 0.2667, weight: 1.0, contribution: 0.2667, cappedAtUl: false, cappedAtUMax: false, ulBelowReference: false }
+                        topContributors:
+                          - { code: VIT_C, category: VITAMIN, amountPerDay: 350, ulAmountPerDay: 350, unit: mg, reference: 80, referenceSource: REGULATORY, coverageRatio: 4.375, utility: 1.5, weight: 1.0, contribution: 1.5, cappedAtUl: false, cappedAtUMax: true, ulBelowReference: false }
+                          - { code: VIT_D, category: VITAMIN, amountPerDay: 10, ulAmountPerDay: 10, unit: mcg, reference: 5, referenceSource: REGULATORY, coverageRatio: 2.0, utility: 1.2426, weight: 1.0, contribution: 1.2426, cappedAtUl: false, cappedAtUMax: false, ulBelowReference: false }
+                        selectedOffer: { retailer: Retailer One, url: 'https://shop.example.com/products/gold-b', checkedAt: '2026-11-20T09:00:00Z' }
+                        saved: false
+                        alerts: []
+                anonymousSecondPage:
+                  summary: Anonymous principal requesting page 2 (locked items are never sent)
+                  value:
+                    meta:
+                      country: TR
+                      nativeCurrency: TRY
+                      currency: USD
+                      fx: { base: TRY, quote: USD, rate: 0.02413700, asOf: '2026-11-23', source: FRANKFURTER, stale: false, status: OK }
+                      catalogVersion: 42
+                      marketSize: 18
+                      mRef: 0.0646
+                      excluded: { noStock: 2, noOffer: 1, requiredNutrients: 5, exceedsUl: 0 }
+                      visibility: { shown: 3, total: 18, locked: 15, reason: SIGN_UP_REQUIRED }
+                      principal: { type: ANONYMOUS, queriesUsed: 1, queriesLimit: 3 }
+                      page: 2
+                      pageSize: 20
+                      total: 18
+                    items: []
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/QuotaExceeded' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/ScoringUnavailable' }
+
+  /recommendations/compare:
+    post:
+      tags: [Recommendations]
+      operationId: compareProducts
+      summary: Pairwise marginal analysis of two products
+      description: |
+        Orders the pair so that A is the cheaper product by cost per day (ties:
+        lower content score, then lower product id) and returns a verdict on
+        whether B is worth its extra cost. `swapped = true` when A is not the
+        requested baseline. Allowed for every principal and not counted against
+        the anonymous quota.
+
+        Problem codes: `validation_failed` (422, includes `weights_all_zero`),
+        `country_not_found` (422), `fx_unsupported_currency` (422),
+        `product_not_found` (404), `product_not_available_in_country` (404),
+        `unauthorized` (401), `rate_limited` (429, anonymous callers 120 per
+        minute per IP), `scoring_unavailable` (503).
+      security:
+        - {}
+        - bearerAuth: []
+        - anonCookie: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CompareRequest' }
+            example:
+              country: TR
+              baselineProductId: 3b2f0c4e-6a1d-4f0e-9c3a-1a2b3c4d5e01
+              candidateProductId: 3b2f0c4e-6a1d-4f0e-9c3a-1a2b3c4d5e02
+              stockFilter: IN_STOCK_ONLY
+              weights:
+                categories: { VITAMIN: 1.0, MINERAL: 1.0, COENZYME: 0.8, OTHER: 0.5 }
+              displayCurrency: TRY
+      responses:
+        '200':
+          description: Verdict, deltas and per-nutrient delta rows.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CompareResponse' }
+              example:
+                meta:
+                  country: TR
+                  nativeCurrency: TRY
+                  currency: TRY
+                  fx: { base: TRY, quote: TRY, rate: 1, asOf: null, source: null, stale: false, status: OK }
+                  catalogVersion: 42
+                  marketSize: 2
+                swapped: false
+                verdict: NOT_WORTH_IT
+                productA:
+                  productId: 3b2f0c4e-6a1d-4f0e-9c3a-1a2b3c4d5e01
+                  code: GOLD-A
+                  brand: Gold
+                  name: Gold A Multivitamin
+                  dosageForm: TABLET
+                  cost: { effectivePrice: 800.0, effectivePriceNative: 800.0, currency: TRY, servingsPerContainer: 60, daysSupply: 60, costPerDay: 13.3333, costPerDayNative: 13.3333, priceStale: false, outOfStock: false }
+                  contentScore: 4.9719
+                  valueScore: 0.3729
+                  flags: []
+                  selectedOffer: { retailer: Retailer One, url: 'https://shop.example.com/products/gold-a', checkedAt: '2026-11-20T09:00:00Z' }
+                productB:
+                  productId: 3b2f0c4e-6a1d-4f0e-9c3a-1a2b3c4d5e02
+                  code: GOLD-B
+                  brand: Gold
+                  name: Gold B Multivitamin
+                  dosageForm: TABLET
+                  cost: { effectivePrice: 900.0, effectivePriceNative: 900.0, currency: TRY, servingsPerContainer: 60, daysSupply: 60, costPerDay: 15.0, costPerDayNative: 15.0, priceStale: false, outOfStock: false }
+                  contentScore: 5.0093
+                  valueScore: 0.334
+                  flags: []
+                  selectedOffer: { retailer: Retailer One, url: 'https://shop.example.com/products/gold-b', checkedAt: '2026-11-20T09:00:00Z' }
+                deltaCost: 1.6667
+                deltaCostNative: 1.6667
+                deltaContent: 0.0374
+                marginalRate: 44.5798
+                mRef: 2.6817
+                ratio: 16.6237
+                rows:
+                  - { code: VIT_C, category: VITAMIN, amountA: 300, amountB: 350, deltaAmount: 50, unit: mg, rA: 3.75, rB: 4.375, uA: 1.4626, uB: 1.5, weight: 1.0, deltaContribution: 0.0374, flags: [DIMINISHING, ABOVE_CEILING_NO_CREDIT] }
+                  - { code: VIT_D, category: VITAMIN, amountA: 10, amountB: 10, deltaAmount: 0, unit: mcg, rA: 2.0, rB: 2.0, uA: 1.2426, uB: 1.2426, weight: 1.0, deltaContribution: 0, flags: [] }
+                  - { code: VIT_B12, category: VITAMIN, amountA: 2.5, amountB: 2.5, deltaAmount: 0, unit: mcg, rA: 1.0, rB: 1.0, uA: 1.0, uB: 1.0, weight: 1.0, deltaContribution: 0, flags: [] }
+                  - { code: ZINC, category: MINERAL, amountA: 10, amountB: 10, deltaAmount: 0, unit: mg, rA: 1.0, rB: 1.0, uA: 1.0, uB: 1.0, weight: 1.0, deltaContribution: 0, flags: [] }
+                  - { code: MAGNESIUM, category: MINERAL, amountA: 100, amountB: 100, deltaAmount: 0, unit: mg, rA: 0.2667, rB: 0.2667, uA: 0.2667, uB: 0.2667, weight: 1.0, deltaContribution: 0, flags: [] }
+                explanation:
+                  key: explain.verdict.not_worth_it
+                  params: { deltaCostPerDay: 1.6667, currency: TRY, ratio: 16.6237 }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/ScoringUnavailable' }
+
+  /products:
+    get:
+      tags: [Products]
+      operationId: searchProducts
+      summary: Search products in one country
+      description: |
+        Returns in-market (AVAILABLE) products of the country. Products that are
+        `NOT_SOLD` or `DISCONTINUED` in the country are never returned. The cost
+        object uses the effective price with out-of-stock offers included and is
+        `null` when the product has no offer.
+
+        Problem codes: `validation_failed` (422), `country_not_found` (422),
+        `fx_unsupported_currency` (422), `unauthorized` (401), `rate_limited`
+        (429, anonymous callers 120 per minute per IP).
+      security:
+        - {}
+        - bearerAuth: []
+        - anonCookie: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+        - $ref: '#/components/parameters/CountryQueryRequired'
+        - name: q
+          in: query
+          required: false
+          description: Free-text search over brand, name and product code.
+          schema: { type: string, minLength: 1, maxLength: 200 }
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/DisplayCurrencyQuery'
+      responses:
+        '200':
+          description: Page of products.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProductPage' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /products/{id}:
+    get:
+      tags: [Products]
+      operationId: getProduct
+      summary: Product detail in one country
+      description: |
+        Formulation, availability, offers and flags of one product in the given
+        country. For signed-in users `saved` and `alerts` reflect the caller's
+        saved state and alert subscriptions in that country; for anonymous
+        callers they are `false` and `[]`.
+
+        Problem codes: `product_not_found` (404), `product_not_available_in_country`
+        (404, status `NOT_SOLD` or `DISCONTINUED`), `validation_failed` (422),
+        `country_not_found` (422), `fx_unsupported_currency` (422),
+        `unauthorized` (401), `rate_limited` (429).
+      security:
+        - {}
+        - bearerAuth: []
+        - anonCookie: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+        - $ref: '#/components/parameters/ProductIdPath'
+        - $ref: '#/components/parameters/CountryQueryRequired'
+        - $ref: '#/components/parameters/DisplayCurrencyQuery'
+      responses:
+        '200':
+          description: Product detail.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProductDetailResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /plans:
+    get:
+      tags: [Plans]
+      operationId: listPlans
+      summary: Plan limits and prices
+      description: |
+        Returns the FREE and PRO plans. A `null` limit means unlimited. Prices are
+        converted to the display currency; the native currency of a price is the
+        currency stored on the plan.
+
+        Problem codes: `fx_unsupported_currency` (422).
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+        - $ref: '#/components/parameters/DisplayCurrencyQuery'
+      responses:
+        '200':
+          description: Plans.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PlanList' }
+              example:
+                meta:
+                  nativeCurrency: TRY
+                  currency: TRY
+                  fx: { base: TRY, quote: TRY, rate: 1, asOf: null, source: null, stale: false, status: OK }
+                items:
+                  - { code: FREE, name: Free, savedProductsLimit: 5, alertSubscriptionsLimit: 3, notificationsPerMonthLimit: 30, price: null }
+                  - code: PRO
+                    name: Pro
+                    savedProductsLimit: null
+                    alertSubscriptionsLimit: null
+                    notificationsPerMonthLimit: null
+                    price: { amount: 199.0, amountNative: 199.0, currency: TRY, nativeCurrency: TRY, billingPeriod: MONTHLY }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /fx/currencies:
+    get:
+      tags: [FX]
+      operationId: listFxCurrencies
+      summary: Supported display currencies
+      description: |
+        The supported display currencies (country currencies plus configured
+        extra ISO 4217 codes) with the newest stored rate date per currency.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+      responses:
+        '200':
+          description: Supported currencies.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FxCurrencyList' }
+              example:
+                items:
+                  - { code: EUR, asOf: '2026-11-23', stale: false }
+                  - { code: GBP, asOf: '2026-11-23', stale: false }
+                  - { code: TRY, asOf: '2026-11-23', stale: false }
+                  - { code: USD, asOf: '2026-11-23', stale: false }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /fx/rates:
+    get:
+      tags: [FX]
+      operationId: getFxRates
+      summary: Newest rates for a base currency
+      description: |
+        Newest stored rate per quote currency for the base. Rates carry their
+        stored 8 decimals unrounded.
+
+        Problem codes: `validation_failed` (422, missing `base`),
+        `fx_unsupported_currency` (422).
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+        - name: base
+          in: query
+          required: true
+          description: Base currency (ISO 4217).
+          schema: { $ref: '#/components/schemas/CurrencyCode' }
+          example: TRY
+      responses:
+        '200':
+          description: Rates.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FxRateList' }
+              example:
+                base: TRY
+                rates:
+                  - { quote: EUR, rate: 0.02087500, asOf: '2026-11-23', source: FRANKFURTER, stale: false }
+                  - { quote: USD, rate: 0.02413700, asOf: '2026-11-23', source: FRANKFURTER, stale: false }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /auth/register:
+    post:
+      tags: [Auth]
+      operationId: register
+      summary: Register with e-mail and password
+      description: |
+        Enumeration-safe: always responds 202 with the same body and headers. A
+        new e-mail creates a USER with an ACTIVE FREE subscription and queues the
+        verification e-mail; an existing e-mail queues an "already registered"
+        e-mail instead. A present `vd_anon` identity is converted and the cookie
+        is cleared on both paths. Requires `Content-Type: application/json` and,
+        when an `Origin` header is present, an allowed origin.
+
+        Problem codes: `validation_failed` (422; password shorter than 10
+        characters or in the breached-password list, malformed e-mail),
+        `country_not_found` (422), `forbidden` (403, content type or origin
+        rejected), `rate_limited` (429, 5 per hour per IP).
+      security:
+        - {}
+        - anonCookie: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+        - $ref: '#/components/parameters/Origin'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegisterRequest' }
+            example: { email: user@example.com, password: correct-horse-battery, locale: en, countryCode: TR }
+      responses:
+        '202':
+          description: Accepted; a message has been queued for the address.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+            Set-Cookie: { $ref: '#/components/headers/SetCookieClearAnon' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AcceptedMessage' }
+              example: { messageKey: auth.register.check_email }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /auth/verify-email:
+    post:
+      tags: [Auth]
+      operationId: verifyEmail
+      summary: Verify the e-mail address
+      description: |
+        Consumes a single-use `VERIFY_EMAIL` token (valid 24 hours) taken from the
+        URL fragment of the verification link.
+
+        Problem codes: `token_invalid` (400), `token_expired` (400),
+        `validation_failed` (422), `rate_limited` (429, 10 per hour per IP).
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TokenRequest' }
+      responses:
+        '204':
+          description: E-mail verified.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+        '400': { $ref: '#/components/responses/TokenRejected' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /auth/resend-verification:
+    post:
+      tags: [Auth]
+      operationId: resendVerification
+      summary: Resend the verification e-mail
+      description: |
+        Always 202. Issuing a new `VERIFY_EMAIL` token invalidates all older ones.
+        Suppressed or dropped e-mails still return 202.
+
+        Problem codes: `validation_failed` (422), `rate_limited` (429, 5 per hour
+        per IP).
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EmailRequest' }
+      responses:
+        '202':
+          description: Accepted.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AcceptedMessage' }
+              example: { messageKey: auth.verify.resent }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      operationId: login
+      summary: Log in
+      description: |
+        Returns a 15-minute access token and sets the `vd_refresh` cookie.
+        Unverified users can log in and see `emailVerified = false`. Requires
+        `Content-Type: application/json` and, when an `Origin` header is
+        present, an allowed origin.
+
+        Problem codes: `invalid_credentials` (401, identical for unknown e-mail
+        and wrong password), `account_disabled` (403, only after a correct
+        password), `forbidden` (403, content type or origin rejected),
+        `validation_failed` (422), `rate_limited` (429, 10 per minute per IP, or
+        account back-off after 10 failures in 15 minutes).
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+        - $ref: '#/components/parameters/Origin'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200':
+          description: Logged in.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+            Set-Cookie: { $ref: '#/components/headers/SetCookieRefresh' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthTokenResponse' }
+              example:
+                accessToken: eyJraWQiOiI0ZjFhMmIzYzRkNWU2ZjcwIiwiYWxnIjoiSFMyNTYifQ.eyJzdWIiOiI5ZjFjMmQzZSJ9.c2lnbmF0dXJl
+                tokenType: Bearer
+                expiresIn: 900
+                user:
+                  id: 9f1c2d3e-4b5a-4c6d-8e7f-0a1b2c3d4e5f
+                  email: user@example.com
+                  emailVerified: true
+                  role: USER
+                  status: ACTIVE
+                  locale: en
+                  defaultCountryCode: TR
+                  displayCurrency: null
+                  emailAlertsEnabled: true
+                  createdAt: '2026-11-01T10:00:00Z'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      operationId: refreshSession
+      summary: Rotate the refresh token
+      description: |
+        Rotates the `vd_refresh` cookie and returns a fresh access token. A token
+        rotated less than 20 seconds ago returns the same successor (grace
+        window). Presenting a revoked token outside the grace window revokes the
+        whole token family. Re-reads the account status. Requires
+        `X-Requested-With: vitadelta`, `Content-Type: application/json` and, when
+        an `Origin` header is present, an allowed origin.
+
+        Problem codes: `unauthorized` (401, missing, unknown or expired refresh
+        token), `refresh_reuse_detected` (401), `account_disabled` (403),
+        `forbidden` (403, CSRF header, content type or origin rejected),
+        `rate_limited` (429, 60 per minute per IP).
+      security:
+        - refreshCookie: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+        - $ref: '#/components/parameters/XRequestedWith'
+        - $ref: '#/components/parameters/Origin'
+      requestBody:
+        required: false
+        description: No fields are read; an empty JSON object may be sent to satisfy the content-type rule.
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EmptyObject' }
+      responses:
+        '200':
+          description: Session refreshed.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+            Set-Cookie: { $ref: '#/components/headers/SetCookieRefresh' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthTokenResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      operationId: logout
+      summary: Log out
+      description: |
+        Revokes the refresh-token family of the presented cookie and clears the
+        cookie. Idempotent: responds 204 also when no valid cookie is present.
+        Requires `X-Requested-With: vitadelta`, `Content-Type: application/json`
+        and, when an `Origin` header is present, an allowed origin.
+
+        Problem codes: `forbidden` (403, CSRF header, content type or origin
+        rejected).
+      security:
+        - refreshCookie: []
+        - {}
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+        - $ref: '#/components/parameters/XRequestedWith'
+        - $ref: '#/components/parameters/Origin'
+      requestBody:
+        required: false
+        description: No fields are read; an empty JSON object may be sent to satisfy the content-type rule.
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EmptyObject' }
+      responses:
+        '204':
+          description: Logged out.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+            Set-Cookie: { $ref: '#/components/headers/SetCookieClearRefresh' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /auth/forgot-password:
+    post:
+      tags: [Auth]
+      operationId: forgotPassword
+      summary: Request a password reset e-mail
+      description: |
+        Always 202. When the account exists, a `RESET_PASSWORD` token (valid one
+        hour) is created, older unused reset tokens are invalidated and the
+        e-mail is queued.
+
+        Problem codes: `validation_failed` (422), `rate_limited` (429, 5 per hour
+        per IP).
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EmailRequest' }
+      responses:
+        '202':
+          description: Accepted.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AcceptedMessage' }
+              example: { messageKey: auth.forgot.check_email }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /auth/reset-password:
+    post:
+      tags: [Auth]
+      operationId: resetPassword
+      summary: Set a new password with a reset token
+      description: |
+        Consumes a single-use `RESET_PASSWORD` token. On success every outstanding
+        reset token of the user is invalidated and all refresh-token families
+        are revoked.
+
+        Problem codes: `token_invalid` (400), `token_expired` (400),
+        `validation_failed` (422, password rules), `rate_limited` (429, 10 per
+        hour per IP).
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ResetPasswordRequest' }
+      responses:
+        '204':
+          description: Password changed.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+        '400': { $ref: '#/components/responses/TokenRejected' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /me:
+    get:
+      tags: [Account]
+      operationId: getMe
+      summary: Profile, plan, subscription and usage meters
+      description: |
+        Problem codes: `unauthorized` (401).
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+      responses:
+        '200':
+          description: Profile of the signed-in user.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Me' }
+              example:
+                id: 9f1c2d3e-4b5a-4c6d-8e7f-0a1b2c3d4e5f
+                email: user@example.com
+                emailVerified: true
+                role: USER
+                status: ACTIVE
+                locale: tr
+                defaultCountryCode: TR
+                displayCurrency: TRY
+                emailAlertsEnabled: true
+                createdAt: '2026-11-01T10:00:00Z'
+                plan: { code: FREE, name: Free, savedProductsLimit: 5, alertSubscriptionsLimit: 3, notificationsPerMonthLimit: 30 }
+                subscription: { id: 1d2e3f4a-5b6c-4d7e-8f9a-0b1c2d3e4f5a, planCode: FREE, status: ACTIVE, source: MANUAL, startedAt: '2026-11-01T10:00:00Z', currentPeriodEnd: null, canceledAt: null }
+                usage:
+                  savedProducts: { used: 2, limit: 5 }
+                  alertSubscriptions: { used: 1, limit: 3 }
+                  notificationsThisMonth: { used: 4, limit: 30, periodMonth: '2026-11-01' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    patch:
+      tags: [Account]
+      operationId: updateMe
+      summary: Update profile settings
+      description: |
+        Updates any of `displayCurrency`, `locale`, `defaultCountryCode` and
+        `emailAlertsEnabled`. `displayCurrency: null` resets the preference to
+        the country's native currency.
+
+        Problem codes: `unauthorized` (401), `validation_failed` (422),
+        `country_not_found` (422), `fx_unsupported_currency` (422).
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateMeRequest' }
+            example: { displayCurrency: EUR, emailAlertsEnabled: false }
+      responses:
+        '200':
+          description: Updated profile.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Me' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    delete:
+      tags: [Account]
+      operationId: deleteMe
+      summary: Delete the account
+      description: |
+        Re-checks the password and hard-deletes the account with all dependent
+        data (refresh tokens, e-mail tokens, subscriptions, promo redemptions,
+        saved products, alert subscriptions, notifications, usage counters).
+        The `vd_refresh` cookie is cleared.
+
+        Problem codes: `unauthorized` (401, missing or invalid access token),
+        `invalid_credentials` (401, wrong password), `validation_failed` (422).
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DeleteAccountRequest' }
+      responses:
+        '204':
+          description: Account deleted.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+            Set-Cookie: { $ref: '#/components/headers/SetCookieClearRefresh' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /me/saved-products:
+    get:
+      tags: [SavedProducts]
+      operationId: listSavedProducts
+      summary: Saved products in one country
+      description: |
+        Saved products of the caller for the country with the current effective
+        price, stock state, flags and the active alert subscriptions. Products
+        that are no longer available in the country are kept and carry the
+        `UNAVAILABLE_IN_COUNTRY` flag.
+
+        Problem codes: `unauthorized` (401), `validation_failed` (422),
+        `country_not_found` (422), `fx_unsupported_currency` (422).
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+        - $ref: '#/components/parameters/CountryQueryRequired'
+        - $ref: '#/components/parameters/DisplayCurrencyQuery'
+      responses:
+        '200':
+          description: Saved products.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SavedProductList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    post:
+      tags: [SavedProducts]
+      operationId: saveProduct
+      summary: Save a product
+      description: |
+        Idempotent: saving an already saved product returns 200. The limit check
+        and insert are serialized per user.
+
+        Problem codes: `unauthorized` (401), `entitlement_exceeded` (403, saved
+        product limit of the plan reached), `product_not_found` (404),
+        `product_not_available_in_country` (404), `validation_failed` (422),
+        `country_not_found` (422).
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SaveProductRequest' }
+            example: { productId: 3b2f0c4e-6a1d-4f0e-9c3a-1a2b3c4d5e01, countryCode: TR }
+      responses:
+        '200':
+          description: Already saved.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SavedProductRef' }
+        '201':
+          description: Saved.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SavedProductRef' }
+              example: { productId: 3b2f0c4e-6a1d-4f0e-9c3a-1a2b3c4d5e01, countryCode: TR, savedAt: '2026-11-24T08:30:00Z' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/EntitlementForbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /me/saved-products/{productId}:
+    delete:
+      tags: [SavedProducts]
+      operationId: removeSavedProduct
+      summary: Remove a saved product
+      description: |
+        Removes the saved product for the country and deactivates its alert
+        subscriptions for that country. Idempotent: responds 204 also when the
+        product was not saved.
+
+        Problem codes: `unauthorized` (401), `validation_failed` (422),
+        `country_not_found` (422).
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+        - name: productId
+          in: path
+          required: true
+          description: Product id.
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/CountryQueryRequired'
+      responses:
+        '204':
+          description: Removed.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /me/alerts:
+    get:
+      tags: [Alerts]
+      operationId: listAlerts
+      summary: Alert subscriptions of the caller
+      description: |
+        All alert subscriptions of the caller, active and inactive, across
+        countries. `baselinePrice` is in the country's native currency.
+
+        Problem codes: `unauthorized` (401).
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+      responses:
+        '200':
+          description: Alert subscriptions.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AlertList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    post:
+      tags: [Alerts]
+      operationId: createAlert
+      summary: Subscribe to an alert
+      description: |
+        Creates an active subscription. A saved-product row is created implicitly
+        when missing and counts toward the saved-product limit. `thresholdPercent`
+        applies to `PRICE_DROP` only (default 5.00) and must be absent for the
+        other triggers. Requires a verified e-mail. Creating a subscription that
+        already exists for the same product, country and trigger returns the
+        existing subscription with 200.
+
+        Problem codes: `unauthorized` (401), `email_not_verified` (403),
+        `entitlement_exceeded` (403, alert or saved-product limit reached),
+        `product_not_found` (404), `product_not_available_in_country` (404),
+        `validation_failed` (422), `country_not_found` (422).
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateAlertRequest' }
+            example: { productId: 3b2f0c4e-6a1d-4f0e-9c3a-1a2b3c4d5e01, countryCode: TR, trigger: PRICE_DROP, thresholdPercent: 10 }
+      responses:
+        '200':
+          description: The subscription already existed.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AlertSubscription' }
+        '201':
+          description: Subscription created.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AlertSubscription' }
+              example:
+                id: 5a6b7c8d-9e0f-4a1b-8c2d-3e4f5a6b7c8d
+                productId: 3b2f0c4e-6a1d-4f0e-9c3a-1a2b3c4d5e01
+                countryCode: TR
+                trigger: PRICE_DROP
+                thresholdPercent: 10
+                baselinePrice: 800.0
+                baselineCurrency: TRY
+                active: true
+                createdAt: '2026-11-24T08:30:00Z'
+                lastTriggeredAt: null
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/EntitlementForbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /me/alerts/{id}:
+    patch:
+      tags: [Alerts]
+      operationId: updateAlert
+      summary: Activate, deactivate or change the threshold
+      description: |
+        Activating (`active: true`) re-checks the e-mail verification and the
+        active-alert limit under the per-user lock and resets the baseline
+        price; changing the threshold also resets the baseline. An id that does
+        not exist or belongs to another user returns the same 404.
+
+        Problem codes: `unauthorized` (401), `email_not_verified` (403),
+        `entitlement_exceeded` (403), 404 (`about:blank`), `validation_failed`
+        (422, for example a threshold on a non-`PRICE_DROP` subscription).
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+        - $ref: '#/components/parameters/AlertIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateAlertRequest' }
+            example: { active: false }
+      responses:
+        '200':
+          description: Updated subscription.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AlertSubscription' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/EntitlementForbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    delete:
+      tags: [Alerts]
+      operationId: deleteAlert
+      summary: Delete an alert subscription
+      description: |
+        An id that does not exist or belongs to another user returns the same 404.
+
+        Problem codes: `unauthorized` (401), 404 (`about:blank`).
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+        - $ref: '#/components/parameters/AlertIdPath'
+      responses:
+        '204':
+          description: Deleted.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /me/notifications:
+    get:
+      tags: [Notifications]
+      operationId: listNotifications
+      summary: Notification inbox
+      description: |
+        Notifications of the caller, newest first.
+
+        Problem codes: `unauthorized` (401), `validation_failed` (422).
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+        - name: unreadOnly
+          in: query
+          required: false
+          description: Return only unread notifications.
+          schema: { type: boolean, default: false }
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: Page of notifications.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NotificationPage' }
+              example:
+                meta: { page: 1, pageSize: 20, total: 1 }
+                items:
+                  - id: 7d8e9f0a-1b2c-4d3e-9f4a-5b6c7d8e9f0a
+                    type: ALERT_PRICE_DROP
+                    payload:
+                      productId: 3b2f0c4e-6a1d-4f0e-9c3a-1a2b3c4d5e01
+                      countryCode: TR
+                      before: { effectivePrice: 800.0, inStock: true, retailer: Retailer One, url: 'https://shop.example.com/products/gold-a' }
+                      after: { effectivePrice: 700.0, inStock: true, retailer: Retailer One, url: 'https://shop.example.com/products/gold-a' }
+                    createdAt: '2026-11-24T07:00:00Z'
+                    readAt: null
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /me/notifications/{id}/read:
+    post:
+      tags: [Notifications]
+      operationId: markNotificationRead
+      summary: Mark one notification as read
+      description: |
+        Idempotent. An id that does not exist or belongs to another user returns
+        the same 404.
+
+        Problem codes: `unauthorized` (401), 404 (`about:blank`).
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+        - $ref: '#/components/parameters/NotificationIdPath'
+      responses:
+        '204':
+          description: Marked as read.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /me/notifications/read-all:
+    post:
+      tags: [Notifications]
+      operationId: markAllNotificationsRead
+      summary: Mark all notifications as read
+      description: |
+        Problem codes: `unauthorized` (401).
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+      responses:
+        '204':
+          description: All notifications marked as read.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /me/notifications/unread-count:
+    get:
+      tags: [Notifications]
+      operationId: getUnreadNotificationCount
+      summary: Number of unread notifications
+      description: |
+        Polled by the web app every 60 seconds while signed in.
+
+        Problem codes: `unauthorized` (401).
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+      responses:
+        '200':
+          description: Unread count.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UnreadCount' }
+              example: { unreadCount: 3 }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /me/subscription/promo:
+    post:
+      tags: [Subscription]
+      operationId: redeemPromoCode
+      summary: Activate or extend PRO with a promo code
+      description: |
+        Code lookup is case-insensitive. Activating PRO cancels the current
+        subscription and starts an ACTIVE PRO subscription for the code's
+        duration; an existing PRO period is extended. Every failure (unknown,
+        expired, exhausted or already redeemed by this user) returns the same
+        400 `promo_invalid`.
+
+        Problem codes: `unauthorized` (401), `email_not_verified` (403),
+        `promo_invalid` (400), `conflict_retry` (409), `validation_failed`
+        (422), `rate_limited` (429, 10 per hour per IP and 5 per hour per user).
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PromoRedeemRequest' }
+            example: { code: LAUNCH-7K3M9QXT2B4N6PRW }
+      responses:
+        '200':
+          description: PRO activated or extended.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SubscriptionActivation' }
+              example:
+                plan: PRO
+                subscription: { id: 4e5f6a7b-8c9d-4e0f-9a1b-2c3d4e5f6a7b, planCode: PRO, status: ACTIVE, source: PROMO, startedAt: '2026-11-24T08:30:00Z', currentPeriodEnd: '2026-12-24T08:30:00Z', canceledAt: null }
+        '400': { $ref: '#/components/responses/PromoInvalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /admin/health:
+    get:
+      tags: [AdminOperations]
+      operationId: getAdminHealth
+      summary: Detailed dependency status
+      description: |
+        Requires role ADMIN. Scoring service, database, FX freshness, outbox
+        backlog and dead letters, and the last run time of each scheduled job.
+
+        Problem codes: `unauthorized` (401), `forbidden` (403).
+      x-required-role: ADMIN
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+      responses:
+        '200':
+          description: Detailed status.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminHealth' }
+              example:
+                status: UP
+                checkedAt: '2026-11-24T08:30:00Z'
+                components:
+                  scoring: { status: UP }
+                  database: { status: UP }
+                  fx: { status: UP, newestAsOf: '2026-11-23', rateAgeDays: 1, stale: false }
+                  outbox: { status: UP, pending: 0, failed: 0, deadLetter: 0 }
+                jobs:
+                  - { name: OUTBOX_PROCESSOR, lastRunAt: '2026-11-24T08:29:55Z' }
+                  - { name: FX_REFRESH, lastRunAt: '2026-11-24T06:00:00Z' }
+                  - { name: SUBSCRIPTION_EXPIRY, lastRunAt: '2026-11-24T00:05:00Z' }
+                  - { name: HOUSEKEEPING, lastRunAt: '2026-11-24T03:15:00Z' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /admin/imports/products:
+    post:
+      tags: [AdminImports]
+      operationId: importProducts
+      summary: Import a products document
+      description: |
+        Requires role ADMIN. Accepts the products JSON document (products,
+        nutrients, availability and offers) defined by the JSON Schema
+        `contracts/schemas/import-products.schema.json`. The document is
+        validated against that schema before any write; products are upserted
+        by `code`. Creates an import job of kind `PRODUCTS_JSON`; the job status,
+        summary and row errors are read with `GET /admin/imports/{jobId}`.
+
+        Problem codes: `unauthorized` (401), `forbidden` (403), body larger than
+        20 MB (413), `validation_failed` (422, schema violations listed in
+        `errors[]`).
+      x-required-role: ADMIN
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+      requestBody:
+        required: true
+        description: Products document; its structure is defined by `contracts/schemas/import-products.schema.json`.
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProductsImportDocument' }
+      responses:
+        '202':
+          description: Import job created.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+            Location: { $ref: '#/components/headers/ImportJobLocation' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ImportJob' }
+              example: { id: 2c3d4e5f-6a7b-4c8d-9e0f-1a2b3c4d5e6f, kind: PRODUCTS_JSON, status: RUNNING, createdAt: '2026-11-24T08:30:00Z', finishedAt: null, summary: null }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /admin/imports/offers:
+    post:
+      tags: [AdminImports]
+      operationId: importOffers
+      summary: Import an offers CSV file
+      description: |
+        Requires role ADMIN. Upserts offers by natural key (product, country,
+        retailer) within the countries covered by the file; for every
+        (product, country) pair in the file, offers of retailers absent from the
+        file are deleted. Rows reference products by `product_code`. Creates an
+        import job of kind `OFFERS_CSV`; row errors such as `currency_mismatch`
+        and `invalid_offer_url` are reported on the job.
+
+        Problem codes: `unauthorized` (401), `forbidden` (403), file larger than
+        20 MB (413), `validation_failed` (422, missing file or unreadable CSV
+        header).
+      x-required-role: ADMIN
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: { $ref: '#/components/schemas/OffersImportUpload' }
+            encoding:
+              file:
+                contentType: text/csv
+      responses:
+        '202':
+          description: Import job created.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+            Location: { $ref: '#/components/headers/ImportJobLocation' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ImportJob' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /admin/imports/{jobId}:
+    get:
+      tags: [AdminImports]
+      operationId: getImportJob
+      summary: Import job status, summary and row errors
+      description: |
+        Requires role ADMIN.
+
+        Problem codes: `unauthorized` (401), `forbidden` (403), 404
+        (`about:blank`).
+      x-required-role: ADMIN
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+        - name: jobId
+          in: path
+          required: true
+          description: Import job id.
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Import job.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ImportJobDetail' }
+              example:
+                id: 2c3d4e5f-6a7b-4c8d-9e0f-1a2b3c4d5e6f
+                kind: OFFERS_CSV
+                status: FAILED
+                createdAt: '2026-11-24T08:30:00Z'
+                finishedAt: '2026-11-24T08:30:02Z'
+                summary: { rowsRead: 120, inserted: 0, updated: 0, deleted: 0 }
+                errors:
+                  - { rowNumber: 17, message: 'currency_mismatch: offer currency EUR does not match country currency TRY' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /admin/users:
+    get:
+      tags: [AdminUsers]
+      operationId: listUsers
+      summary: Search users
+      description: |
+        Requires role ADMIN. Never returns password hashes.
+
+        Problem codes: `unauthorized` (401), `forbidden` (403),
+        `validation_failed` (422).
+      x-required-role: ADMIN
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+        - name: q
+          in: query
+          required: false
+          description: Case-insensitive search over the e-mail address.
+          schema: { type: string, minLength: 1, maxLength: 254 }
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: Page of users.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminUserPage' }
+              example:
+                meta: { page: 1, pageSize: 20, total: 1 }
+                items:
+                  - { id: 9f1c2d3e-4b5a-4c6d-8e7f-0a1b2c3d4e5f, email: user@example.com, role: USER, status: ACTIVE, plan: FREE, emailVerified: true, createdAt: '2026-11-01T10:00:00Z' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /admin/users/{id}/subscription:
+    post:
+      tags: [AdminUsers]
+      operationId: grantSubscription
+      summary: Grant PRO manually
+      description: |
+        Requires role ADMIN. Activates PRO for `durationDays` with source
+        `MANUAL`, or extends an existing PRO period.
+
+        Problem codes: `unauthorized` (401), `forbidden` (403), 404
+        (`about:blank`), `conflict_retry` (409), `validation_failed` (422).
+      x-required-role: ADMIN
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+        - $ref: '#/components/parameters/UserIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GrantSubscriptionRequest' }
+            example: { planCode: PRO, durationDays: 30 }
+      responses:
+        '200':
+          description: Subscription now in effect for the user.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Subscription' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /admin/users/{id}/status:
+    post:
+      tags: [AdminUsers]
+      operationId: setUserStatus
+      summary: Enable or disable a user
+      description: |
+        Requires role ADMIN. Setting `DISABLED` revokes all refresh-token
+        families of the user in the same transaction; issued access tokens
+        expire within 15 minutes.
+
+        Problem codes: `unauthorized` (401), `forbidden` (403), 404
+        (`about:blank`), `validation_failed` (422).
+      x-required-role: ADMIN
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+        - $ref: '#/components/parameters/UserIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SetUserStatusRequest' }
+            example: { status: DISABLED }
+      responses:
+        '200':
+          description: Updated user.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminUser' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /admin/promo-codes:
+    get:
+      tags: [AdminPromoCodes]
+      operationId: listPromoCodes
+      summary: List promo codes
+      description: |
+        Requires role ADMIN.
+
+        Problem codes: `unauthorized` (401), `forbidden` (403).
+      x-required-role: ADMIN
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+      responses:
+        '200':
+          description: Promo codes.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PromoCodeList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    post:
+      tags: [AdminPromoCodes]
+      operationId: createPromoCode
+      summary: Generate a promo code
+      description: |
+        Requires role ADMIN. The code is generated server-side as the optional
+        prefix, a hyphen and 16 Crockford base32 characters from a CSPRNG
+        (80 bits of entropy); without a prefix the code is the 16 characters
+        alone. The generated code is returned in this response.
+
+        Problem codes: `unauthorized` (401), `forbidden` (403),
+        `validation_failed` (422).
+      x-required-role: ADMIN
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreatePromoCodeRequest' }
+            example: { prefix: LAUNCH, planCode: PRO, durationDays: 30, maxRedemptions: 100, expiresAt: '2027-01-31T23:59:59Z' }
+      responses:
+        '201':
+          description: Promo code created.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PromoCode' }
+              example: { code: LAUNCH-7K3M9QXT2B4N6PRW, planCode: PRO, durationDays: 30, maxRedemptions: 100, redeemedCount: 0, expiresAt: '2027-01-31T23:59:59Z', createdBy: 9f1c2d3e-4b5a-4c6d-8e7f-0a1b2c3d4e5f }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /admin/promo-codes/{code}:
+    delete:
+      tags: [AdminPromoCodes]
+      operationId: deletePromoCode
+      summary: Delete a promo code
+      description: |
+        Requires role ADMIN. Lookup is case-insensitive.
+
+        Problem codes: `unauthorized` (401), `forbidden` (403), 404
+        (`about:blank`).
+      x-required-role: ADMIN
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+        - name: code
+          in: path
+          required: true
+          description: Promo code.
+          schema: { $ref: '#/components/schemas/PromoCodeValue' }
+      responses:
+        '204':
+          description: Deleted.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /admin/fx/refresh:
+    post:
+      tags: [AdminOperations]
+      operationId: refreshFxRates
+      summary: Run the FX refresh job now
+      description: |
+        Requires role ADMIN. Runs the FX refresh immediately and returns the
+        number of upserted rate rows. A provider failure is logged and leaves
+        the stored rates in use; the response then reports the rows upserted
+        before the failure.
+
+        Problem codes: `unauthorized` (401), `forbidden` (403).
+      x-required-role: ADMIN
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+      responses:
+        '200':
+          description: Refresh finished.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FxRefreshResult' }
+              example: { upsertedRows: 12 }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /admin/outbox/stats:
+    get:
+      tags: [AdminOperations]
+      operationId: getOutboxStats
+      summary: Outbox backlog counts
+      description: |
+        Requires role ADMIN. `pending` counts unprocessed events, `failed` the
+        unprocessed events with at least one failed attempt, `deadLetter` the
+        events processed with outcome `DEAD_LETTER`.
+
+        Problem codes: `unauthorized` (401), `forbidden` (403).
+      x-required-role: ADMIN
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+      responses:
+        '200':
+          description: Counts.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OutboxStats' }
+              example: { pending: 3, failed: 1, deadLetter: 0 }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        Access token (HS256 JWT, 15 minutes) from `POST /auth/login` or
+        `POST /auth/refresh`. Claims: `sub` (user id), `role` (`USER` or
+        `ADMIN`), `email_verified`, `jti`; header `kid`. The plan is not a
+        claim; it is always read from the server.
+    refreshCookie:
+      type: apiKey
+      in: cookie
+      name: vd_refresh
+      description: |
+        Rotating refresh token (256-bit random, 30 days). `HttpOnly`,
+        `SameSite=Strict`, `Path=/api/v1/auth`, `Secure` outside development.
+    anonCookie:
+      type: apiKey
+      in: cookie
+      name: vd_anon
+      description: |
+        Signed anonymous identity (128-bit random id, HMAC-SHA256). `HttpOnly`,
+        `SameSite=Lax`, `Secure` outside development, max-age 180 days. Created
+        by `POST /recommendations/query` or `GET /session/quota` when missing.
+
+  parameters:
+    XRequestId:
+      name: X-Request-Id
+      in: header
+      required: false
+      description: |
+        Client-supplied request id. Accepted only when it matches the pattern;
+        otherwise, or when absent, the API generates a new id. Never rejected.
+      schema: { $ref: '#/components/schemas/RequestId' }
+    XRequestedWith:
+      name: X-Requested-With
+      in: header
+      required: true
+      description: CSRF guard for cookie-scoped auth endpoints; any other value is rejected with 403 `forbidden`.
+      schema:
+        type: string
+        enum: [vitadelta]
+    Origin:
+      name: Origin
+      in: header
+      required: false
+      description: When present, it must be one of the configured web origins; otherwise 403 `forbidden`.
+      schema: { type: string, format: uri }
+    CountryQueryRequired:
+      name: country
+      in: query
+      required: true
+      description: Country code; must exist in the country registry (422 `country_not_found` otherwise).
+      schema: { $ref: '#/components/schemas/CountryCode' }
+      example: TR
+    DisplayCurrencyQuery:
+      name: displayCurrency
+      in: query
+      required: false
+      description: |
+        Display currency. Resolution: this parameter, then the signed-in user's
+        preference, then the native currency. Must be a supported currency
+        (422 `fx_unsupported_currency` otherwise).
+      schema: { $ref: '#/components/schemas/CurrencyCode' }
+    Page:
+      name: page
+      in: query
+      required: false
+      description: 1-based page number.
+      schema: { type: integer, format: int32, minimum: 1, default: 1 }
+    PageSize:
+      name: pageSize
+      in: query
+      required: false
+      description: Page size.
+      schema: { type: integer, format: int32, minimum: 1, maximum: 100, default: 20 }
+    ProductIdPath:
+      name: id
+      in: path
+      required: true
+      description: Product id.
+      schema: { type: string, format: uuid }
+    AlertIdPath:
+      name: id
+      in: path
+      required: true
+      description: Alert subscription id.
+      schema: { type: string, format: uuid }
+    NotificationIdPath:
+      name: id
+      in: path
+      required: true
+      description: Notification id.
+      schema: { type: string, format: uuid }
+    UserIdPath:
+      name: id
+      in: path
+      required: true
+      description: User id.
+      schema: { type: string, format: uuid }
+
+  headers:
+    XRequestId:
+      description: Request id in effect for this request (echoed or generated).
+      required: true
+      schema: { $ref: '#/components/schemas/RequestId' }
+    RetryAfter:
+      description: Seconds to wait before retrying.
+      required: true
+      schema: { type: integer, minimum: 1 }
+    SetCookieAnon:
+      description: |
+        Sets `vd_anon` when the anonymous identity cookie was missing
+        (`HttpOnly; SameSite=Lax; Max-Age=15552000; Path=/`, `Secure` outside
+        development). Absent for signed-in callers and when the cookie exists.
+      required: false
+      schema: { type: string }
+    SetCookieClearAnon:
+      description: Clears `vd_anon` (`Max-Age=0`). Sent identically on every 202 response.
+      required: true
+      schema: { type: string }
+    SetCookieRefresh:
+      description: Sets the rotated `vd_refresh` cookie (`HttpOnly; SameSite=Strict; Path=/api/v1/auth; Max-Age=2592000`, `Secure` outside development).
+      required: true
+      schema: { type: string }
+    SetCookieClearRefresh:
+      description: Clears `vd_refresh` (`Path=/api/v1/auth; Max-Age=0`).
+      required: true
+      schema: { type: string }
+    ImportJobLocation:
+      description: URL of the import job resource (`/api/v1/admin/imports/{jobId}`).
+      required: true
+      schema: { type: string, format: uri-reference }
+
+  responses:
+    Unauthorized:
+      description: |
+        Missing, invalid or expired credentials. Codes: `unauthorized`,
+        `invalid_credentials`, `refresh_reuse_detected`.
+      headers:
+        X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+          example:
+            type: https://vitadelta.dev/problems/unauthorized
+            title: Unauthorized
+            status: 401
+            detail: Authentication is required.
+            instance: /api/v1/me
+            requestId: 8c1d2e3f-4a5b-4c6d-9e7f-0a1b2c3d4e5f
+    Forbidden:
+      description: |
+        The principal may not perform the action. Codes: `forbidden`,
+        `account_disabled`, `email_not_verified`.
+      headers:
+        X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+          example:
+            type: https://vitadelta.dev/problems/forbidden
+            title: Forbidden
+            status: 403
+            detail: The ADMIN role is required.
+            instance: /api/v1/admin/users
+            requestId: 8c1d2e3f-4a5b-4c6d-9e7f-0a1b2c3d4e5f
+    QuotaExceeded:
+      description: The anonymous trial quota is used up. Code `quota_exceeded`.
+      headers:
+        X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/QuotaExceededProblem' }
+          example:
+            type: https://vitadelta.dev/problems/quota_exceeded
+            title: Query quota exceeded
+            status: 403
+            detail: The free trial queries are used up. Create an account to continue.
+            instance: /api/v1/recommendations/query
+            requestId: 8c1d2e3f-4a5b-4c6d-9e7f-0a1b2c3d4e5f
+            limit: 3
+            used: 3
+            action: SIGN_UP
+            upgradeHint: { messageKey: quota.exhausted, ctaPath: /auth/register }
+    EntitlementForbidden:
+      description: |
+        Plan limit reached (`entitlement_exceeded`, body
+        `EntitlementExceededProblem`) or e-mail not verified
+        (`email_not_verified`, body `Problem`).
+      headers:
+        X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+      content:
+        application/problem+json:
+          schema:
+            anyOf:
+              - $ref: '#/components/schemas/EntitlementExceededProblem'
+              - $ref: '#/components/schemas/Problem'
+          examples:
+            entitlementExceeded:
+              summary: Saved-product limit of FREE reached
+              value:
+                type: https://vitadelta.dev/problems/entitlement_exceeded
+                title: Plan limit reached
+                status: 403
+                detail: The FREE plan allows 5 saved products.
+                instance: /api/v1/me/saved-products
+                requestId: 8c1d2e3f-4a5b-4c6d-9e7f-0a1b2c3d4e5f
+                limit: 5
+                used: 5
+                plan: FREE
+                upgradeTo: PRO
+                upgradeHint: { messageKey: limits.saved_products_reached, ctaPath: /upgrade }
+            emailNotVerified:
+              summary: Alert creation before e-mail verification
+              value:
+                type: https://vitadelta.dev/problems/email_not_verified
+                title: E-mail not verified
+                status: 403
+                detail: Verify your e-mail address to create alerts.
+                instance: /api/v1/me/alerts
+                requestId: 8c1d2e3f-4a5b-4c6d-9e7f-0a1b2c3d4e5f
+    NotFound:
+      description: |
+        Resource not found. Codes: `product_not_found`,
+        `product_not_available_in_country`; other resources (alert,
+        notification, user, import job, promo code) use `about:blank`.
+      headers:
+        X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+          example:
+            type: https://vitadelta.dev/problems/product_not_available_in_country
+            title: Product not available in country
+            status: 404
+            detail: The product is not sold in GB.
+            instance: /api/v1/products/3b2f0c4e-6a1d-4f0e-9c3a-1a2b3c4d5e01
+            requestId: 8c1d2e3f-4a5b-4c6d-9e7f-0a1b2c3d4e5f
+    Conflict:
+      description: A concurrent subscription change won; retry the request. Code `conflict_retry`.
+      headers:
+        X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    PayloadTooLarge:
+      description: Request body exceeds the size limit (query 64 kB, import JSON 20 MB, CSV 20 MB). Code `validation_failed`.
+      headers:
+        X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    UnprocessableEntity:
+      description: |
+        The request is syntactically or semantically invalid. Codes:
+        `validation_failed` (with `errors[]`), `country_not_found`,
+        `fx_unsupported_currency`.
+      headers:
+        X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+          example:
+            type: https://vitadelta.dev/problems/validation_failed
+            title: Validation failed
+            status: 422
+            detail: The request contains invalid fields.
+            instance: /api/v1/recommendations/query
+            requestId: 8c1d2e3f-4a5b-4c6d-9e7f-0a1b2c3d4e5f
+            errors:
+              - { field: weights, code: weights_all_zero, message: The weights give every nutrient a weight of 0. }
+              - { field: 'requiredNutrients[0].unit', code: unit_requires_form, message: IU is accepted only for VIT_D. }
+    TokenRejected:
+      description: The e-mail token is unknown, used or expired. Codes `token_invalid`, `token_expired`.
+      headers:
+        X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+          example:
+            type: https://vitadelta.dev/problems/token_expired
+            title: Token expired
+            status: 400
+            detail: The link has expired. Request a new one.
+            instance: /api/v1/auth/verify-email
+            requestId: 8c1d2e3f-4a5b-4c6d-9e7f-0a1b2c3d4e5f
+    PromoInvalid:
+      description: The promo code cannot be redeemed (one response for every reason). Code `promo_invalid`.
+      headers:
+        X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+          example:
+            type: https://vitadelta.dev/problems/promo_invalid
+            title: Promo code invalid
+            status: 400
+            detail: The promo code cannot be redeemed.
+            instance: /api/v1/me/subscription/promo
+            requestId: 8c1d2e3f-4a5b-4c6d-9e7f-0a1b2c3d4e5f
+    TooManyRequests:
+      description: Rate limit exceeded. Code `rate_limited`.
+      headers:
+        X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+        Retry-After: { $ref: '#/components/headers/RetryAfter' }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+          example:
+            type: https://vitadelta.dev/problems/rate_limited
+            title: Too many requests
+            status: 429
+            detail: Try again later.
+            instance: /api/v1/auth/login
+            requestId: 8c1d2e3f-4a5b-4c6d-9e7f-0a1b2c3d4e5f
+    ScoringUnavailable:
+      description: The scoring service is unavailable or the circuit is open. Code `scoring_unavailable`. Anonymous quota is not consumed.
+      headers:
+        X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+          example:
+            type: https://vitadelta.dev/problems/scoring_unavailable
+            title: Scoring unavailable
+            status: 503
+            detail: The ranking service is temporarily unavailable.
+            instance: /api/v1/recommendations/query
+            requestId: 8c1d2e3f-4a5b-4c6d-9e7f-0a1b2c3d4e5f
+    InternalError:
+      description: Unexpected server error. Code `internal_error`.
+      headers:
+        X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+
+  schemas:
+    # ---------- Primitives ----------
+    RequestId:
+      type: string
+      pattern: '^[A-Za-z0-9-]{1,64}$'
+      example: 8c1d2e3f-4a5b-4c6d-9e7f-0a1b2c3d4e5f
+    CountryCode:
+      type: string
+      description: ISO 3166-1 alpha-2 country code of the country registry.
+      pattern: '^[A-Z]{2}$'
+      example: TR
+    CurrencyCode:
+      type: string
+      description: ISO 4217 currency code.
+      pattern: '^[A-Z]{3}$'
+      example: TRY
+    NutrientCode:
+      type: string
+      description: Code of the nutrient registry.
+      pattern: '^[A-Z][A-Z0-9_]{0,39}$'
+      example: VIT_C
+    ProductCode:
+      type: string
+      description: Human-readable business key of a product.
+      pattern: '^[A-Z0-9][A-Z0-9-]{1,39}$'
+      maxLength: 40
+      example: GOLD-A
+    PromoCodeValue:
+      type: string
+      description: Promo code; optional prefix and hyphen followed by 16 Crockford base32 characters. Matched case-insensitively.
+      pattern: '^([A-Za-z0-9]{1,16}-)?[0-9A-HJKMNP-TV-Za-hjkmnp-tv-z]{16}$'
+      example: LAUNCH-7K3M9QXT2B4N6PRW
+    Locale:
+      type: string
+      enum: [tr, en]
+    Email:
+      type: string
+      format: email
+      maxLength: 254
+      example: user@example.com
+    Money:
+      type: number
+      description: Monetary amount rounded once to 4 decimals.
+    HealthStatus:
+      type: string
+      enum: [UP, DEGRADED, DOWN]
+
+    # ---------- Enumerations ----------
+    NutrientCategory:
+      type: string
+      enum: [VITAMIN, MINERAL, COENZYME, OTHER]
+    CanonicalUnit:
+      type: string
+      enum: [mg, mcg]
+    InputUnit:
+      type: string
+      description: Accepted query unit. `IU` is accepted only for `VIT_D`.
+      enum: [mg, mcg, g, IU]
+    DosageForm:
+      type: string
+      enum: [TABLET, CAPSULE, SOFTGEL, GUMMY, POWDER, LIQUID]
+    AvailabilityStatus:
+      type: string
+      enum: [AVAILABLE, NOT_SOLD, DISCONTINUED]
+    ReferenceSource:
+      type: string
+      enum: [REGULATORY, MARKET_MEDIAN, PRESENCE_ONLY]
+    StockFilter:
+      type: string
+      enum: [IN_STOCK_ONLY, INCLUDE_OUT_OF_STOCK]
+    RankingMode:
+      type: string
+      enum: [PRICE, RICHNESS, VALUE, CUSTOM]
+    Verdict:
+      type: string
+      enum: [WORTH_IT, MARGINAL, NOT_WORTH_IT, DOMINATES, EQUIVALENT, INSUFFICIENT_DATA]
+    ProductFlagCode:
+      type: string
+      description: |
+        Product-level safety and data flags. `FX_STALE`, `FX_UNAVAILABLE` and
+        `UNAVAILABLE_IN_COUNTRY` are added by the API; the others come from the
+        scoring engine or the effective-price resolution.
+      enum:
+        - EXCEEDS_UL
+        - UL_FORM_DEPENDENT
+        - CONVERSION_ASSUMED
+        - PRICE_STALE
+        - OUT_OF_STOCK
+        - MARKET_MEDIAN_REFERENCE_USED
+        - PRESENCE_ONLY_NUTRIENTS
+        - BELOW_PRESENCE_FLOOR
+        - FX_STALE
+        - FX_UNAVAILABLE
+        - UNAVAILABLE_IN_COUNTRY
+    DeltaRowFlag:
+      type: string
+      enum: [NEW_IN_B, REMOVED_IN_B, DIMINISHING, ABOVE_CEILING_NO_CREDIT, ABOVE_UL_NO_CREDIT]
+    Role:
+      type: string
+      enum: [USER, ADMIN]
+    UserStatus:
+      type: string
+      enum: [ACTIVE, DISABLED]
+    PlanCode:
+      type: string
+      enum: [FREE, PRO]
+    SubscriptionStatus:
+      type: string
+      enum: [ACTIVE, EXPIRED, CANCELED]
+    SubscriptionSource:
+      type: string
+      enum: [MANUAL, PROMO, PROVIDER]
+    AlertTrigger:
+      type: string
+      enum: [PRICE_DROP, BACK_IN_STOCK, PRICE_CHANGE]
+    NotificationType:
+      type: string
+      enum: [ALERT_PRICE_DROP, ALERT_BACK_IN_STOCK, ALERT_PRICE_CHANGE, NOTIFICATION_CAP_REACHED, PLAN_ACTIVATED, PLAN_EXPIRED]
+    ImportJobKind:
+      type: string
+      enum: [PRODUCTS_JSON, OFFERS_CSV]
+    ImportJobStatus:
+      type: string
+      enum: [RUNNING, SUCCEEDED, FAILED]
+    FxStatus:
+      type: string
+      description: '`UNAVAILABLE` when no rate exists for the pair; money is then returned in the native currency.'
+      enum: [OK, UNAVAILABLE]
+
+    # ---------- Errors ----------
+    Problem:
+      type: object
+      description: RFC 9457 problem details.
+      required: [type, title, status, requestId]
+      properties:
+        type:
+          type: string
+          format: uri
+          description: '`https://vitadelta.dev/problems/<code>`, or `about:blank` for generic HTTP errors.'
+          enum:
+            - https://vitadelta.dev/problems/validation_failed
+            - https://vitadelta.dev/problems/country_not_found
+            - https://vitadelta.dev/problems/product_not_found
+            - https://vitadelta.dev/problems/product_not_available_in_country
+            - https://vitadelta.dev/problems/currency_mismatch
+            - https://vitadelta.dev/problems/scoring_unavailable
+            - https://vitadelta.dev/problems/unauthorized
+            - https://vitadelta.dev/problems/forbidden
+            - https://vitadelta.dev/problems/invalid_credentials
+            - https://vitadelta.dev/problems/account_disabled
+            - https://vitadelta.dev/problems/email_not_verified
+            - https://vitadelta.dev/problems/token_invalid
+            - https://vitadelta.dev/problems/token_expired
+            - https://vitadelta.dev/problems/refresh_reuse_detected
+            - https://vitadelta.dev/problems/quota_exceeded
+            - https://vitadelta.dev/problems/entitlement_exceeded
+            - https://vitadelta.dev/problems/promo_invalid
+            - https://vitadelta.dev/problems/conflict_retry
+            - https://vitadelta.dev/problems/fx_unsupported_currency
+            - https://vitadelta.dev/problems/rate_limited
+            - https://vitadelta.dev/problems/unsupported_iu_form
+            - https://vitadelta.dev/problems/invalid_offer_url
+            - https://vitadelta.dev/problems/import_failed
+            - https://vitadelta.dev/problems/internal_error
+            - about:blank
+        title:
+          type: string
+          description: Short, human-readable summary of the problem type.
+        status:
+          type: integer
+          format: int32
+          minimum: 400
+          maximum: 599
+        detail:
+          type: string
+          description: Human-readable explanation of this occurrence.
+        instance:
+          type: string
+          format: uri-reference
+          description: Request path of this occurrence.
+        requestId: { $ref: '#/components/schemas/RequestId' }
+        errors:
+          type: array
+          description: Field errors; present for `validation_failed`.
+          items: { $ref: '#/components/schemas/FieldError' }
+    FieldError:
+      type: object
+      required: [field, code, message]
+      properties:
+        field:
+          type: string
+          description: JSON path of the offending field, for example `requiredNutrients[0].unit`.
+        code:
+          type: string
+          description: Machine-readable reason, for example `weights_all_zero`, `unit_requires_form`, `required`, `out_of_range`.
+          pattern: '^[a-z][a-z0-9_]*$'
+        message:
+          type: string
+    UpgradeHint:
+      type: object
+      description: What the web app renders as call to action for a limit error.
+      required: [messageKey, ctaPath]
+      properties:
+        messageKey:
+          type: string
+          description: i18n key of the notice text.
+        ctaPath:
+          type: string
+          description: Relative path of the call-to-action link.
+          pattern: '^/'
+    QuotaExceededProblem:
+      description: '`quota_exceeded` with its extension members.'
+      allOf:
+        - $ref: '#/components/schemas/Problem'
+        - type: object
+          required: [limit, used, action, upgradeHint]
+          properties:
+            type:
+              const: https://vitadelta.dev/problems/quota_exceeded
+            limit: { type: integer, minimum: 0 }
+            used: { type: integer, minimum: 0 }
+            action:
+              type: string
+              enum: [SIGN_UP]
+            upgradeHint: { $ref: '#/components/schemas/UpgradeHint' }
+    EntitlementExceededProblem:
+      description: '`entitlement_exceeded` with its extension members.'
+      allOf:
+        - $ref: '#/components/schemas/Problem'
+        - type: object
+          required: [limit, used, plan, upgradeTo, upgradeHint]
+          properties:
+            type:
+              const: https://vitadelta.dev/problems/entitlement_exceeded
+            limit: { type: integer, minimum: 0 }
+            used: { type: integer, minimum: 0 }
+            plan: { $ref: '#/components/schemas/PlanCode' }
+            upgradeTo: { $ref: '#/components/schemas/PlanCode' }
+            upgradeHint: { $ref: '#/components/schemas/UpgradeHint' }
+
+    # ---------- System ----------
+    Health:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status: { $ref: '#/components/schemas/HealthStatus' }
+    LegalInfo:
+      type: object
+      required: [privacyContact]
+      properties:
+        privacyContact:
+          type: string
+          minLength: 1
+          description: Controller contact shown on the privacy notice.
+          example: privacy@example.com
+    EmptyObject:
+      type: object
+      description: An empty JSON object.
+      maxProperties: 0
+
+    # ---------- Reference data ----------
+    Country:
+      type: object
+      required: [code, nameEn, currency, referenceSetCode, ulSetCode, defaultLocale]
+      properties:
+        code: { $ref: '#/components/schemas/CountryCode' }
+        nameEn: { type: string }
+        currency: { $ref: '#/components/schemas/CurrencyCode' }
+        referenceSetCode: { type: string, example: EU_NRV }
+        ulSetCode: { type: string, example: EFSA }
+        defaultLocale: { $ref: '#/components/schemas/Locale' }
+    CountryList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Country' }
+    Nutrient:
+      type: object
+      required: [code, nameEn, category, canonicalUnit, presenceFloorPerDay, sortOrder, referenceSetCodes]
+      properties:
+        code: { $ref: '#/components/schemas/NutrientCode' }
+        nameEn: { type: string }
+        category: { $ref: '#/components/schemas/NutrientCategory' }
+        canonicalUnit: { $ref: '#/components/schemas/CanonicalUnit' }
+        presenceFloorPerDay:
+          type: [number, 'null']
+          minimum: 0
+          description: Presence floor per day in the canonical unit; `null` when unknown.
+        sortOrder: { type: integer }
+        referenceSetCodes:
+          type: array
+          description: Reference sets that define a value for this nutrient.
+          items: { type: string }
+    NutrientList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Nutrient' }
+    NumberRange:
+      type: object
+      required: [min, max]
+      properties:
+        min: { type: number }
+        max: { type: number }
+    CategoryWeights:
+      type: object
+      description: Category weights in [0.0, 2.0]. Missing categories use the default weight.
+      additionalProperties: false
+      properties:
+        VITAMIN: { type: number, minimum: 0, maximum: 2 }
+        MINERAL: { type: number, minimum: 0, maximum: 2 }
+        COENZYME: { type: number, minimum: 0, maximum: 2 }
+        OTHER: { type: number, minimum: 0, maximum: 2 }
+    DefaultCategoryWeights:
+      description: Default weight of every category.
+      allOf:
+        - $ref: '#/components/schemas/CategoryWeights'
+        - type: object
+          required: [VITAMIN, MINERAL, COENZYME, OTHER]
+    NutrientOverrides:
+      type: object
+      description: Per-nutrient weight multipliers in [0.0, 3.0] (default 1.0). Keys must be registry codes; 0 removes the nutrient from the score but not from the breakdown.
+      propertyNames: { $ref: '#/components/schemas/NutrientCode' }
+      additionalProperties: { type: number, minimum: 0, maximum: 3 }
+    Weights:
+      type: object
+      description: Weights must not make every registry nutrient 0 (422 `validation_failed`, `weights_all_zero`).
+      properties:
+        categories: { $ref: '#/components/schemas/CategoryWeights' }
+        overrides: { $ref: '#/components/schemas/NutrientOverrides' }
+    DefaultWeights:
+      type: object
+      required: [categories, categoryRange, overrideDefault, overrideRange, lambdaDefault, lambdaRange]
+      properties:
+        categories: { $ref: '#/components/schemas/DefaultCategoryWeights' }
+        categoryRange: { $ref: '#/components/schemas/NumberRange' }
+        overrideDefault: { type: number }
+        overrideRange: { $ref: '#/components/schemas/NumberRange' }
+        lambdaDefault: { type: number, minimum: 0, maximum: 1 }
+        lambdaRange: { $ref: '#/components/schemas/NumberRange' }
+
+    # ---------- Recommendations ----------
+    Ranking:
+      type: object
+      required: [mode]
+      properties:
+        mode: { $ref: '#/components/schemas/RankingMode' }
+        lambda:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Weight of content against price for `CUSTOM` only (default 0.5); sent with another mode it is rejected with 422.
+    RequiredNutrient:
+      type: object
+      required: [code]
+      dependentRequired:
+        minAmountPerDay: [unit]
+      properties:
+        code: { $ref: '#/components/schemas/NutrientCode' }
+        minAmountPerDay:
+          type: number
+          exclusiveMinimum: 0
+          description: Minimum amount per day; when absent the nutrient only has to be present.
+        unit:
+          $ref: '#/components/schemas/InputUnit'
+    RecommendationQueryRequest:
+      type: object
+      required: [country]
+      properties:
+        country: { $ref: '#/components/schemas/CountryCode' }
+        stockFilter:
+          allOf:
+            - $ref: '#/components/schemas/StockFilter'
+          default: IN_STOCK_ONLY
+        ranking:
+          allOf:
+            - $ref: '#/components/schemas/Ranking'
+          description: 'Defaults to `{ "mode": "VALUE" }`.'
+        weights: { $ref: '#/components/schemas/Weights' }
+        requiredNutrients:
+          type: array
+          items: { $ref: '#/components/schemas/RequiredNutrient' }
+        excludeExceedingUl: { type: boolean, default: false }
+        displayCurrency: { $ref: '#/components/schemas/CurrencyCode' }
+        page: { type: integer, format: int32, minimum: 1, default: 1 }
+        pageSize: { type: integer, format: int32, minimum: 1, maximum: 100, default: 20 }
+    FxMeta:
+      type: object
+      description: |
+        Conversion applied to every monetary field: displayed value = unrounded
+        native value x `rate`, rounded once to 4 decimals. For the identity pair
+        `rate` is 1 and `asOf`/`source` are `null`. With `status = UNAVAILABLE`,
+        `rate`, `asOf` and `source` are `null` and money stays in the native
+        currency.
+      required: [base, quote, rate, asOf, source, stale, status]
+      properties:
+        base: { $ref: '#/components/schemas/CurrencyCode' }
+        quote: { $ref: '#/components/schemas/CurrencyCode' }
+        rate:
+          type: [number, 'null']
+          exclusiveMinimum: 0
+          description: Stored rate with 8 decimals, returned unrounded.
+        asOf: { type: [string, 'null'], format: date }
+        source: { type: [string, 'null'], example: FRANKFURTER }
+        stale:
+          type: boolean
+          description: '`true` when `asOf` is older than 5 days.'
+        status: { $ref: '#/components/schemas/FxStatus' }
+    MoneyMeta:
+      type: object
+      required: [nativeCurrency, currency, fx]
+      properties:
+        nativeCurrency: { $ref: '#/components/schemas/CurrencyCode' }
+        currency:
+          allOf:
+            - $ref: '#/components/schemas/CurrencyCode'
+          description: Currency of every monetary field (display currency).
+        fx: { $ref: '#/components/schemas/FxMeta' }
+    ExcludedCounts:
+      type: object
+      required: [noStock, noOffer, requiredNutrients, exceedsUl]
+      properties:
+        noStock: { type: integer, minimum: 0 }
+        noOffer: { type: integer, minimum: 0 }
+        requiredNutrients: { type: integer, minimum: 0 }
+        exceedsUl: { type: integer, minimum: 0 }
+    Visibility:
+      type: object
+      required: [shown, total, locked, reason]
+      properties:
+        shown: { type: integer, minimum: 0 }
+        total: { type: integer, minimum: 0 }
+        locked: { type: integer, minimum: 0 }
+        reason:
+          type: [string, 'null']
+          enum: [SIGN_UP_REQUIRED, null]
+    AnonymousPrincipal:
+      type: object
+      required: [type, queriesUsed, queriesLimit]
+      properties:
+        type: { const: ANONYMOUS }
+        queriesUsed: { type: integer, minimum: 0 }
+        queriesLimit: { type: integer, minimum: 0 }
+    UserPrincipal:
+      type: object
+      required: [type, plan]
+      properties:
+        type:
+          type: string
+          enum: [USER, ADMIN]
+        plan: { $ref: '#/components/schemas/PlanCode' }
+    PrincipalSummary:
+      oneOf:
+        - $ref: '#/components/schemas/AnonymousPrincipal'
+        - $ref: '#/components/schemas/UserPrincipal'
+    QueryMeta:
+      type: object
+      required: [country, nativeCurrency, currency, fx, catalogVersion, marketSize, mRef, excluded, visibility, principal, page, pageSize, total]
+      properties:
+        country: { $ref: '#/components/schemas/CountryCode' }
+        nativeCurrency: { $ref: '#/components/schemas/CurrencyCode' }
+        currency: { $ref: '#/components/schemas/CurrencyCode' }
+        fx: { $ref: '#/components/schemas/FxMeta' }
+        catalogVersion: { type: integer, format: int64, minimum: 0 }
+        marketSize: { type: integer, minimum: 0 }
+        mRef:
+          type: [number, 'null']
+          description: Market marginal rate (median cost per day per content point) in `currency`; `null` when no product has content above 0.
+        excluded: { $ref: '#/components/schemas/ExcludedCounts' }
+        visibility: { $ref: '#/components/schemas/Visibility' }
+        principal: { $ref: '#/components/schemas/PrincipalSummary' }
+        page: { type: integer, minimum: 1 }
+        pageSize: { type: integer, minimum: 1, maximum: 100 }
+        total:
+          type: integer
+          minimum: 0
+          description: Number of ranked products after filtering.
+    Cost:
+      type: object
+      required: [effectivePrice, effectivePriceNative, currency, servingsPerContainer, daysSupply, costPerDay, costPerDayNative, priceStale, outOfStock]
+      properties:
+        effectivePrice:
+          allOf: [{ $ref: '#/components/schemas/Money' }]
+          exclusiveMinimum: 0
+          description: Effective price in the display currency.
+        effectivePriceNative:
+          allOf: [{ $ref: '#/components/schemas/Money' }]
+          exclusiveMinimum: 0
+          description: Effective price in the country's native currency.
+        currency: { $ref: '#/components/schemas/CurrencyCode' }
+        servingsPerContainer: { type: number, exclusiveMinimum: 0 }
+        daysSupply: { type: number, exclusiveMinimum: 0 }
+        costPerDay:
+          allOf: [{ $ref: '#/components/schemas/Money' }]
+          exclusiveMinimum: 0
+          description: Cost per day in the display currency.
+        costPerDayNative:
+          allOf: [{ $ref: '#/components/schemas/Money' }]
+          exclusiveMinimum: 0
+          description: Cost per day in the country's native currency.
+        priceStale: { type: boolean }
+        outOfStock: { type: boolean }
+    ProductFlag:
+      type: object
+      required: [code]
+      properties:
+        code: { $ref: '#/components/schemas/ProductFlagCode' }
+        nutrientCodes:
+          type: array
+          description: Affected nutrients for `EXCEEDS_UL`, `UL_FORM_DEPENDENT`, `PRESENCE_ONLY_NUTRIENTS` and `BELOW_PRESENCE_FLOOR`.
+          items: { $ref: '#/components/schemas/NutrientCode' }
+    BreakdownRow:
+      type: object
+      required: [code, category, amountPerDay, ulAmountPerDay, unit, reference, referenceSource, coverageRatio, utility, weight, contribution, cappedAtUl, cappedAtUMax, ulBelowReference]
+      properties:
+        code: { $ref: '#/components/schemas/NutrientCode' }
+        category: { $ref: '#/components/schemas/NutrientCategory' }
+        amountPerDay: { type: number, exclusiveMinimum: 0 }
+        ulAmountPerDay: { type: number, minimum: 0 }
+        unit: { $ref: '#/components/schemas/CanonicalUnit' }
+        reference:
+          type: [number, 'null']
+          description: Reference amount per day; `null` under `PRESENCE_ONLY`.
+        referenceSource: { $ref: '#/components/schemas/ReferenceSource' }
+        coverageRatio:
+          type: [number, 'null']
+          minimum: 0
+          description: '`null` under `PRESENCE_ONLY`.'
+        utility: { type: number, minimum: 0 }
+        weight: { type: number, minimum: 0 }
+        contribution: { type: number, minimum: 0 }
+        cappedAtUl: { type: boolean }
+        cappedAtUMax: { type: boolean }
+        ulBelowReference: { type: boolean }
+    SelectedOffer:
+      type: object
+      required: [retailer, url, checkedAt]
+      properties:
+        retailer: { type: string }
+        url: { type: string, format: uri, maxLength: 2048 }
+        checkedAt: { type: string, format: date-time }
+    RankedProduct:
+      type: object
+      description: Scored product with product metadata and the caller's saved state.
+      required: [productId, code, rank, brand, name, dosageForm, cost, contentScore, contentScoreDisplay, valueScore, valueScoreDisplay, customScore, flags, breakdown, topContributors, selectedOffer, saved, alerts]
+      properties:
+        productId: { type: string, format: uuid }
+        code: { $ref: '#/components/schemas/ProductCode' }
+        rank: { type: integer, minimum: 1 }
+        brand: { type: string }
+        name: { type: string }
+        dosageForm: { $ref: '#/components/schemas/DosageForm' }
+        cost: { $ref: '#/components/schemas/Cost' }
+        contentScore:
+          type: number
+          minimum: 0
+          description: Raw content score C, used for ranking.
+        contentScoreDisplay: { type: number, minimum: 0, maximum: 100 }
+        valueScore:
+          type: number
+          minimum: 0
+          description: Value score V = C / cost per day, per unit of `meta.nativeCurrency`; never converted.
+        valueScoreDisplay: { type: number, minimum: 0, maximum: 100 }
+        customScore:
+          type: [number, 'null']
+          minimum: 0
+          maximum: 1
+          description: Score S for `CUSTOM` mode; `null` for other modes.
+        flags:
+          type: array
+          items: { $ref: '#/components/schemas/ProductFlag' }
+        breakdown:
+          type: array
+          items: { $ref: '#/components/schemas/BreakdownRow' }
+        topContributors:
+          type: array
+          maxItems: 5
+          description: First 5 breakdown rows by contribution descending.
+          items: { $ref: '#/components/schemas/BreakdownRow' }
+        selectedOffer: { $ref: '#/components/schemas/SelectedOffer' }
+        saved:
+          type: boolean
+          description: Whether the caller saved the product in this country; `false` for anonymous callers.
+        alerts:
+          type: array
+          description: The caller's alert subscriptions on this product in this country; empty for anonymous callers.
+          items: { $ref: '#/components/schemas/AlertSubscription' }
+    RecommendationQueryResponse:
+      type: object
+      required: [meta, items]
+      properties:
+        meta: { $ref: '#/components/schemas/QueryMeta' }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/RankedProduct' }
+    CompareRequest:
+      type: object
+      required: [country, baselineProductId, candidateProductId]
+      properties:
+        country: { $ref: '#/components/schemas/CountryCode' }
+        baselineProductId: { type: string, format: uuid }
+        candidateProductId: { type: string, format: uuid }
+        stockFilter:
+          allOf:
+            - $ref: '#/components/schemas/StockFilter'
+          default: IN_STOCK_ONLY
+        weights: { $ref: '#/components/schemas/Weights' }
+        displayCurrency: { $ref: '#/components/schemas/CurrencyCode' }
+    CompareMeta:
+      type: object
+      required: [country, nativeCurrency, currency, fx, catalogVersion, marketSize]
+      properties:
+        country: { $ref: '#/components/schemas/CountryCode' }
+        nativeCurrency: { $ref: '#/components/schemas/CurrencyCode' }
+        currency: { $ref: '#/components/schemas/CurrencyCode' }
+        fx: { $ref: '#/components/schemas/FxMeta' }
+        catalogVersion: { type: integer, format: int64, minimum: 0 }
+        marketSize:
+          type: integer
+          minimum: 0
+          description: De-duplicated size of the market set used for `mRef`.
+    ComparedProduct:
+      type: object
+      required: [productId, code, brand, name, dosageForm, cost, contentScore, valueScore, flags, selectedOffer]
+      properties:
+        productId: { type: string, format: uuid }
+        code: { $ref: '#/components/schemas/ProductCode' }
+        brand: { type: string }
+        name: { type: string }
+        dosageForm: { $ref: '#/components/schemas/DosageForm' }
+        cost: { $ref: '#/components/schemas/Cost' }
+        contentScore: { type: number, minimum: 0 }
+        valueScore:
+          type: number
+          minimum: 0
+          description: Per unit of `meta.nativeCurrency`; never converted.
+        flags:
+          type: array
+          items: { $ref: '#/components/schemas/ProductFlag' }
+        selectedOffer: { $ref: '#/components/schemas/SelectedOffer' }
+    DeltaRow:
+      type: object
+      description: Per-nutrient delta over the union of nutrients in A and B. An amount of 0 means the nutrient is absent. Rows with `deltaAmount = 0` carry no flags.
+      required: [code, category, amountA, amountB, deltaAmount, unit, rA, rB, uA, uB, weight, deltaContribution, flags]
+      properties:
+        code: { $ref: '#/components/schemas/NutrientCode' }
+        category: { $ref: '#/components/schemas/NutrientCategory' }
+        amountA: { type: number, minimum: 0 }
+        amountB: { type: number, minimum: 0 }
+        deltaAmount: { type: number }
+        unit: { $ref: '#/components/schemas/CanonicalUnit' }
+        rA:
+          type: [number, 'null']
+          minimum: 0
+          description: Coverage ratio of A; `null` under `PRESENCE_ONLY`.
+        rB:
+          type: [number, 'null']
+          minimum: 0
+          description: Coverage ratio of B; `null` under `PRESENCE_ONLY`.
+        uA: { type: number, minimum: 0 }
+        uB: { type: number, minimum: 0 }
+        weight: { type: number, minimum: 0 }
+        deltaContribution:
+          type: number
+          description: weight x (uB - uA).
+        flags:
+          type: array
+          items: { $ref: '#/components/schemas/DeltaRowFlag' }
+    ExplanationParams:
+      type: object
+      description: |
+        Parameters of the explanation key. `deltaCostPerDay`, `marginalRate`
+        and `mRef` are money-typed: they are converted to the display currency
+        like every other monetary field, and `currency` is rewritten to the
+        display currency.
+      properties:
+        deltaCostPerDay:
+          allOf: [{ $ref: '#/components/schemas/Money' }]
+          x-money: true
+        marginalRate:
+          allOf: [{ $ref: '#/components/schemas/Money' }]
+          x-money: true
+        mRef:
+          allOf: [{ $ref: '#/components/schemas/Money' }]
+          x-money: true
+        currency: { $ref: '#/components/schemas/CurrencyCode' }
+        ratio: { type: number }
+      additionalProperties:
+        type: [number, string]
+    Explanation:
+      type: object
+      description: i18n key with parameters; never a prose sentence.
+      required: [key, params]
+      properties:
+        key:
+          type: string
+          pattern: '^explain\.'
+          example: explain.verdict.not_worth_it
+        params: { $ref: '#/components/schemas/ExplanationParams' }
+    CompareResponse:
+      type: object
+      description: |
+        A is the cheaper product by cost per day. `deltaCost >= 0`; on equal
+        cost `deltaContent >= 0`. `marginalRate` and `ratio` are `null` unless
+        `deltaCost > 0`, `deltaContent > 0` and `mRef` is not `null`.
+      required: [meta, swapped, verdict, productA, productB, deltaCost, deltaCostNative, deltaContent, marginalRate, mRef, ratio, rows, explanation]
+      properties:
+        meta: { $ref: '#/components/schemas/CompareMeta' }
+        swapped:
+          type: boolean
+          description: '`true` when A is not the requested baseline.'
+        verdict: { $ref: '#/components/schemas/Verdict' }
+        productA: { $ref: '#/components/schemas/ComparedProduct' }
+        productB: { $ref: '#/components/schemas/ComparedProduct' }
+        deltaCost:
+          allOf: [{ $ref: '#/components/schemas/Money' }]
+          minimum: 0
+          description: Cost per day of B minus A in the display currency.
+        deltaCostNative:
+          allOf: [{ $ref: '#/components/schemas/Money' }]
+          minimum: 0
+          description: Cost per day of B minus A in the native currency.
+        deltaContent:
+          type: number
+          description: Content score of B minus A.
+        marginalRate:
+          type: [number, 'null']
+          description: deltaCost / deltaContent in the display currency.
+        mRef:
+          type: [number, 'null']
+          description: Market marginal rate in the display currency.
+        ratio:
+          type: [number, 'null']
+          minimum: 0
+          description: marginalRate / mRef.
+        rows:
+          type: array
+          items: { $ref: '#/components/schemas/DeltaRow' }
+        explanation: { $ref: '#/components/schemas/Explanation' }
+
+    # ---------- Products ----------
+    PageMeta:
+      type: object
+      required: [page, pageSize, total]
+      properties:
+        page: { type: integer, minimum: 1 }
+        pageSize: { type: integer, minimum: 1, maximum: 100 }
+        total: { type: integer, minimum: 0 }
+    ProductListMeta:
+      type: object
+      required: [country, nativeCurrency, currency, fx, page, pageSize, total]
+      properties:
+        country: { $ref: '#/components/schemas/CountryCode' }
+        nativeCurrency: { $ref: '#/components/schemas/CurrencyCode' }
+        currency: { $ref: '#/components/schemas/CurrencyCode' }
+        fx: { $ref: '#/components/schemas/FxMeta' }
+        page: { type: integer, minimum: 1 }
+        pageSize: { type: integer, minimum: 1, maximum: 100 }
+        total: { type: integer, minimum: 0 }
+    ProductSummary:
+      type: object
+      required: [id, code, brand, name, dosageForm, unitsPerContainer, unitsPerServing, servingsPerDay, cost, flags]
+      properties:
+        id: { type: string, format: uuid }
+        code: { $ref: '#/components/schemas/ProductCode' }
+        brand: { type: string }
+        name: { type: string }
+        dosageForm: { $ref: '#/components/schemas/DosageForm' }
+        unitsPerContainer: { type: integer, minimum: 1 }
+        unitsPerServing: { type: integer, minimum: 1 }
+        servingsPerDay: { type: number, exclusiveMinimum: 0 }
+        cost:
+          oneOf:
+            - $ref: '#/components/schemas/Cost'
+            - type: 'null'
+          description: Effective-price cost with out-of-stock offers included; `null` when the product has no offer.
+        flags:
+          type: array
+          items: { $ref: '#/components/schemas/ProductFlag' }
+    ProductPage:
+      type: object
+      required: [meta, items]
+      properties:
+        meta: { $ref: '#/components/schemas/ProductListMeta' }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/ProductSummary' }
+    ProductNutrient:
+      type: object
+      required: [code, category, amountPerServing, amountPerDay, unit, ulAmountPerServing, formCode, formLabel, conversionAssumed]
+      properties:
+        code: { $ref: '#/components/schemas/NutrientCode' }
+        category: { $ref: '#/components/schemas/NutrientCategory' }
+        amountPerServing:
+          type: number
+          exclusiveMinimum: 0
+          description: Amount per serving in the canonical unit.
+        amountPerDay:
+          type: number
+          exclusiveMinimum: 0
+          description: Amount per day in the canonical unit.
+        unit: { $ref: '#/components/schemas/CanonicalUnit' }
+        ulAmountPerServing:
+          type: [number, 'null']
+          minimum: 0
+          description: UL-relevant amount per serving when it differs from the scored amount; `null` means the full amount is UL-relevant.
+        formCode:
+          type: string
+          description: Registry form code, `UNKNOWN` when the label form is not in the registry or not stated.
+          example: UNKNOWN
+        formLabel:
+          type: [string, 'null']
+          description: Form as printed on the label.
+        conversionAssumed:
+          type: boolean
+          description: '`true` when an IU conversion assumed a form.'
+    ProductAvailability:
+      type: object
+      required: [status, note]
+      properties:
+        status: { $ref: '#/components/schemas/AvailabilityStatus' }
+        note: { type: [string, 'null'] }
+    Offer:
+      type: object
+      required: [retailer, price, priceNative, currency, inStock, url, checkedAt, priceStale]
+      properties:
+        retailer: { type: string }
+        price:
+          allOf: [{ $ref: '#/components/schemas/Money' }]
+          exclusiveMinimum: 0
+          description: Price in the display currency.
+        priceNative:
+          allOf: [{ $ref: '#/components/schemas/Money' }]
+          exclusiveMinimum: 0
+          description: Price in the country's native currency.
+        currency: { $ref: '#/components/schemas/CurrencyCode' }
+        inStock: { type: boolean }
+        url: { type: string, format: uri, maxLength: 2048 }
+        checkedAt: { type: string, format: date-time }
+        priceStale:
+          type: boolean
+          description: '`true` when `checkedAt` is older than 30 days.'
+    ProductDetail:
+      type: object
+      required: [id, code, brand, name, dosageForm, unitsPerContainer, unitsPerServing, servingsPerDay, gtin, synthetic, availability, nutrients, offers, cost, selectedOffer, flags, saved, alerts]
+      properties:
+        id: { type: string, format: uuid }
+        code: { $ref: '#/components/schemas/ProductCode' }
+        brand: { type: string }
+        name: { type: string }
+        dosageForm: { $ref: '#/components/schemas/DosageForm' }
+        unitsPerContainer: { type: integer, minimum: 1 }
+        unitsPerServing: { type: integer, minimum: 1 }
+        servingsPerDay: { type: number, exclusiveMinimum: 0 }
+        gtin: { type: [string, 'null'] }
+        synthetic:
+          type: boolean
+          description: '`true` for synthetic fixture products.'
+        availability: { $ref: '#/components/schemas/ProductAvailability' }
+        nutrients:
+          type: array
+          items: { $ref: '#/components/schemas/ProductNutrient' }
+        offers:
+          type: array
+          items: { $ref: '#/components/schemas/Offer' }
+        cost:
+          oneOf:
+            - $ref: '#/components/schemas/Cost'
+            - type: 'null'
+          description: Effective-price cost with out-of-stock offers included; `null` when the product has no offer.
+        selectedOffer:
+          oneOf:
+            - $ref: '#/components/schemas/SelectedOffer'
+            - type: 'null'
+        flags:
+          type: array
+          items: { $ref: '#/components/schemas/ProductFlag' }
+        saved:
+          type: boolean
+          description: '`false` for anonymous callers.'
+        alerts:
+          type: array
+          description: The caller's alert subscriptions on this product in this country; empty for anonymous callers.
+          items: { $ref: '#/components/schemas/AlertSubscription' }
+    ProductDetailMeta:
+      type: object
+      required: [country, nativeCurrency, currency, fx]
+      properties:
+        country: { $ref: '#/components/schemas/CountryCode' }
+        nativeCurrency: { $ref: '#/components/schemas/CurrencyCode' }
+        currency: { $ref: '#/components/schemas/CurrencyCode' }
+        fx: { $ref: '#/components/schemas/FxMeta' }
+    ProductDetailResponse:
+      type: object
+      required: [meta, product]
+      properties:
+        meta: { $ref: '#/components/schemas/ProductDetailMeta' }
+        product: { $ref: '#/components/schemas/ProductDetail' }
+
+    # ---------- Plans ----------
+    PlanLimits:
+      type: object
+      description: A `null` limit means unlimited.
+      required: [code, name, savedProductsLimit, alertSubscriptionsLimit, notificationsPerMonthLimit]
+      properties:
+        code: { $ref: '#/components/schemas/PlanCode' }
+        name: { type: string }
+        savedProductsLimit: { type: [integer, 'null'], minimum: 0 }
+        alertSubscriptionsLimit: { type: [integer, 'null'], minimum: 0 }
+        notificationsPerMonthLimit: { type: [integer, 'null'], minimum: 0 }
+    PlanPrice:
+      type: object
+      required: [amount, amountNative, currency, nativeCurrency, billingPeriod]
+      properties:
+        amount:
+          allOf: [{ $ref: '#/components/schemas/Money' }]
+          exclusiveMinimum: 0
+          description: Price in the display currency.
+        amountNative:
+          allOf: [{ $ref: '#/components/schemas/Money' }]
+          exclusiveMinimum: 0
+          description: Price in the plan's stored currency.
+        currency: { $ref: '#/components/schemas/CurrencyCode' }
+        nativeCurrency: { $ref: '#/components/schemas/CurrencyCode' }
+        billingPeriod:
+          type: string
+          enum: [MONTHLY]
+    Plan:
+      allOf:
+        - $ref: '#/components/schemas/PlanLimits'
+        - type: object
+          required: [price]
+          properties:
+            price:
+              oneOf:
+                - $ref: '#/components/schemas/PlanPrice'
+                - type: 'null'
+              description: '`null` for FREE.'
+    PlanList:
+      type: object
+      required: [meta, items]
+      properties:
+        meta: { $ref: '#/components/schemas/MoneyMeta' }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Plan' }
+
+    # ---------- FX ----------
+    FxCurrency:
+      type: object
+      required: [code, asOf, stale]
+      properties:
+        code: { $ref: '#/components/schemas/CurrencyCode' }
+        asOf:
+          type: [string, 'null']
+          format: date
+          description: Newest stored rate date involving this currency; `null` when no rate is stored.
+        stale: { type: boolean }
+    FxCurrencyList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/FxCurrency' }
+    FxRate:
+      type: object
+      required: [quote, rate, asOf, source, stale]
+      properties:
+        quote: { $ref: '#/components/schemas/CurrencyCode' }
+        rate:
+          type: number
+          exclusiveMinimum: 0
+          description: Stored rate with 8 decimals, returned unrounded.
+        asOf: { type: string, format: date }
+        source: { type: string, example: FRANKFURTER }
+        stale:
+          type: boolean
+          description: '`true` when `asOf` is older than 5 days.'
+    FxRateList:
+      type: object
+      required: [base, rates]
+      properties:
+        base: { $ref: '#/components/schemas/CurrencyCode' }
+        rates:
+          type: array
+          items: { $ref: '#/components/schemas/FxRate' }
+    FxRefreshResult:
+      type: object
+      required: [upsertedRows]
+      properties:
+        upsertedRows: { type: integer, minimum: 0 }
+
+    # ---------- Session and account ----------
+    UsageMeter:
+      type: object
+      required: [used, limit]
+      properties:
+        used: { type: integer, minimum: 0 }
+        limit:
+          type: [integer, 'null']
+          minimum: 0
+          description: '`null` means unlimited.'
+    MonthlyUsageMeter:
+      allOf:
+        - $ref: '#/components/schemas/UsageMeter'
+        - type: object
+          required: [periodMonth]
+          properties:
+            periodMonth:
+              type: string
+              format: date
+              description: First day of the current calendar month (UTC).
+    Usage:
+      type: object
+      required: [savedProducts, alertSubscriptions, notificationsThisMonth]
+      properties:
+        savedProducts: { $ref: '#/components/schemas/UsageMeter' }
+        alertSubscriptions:
+          allOf: [{ $ref: '#/components/schemas/UsageMeter' }]
+          description: Counts active subscriptions.
+        notificationsThisMonth: { $ref: '#/components/schemas/MonthlyUsageMeter' }
+    AnonymousQuota:
+      type: object
+      required: [principal, queriesUsed, queriesLimit, visibleResults]
+      properties:
+        principal: { const: ANONYMOUS }
+        queriesUsed: { type: integer, minimum: 0 }
+        queriesLimit: { type: integer, minimum: 0 }
+        visibleResults: { type: integer, minimum: 0 }
+    UserQuota:
+      type: object
+      required: [principal, plan, usage]
+      properties:
+        principal:
+          type: string
+          enum: [USER, ADMIN]
+        plan: { $ref: '#/components/schemas/PlanCode' }
+        usage: { $ref: '#/components/schemas/Usage' }
+    SessionQuota:
+      oneOf:
+        - $ref: '#/components/schemas/AnonymousQuota'
+        - $ref: '#/components/schemas/UserQuota'
+    UserProfile:
+      type: object
+      required: [id, email, emailVerified, role, status, locale, defaultCountryCode, displayCurrency, emailAlertsEnabled, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        email: { $ref: '#/components/schemas/Email' }
+        emailVerified: { type: boolean }
+        role: { $ref: '#/components/schemas/Role' }
+        status: { $ref: '#/components/schemas/UserStatus' }
+        locale: { $ref: '#/components/schemas/Locale' }
+        defaultCountryCode:
+          oneOf:
+            - $ref: '#/components/schemas/CountryCode'
+            - type: 'null'
+        displayCurrency:
+          oneOf:
+            - $ref: '#/components/schemas/CurrencyCode'
+            - type: 'null'
+          description: Preferred display currency; `null` means the country's native currency.
+        emailAlertsEnabled: { type: boolean }
+        createdAt: { type: string, format: date-time }
+    Subscription:
+      type: object
+      required: [id, planCode, status, source, startedAt, currentPeriodEnd, canceledAt]
+      properties:
+        id: { type: string, format: uuid }
+        planCode: { $ref: '#/components/schemas/PlanCode' }
+        status: { $ref: '#/components/schemas/SubscriptionStatus' }
+        source: { $ref: '#/components/schemas/SubscriptionSource' }
+        startedAt: { type: string, format: date-time }
+        currentPeriodEnd:
+          type: [string, 'null']
+          format: date-time
+          description: '`null` for the open-ended FREE subscription.'
+        canceledAt: { type: [string, 'null'], format: date-time }
+    Me:
+      allOf:
+        - $ref: '#/components/schemas/UserProfile'
+        - type: object
+          required: [plan, subscription, usage]
+          properties:
+            plan: { $ref: '#/components/schemas/PlanLimits' }
+            subscription: { $ref: '#/components/schemas/Subscription' }
+            usage: { $ref: '#/components/schemas/Usage' }
+    UpdateMeRequest:
+      type: object
+      minProperties: 1
+      properties:
+        displayCurrency:
+          oneOf:
+            - $ref: '#/components/schemas/CurrencyCode'
+            - type: 'null'
+        locale: { $ref: '#/components/schemas/Locale' }
+        defaultCountryCode: { $ref: '#/components/schemas/CountryCode' }
+        emailAlertsEnabled: { type: boolean }
+    DeleteAccountRequest:
+      type: object
+      required: [password]
+      properties:
+        password: { type: string, minLength: 1, format: password }
+
+    # ---------- Auth ----------
+    RegisterRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { $ref: '#/components/schemas/Email' }
+        password:
+          type: string
+          format: password
+          minLength: 10
+          description: At least 10 characters and not in the breached-password list.
+        locale: { $ref: '#/components/schemas/Locale' }
+        countryCode: { $ref: '#/components/schemas/CountryCode' }
+    TokenRequest:
+      type: object
+      required: [token]
+      properties:
+        token:
+          type: string
+          description: base64url-encoded 256-bit token from the URL fragment of the e-mail link.
+          pattern: '^[A-Za-z0-9_-]+$'
+          minLength: 1
+    EmailRequest:
+      type: object
+      required: [email]
+      properties:
+        email: { $ref: '#/components/schemas/Email' }
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { $ref: '#/components/schemas/Email' }
+        password: { type: string, format: password, minLength: 1 }
+    ResetPasswordRequest:
+      type: object
+      required: [token, newPassword]
+      properties:
+        token:
+          type: string
+          pattern: '^[A-Za-z0-9_-]+$'
+          minLength: 1
+        newPassword:
+          type: string
+          format: password
+          minLength: 10
+          description: Same rules as registration.
+    AuthTokenResponse:
+      type: object
+      required: [accessToken, tokenType, expiresIn, user]
+      properties:
+        accessToken: { type: string }
+        tokenType:
+          type: string
+          enum: [Bearer]
+        expiresIn:
+          type: integer
+          minimum: 1
+          description: Access-token lifetime in seconds.
+          example: 900
+        user: { $ref: '#/components/schemas/UserProfile' }
+    AcceptedMessage:
+      type: object
+      description: Generic acknowledgement; identical for known and unknown e-mail addresses.
+      required: [messageKey]
+      properties:
+        messageKey:
+          type: string
+          description: i18n key of the message shown to the user.
+
+    # ---------- Saved products ----------
+    SaveProductRequest:
+      type: object
+      required: [productId, countryCode]
+      properties:
+        productId: { type: string, format: uuid }
+        countryCode: { $ref: '#/components/schemas/CountryCode' }
+    SavedProductRef:
+      type: object
+      required: [productId, countryCode, savedAt]
+      properties:
+        productId: { type: string, format: uuid }
+        countryCode: { $ref: '#/components/schemas/CountryCode' }
+        savedAt: { type: string, format: date-time }
+    SavedProduct:
+      type: object
+      required: [productId, code, brand, name, dosageForm, countryCode, savedAt, availabilityStatus, cost, selectedOffer, flags, alerts]
+      properties:
+        productId: { type: string, format: uuid }
+        code: { $ref: '#/components/schemas/ProductCode' }
+        brand: { type: string }
+        name: { type: string }
+        dosageForm: { $ref: '#/components/schemas/DosageForm' }
+        countryCode: { $ref: '#/components/schemas/CountryCode' }
+        savedAt: { type: string, format: date-time }
+        availabilityStatus: { $ref: '#/components/schemas/AvailabilityStatus' }
+        cost:
+          oneOf:
+            - $ref: '#/components/schemas/Cost'
+            - type: 'null'
+          description: Current effective-price cost with out-of-stock offers included; `null` without offers or when unavailable.
+        selectedOffer:
+          oneOf:
+            - $ref: '#/components/schemas/SelectedOffer'
+            - type: 'null'
+        flags:
+          type: array
+          items: { $ref: '#/components/schemas/ProductFlag' }
+        alerts:
+          type: array
+          description: Active alert subscriptions on this product in this country.
+          items: { $ref: '#/components/schemas/AlertSubscription' }
+    SavedProductListMeta:
+      type: object
+      required: [country, nativeCurrency, currency, fx]
+      properties:
+        country: { $ref: '#/components/schemas/CountryCode' }
+        nativeCurrency: { $ref: '#/components/schemas/CurrencyCode' }
+        currency: { $ref: '#/components/schemas/CurrencyCode' }
+        fx: { $ref: '#/components/schemas/FxMeta' }
+    SavedProductList:
+      type: object
+      required: [meta, items]
+      properties:
+        meta: { $ref: '#/components/schemas/SavedProductListMeta' }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/SavedProduct' }
+
+    # ---------- Alerts ----------
+    ThresholdPercent:
+      type: number
+      exclusiveMinimum: 0
+      exclusiveMaximum: 100
+      description: Minimum price drop in percent of the baseline price (`PRICE_DROP` only).
+      example: 5.0
+    AlertSubscription:
+      type: object
+      required: [id, productId, countryCode, trigger, thresholdPercent, baselinePrice, baselineCurrency, active, createdAt, lastTriggeredAt]
+      properties:
+        id: { type: string, format: uuid }
+        productId: { type: string, format: uuid }
+        countryCode: { $ref: '#/components/schemas/CountryCode' }
+        trigger: { $ref: '#/components/schemas/AlertTrigger' }
+        thresholdPercent:
+          oneOf:
+            - $ref: '#/components/schemas/ThresholdPercent'
+            - type: 'null'
+          description: Set for `PRICE_DROP`, `null` otherwise.
+        baselinePrice:
+          type: [number, 'null']
+          description: Baseline effective price in the country's native currency (`PRICE_DROP`); `null` until a first price exists or for other triggers.
+        baselineCurrency:
+          allOf:
+            - $ref: '#/components/schemas/CurrencyCode'
+          description: Native currency of the country.
+        active: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        lastTriggeredAt: { type: [string, 'null'], format: date-time }
+    ProductRef:
+      type: object
+      required: [id, code, brand, name, availabilityStatus]
+      properties:
+        id: { type: string, format: uuid }
+        code: { $ref: '#/components/schemas/ProductCode' }
+        brand: { type: string }
+        name: { type: string }
+        availabilityStatus:
+          allOf:
+            - $ref: '#/components/schemas/AvailabilityStatus'
+          description: Availability in the subscription's country; anything but `AVAILABLE` is shown with the `UNAVAILABLE_IN_COUNTRY` badge.
+    AlertListItem:
+      allOf:
+        - $ref: '#/components/schemas/AlertSubscription'
+        - type: object
+          required: [product]
+          properties:
+            product: { $ref: '#/components/schemas/ProductRef' }
+    AlertList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/AlertListItem' }
+    CreateAlertRequest:
+      type: object
+      required: [productId, countryCode, trigger]
+      properties:
+        productId: { type: string, format: uuid }
+        countryCode: { $ref: '#/components/schemas/CountryCode' }
+        trigger: { $ref: '#/components/schemas/AlertTrigger' }
+        thresholdPercent:
+          allOf:
+            - $ref: '#/components/schemas/ThresholdPercent'
+          description: '`PRICE_DROP` only; defaults to 5.00.'
+    UpdateAlertRequest:
+      type: object
+      minProperties: 1
+      properties:
+        active: { type: boolean }
+        thresholdPercent: { $ref: '#/components/schemas/ThresholdPercent' }
+
+    # ---------- Notifications ----------
+    OfferState:
+      type: object
+      description: Effective-price state of a product in a country (out-of-stock offers included); fields are `null` when no offer exists.
+      required: [effectivePrice, inStock, retailer, url]
+      properties:
+        effectivePrice:
+          type: [number, 'null']
+          description: Native currency of the country.
+        inStock: { type: [boolean, 'null'] }
+        retailer: { type: [string, 'null'] }
+        url: { type: [string, 'null'], format: uri }
+    NotificationPayload:
+      type: object
+      description: |
+        Type-specific payload. Alert notifications carry `productId`,
+        `countryCode`, `before` and `after`; plan notifications carry `planCode`
+        and `currentPeriodEnd`; the cap notice carries `periodMonth` and `limit`.
+      properties:
+        productId: { type: string, format: uuid }
+        countryCode: { $ref: '#/components/schemas/CountryCode' }
+        before: { $ref: '#/components/schemas/OfferState' }
+        after: { $ref: '#/components/schemas/OfferState' }
+        planCode: { $ref: '#/components/schemas/PlanCode' }
+        currentPeriodEnd: { type: [string, 'null'], format: date-time }
+        periodMonth: { type: string, format: date }
+        limit: { type: integer, minimum: 0 }
+    Notification:
+      type: object
+      required: [id, type, payload, createdAt, readAt]
+      properties:
+        id: { type: string, format: uuid }
+        type: { $ref: '#/components/schemas/NotificationType' }
+        payload: { $ref: '#/components/schemas/NotificationPayload' }
+        createdAt: { type: string, format: date-time }
+        readAt: { type: [string, 'null'], format: date-time }
+    NotificationPage:
+      type: object
+      required: [meta, items]
+      properties:
+        meta: { $ref: '#/components/schemas/PageMeta' }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Notification' }
+    UnreadCount:
+      type: object
+      required: [unreadCount]
+      properties:
+        unreadCount: { type: integer, minimum: 0 }
+
+    # ---------- Subscription ----------
+    PromoRedeemRequest:
+      type: object
+      required: [code]
+      properties:
+        code: { $ref: '#/components/schemas/PromoCodeValue' }
+    SubscriptionActivation:
+      type: object
+      required: [plan, subscription]
+      properties:
+        plan: { $ref: '#/components/schemas/PlanCode' }
+        subscription: { $ref: '#/components/schemas/Subscription' }
+
+    # ---------- Admin ----------
+    ComponentHealth:
+      type: object
+      required: [status]
+      properties:
+        status: { $ref: '#/components/schemas/HealthStatus' }
+    FxHealth:
+      type: object
+      required: [status, newestAsOf, rateAgeDays, stale]
+      properties:
+        status: { $ref: '#/components/schemas/HealthStatus' }
+        newestAsOf: { type: [string, 'null'], format: date }
+        rateAgeDays: { type: [integer, 'null'], minimum: 0 }
+        stale: { type: boolean }
+    OutboxHealth:
+      type: object
+      required: [status, pending, failed, deadLetter]
+      properties:
+        status: { $ref: '#/components/schemas/HealthStatus' }
+        pending: { type: integer, minimum: 0 }
+        failed: { type: integer, minimum: 0 }
+        deadLetter: { type: integer, minimum: 0 }
+    JobRun:
+      type: object
+      required: [name, lastRunAt]
+      properties:
+        name:
+          type: string
+          enum: [OUTBOX_PROCESSOR, FX_REFRESH, SUBSCRIPTION_EXPIRY, HOUSEKEEPING]
+        lastRunAt: { type: [string, 'null'], format: date-time }
+    AdminHealth:
+      type: object
+      required: [status, checkedAt, components, jobs]
+      properties:
+        status: { $ref: '#/components/schemas/HealthStatus' }
+        checkedAt: { type: string, format: date-time }
+        components:
+          type: object
+          required: [scoring, database, fx, outbox]
+          properties:
+            scoring: { $ref: '#/components/schemas/ComponentHealth' }
+            database: { $ref: '#/components/schemas/ComponentHealth' }
+            fx: { $ref: '#/components/schemas/FxHealth' }
+            outbox: { $ref: '#/components/schemas/OutboxHealth' }
+        jobs:
+          type: array
+          items: { $ref: '#/components/schemas/JobRun' }
+    OutboxStats:
+      type: object
+      required: [pending, failed, deadLetter]
+      properties:
+        pending: { type: integer, minimum: 0 }
+        failed: { type: integer, minimum: 0 }
+        deadLetter: { type: integer, minimum: 0 }
+    ProductsImportDocument:
+      description: Products document; validated against `contracts/schemas/import-products.schema.json` before any write.
+      $ref: './schemas/import-products.schema.json'
+    OffersImportUpload:
+      type: object
+      required: [file]
+      properties:
+        file:
+          type: string
+          contentMediaType: text/csv
+          description: Offers CSV with a `product_code` column, at most 20 MB.
+    ImportSummary:
+      type: object
+      description: Row counts of the import.
+      additionalProperties: { type: integer, minimum: 0 }
+    ImportJob:
+      type: object
+      required: [id, kind, status, createdAt, finishedAt, summary]
+      properties:
+        id: { type: string, format: uuid }
+        kind: { $ref: '#/components/schemas/ImportJobKind' }
+        status: { $ref: '#/components/schemas/ImportJobStatus' }
+        createdAt: { type: string, format: date-time }
+        finishedAt: { type: [string, 'null'], format: date-time }
+        summary:
+          oneOf:
+            - $ref: '#/components/schemas/ImportSummary'
+            - type: 'null'
+    ImportJobError:
+      type: object
+      required: [rowNumber, message]
+      properties:
+        rowNumber: { type: integer, minimum: 0 }
+        message:
+          type: string
+          description: Row error, starting with its code (for example `currency_mismatch`, `invalid_offer_url`, `unsupported_iu_form`).
+    ImportJobDetail:
+      allOf:
+        - $ref: '#/components/schemas/ImportJob'
+        - type: object
+          required: [errors]
+          properties:
+            errors:
+              type: array
+              items: { $ref: '#/components/schemas/ImportJobError' }
+    AdminUser:
+      type: object
+      required: [id, email, role, status, plan, emailVerified, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        email: { $ref: '#/components/schemas/Email' }
+        role: { $ref: '#/components/schemas/Role' }
+        status: { $ref: '#/components/schemas/UserStatus' }
+        plan: { $ref: '#/components/schemas/PlanCode' }
+        emailVerified: { type: boolean }
+        createdAt: { type: string, format: date-time }
+    AdminUserPage:
+      type: object
+      required: [meta, items]
+      properties:
+        meta: { $ref: '#/components/schemas/PageMeta' }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/AdminUser' }
+    GrantSubscriptionRequest:
+      type: object
+      required: [planCode, durationDays]
+      properties:
+        planCode:
+          type: string
+          enum: [PRO]
+        durationDays: { type: integer, minimum: 1 }
+    SetUserStatusRequest:
+      type: object
+      required: [status]
+      properties:
+        status: { $ref: '#/components/schemas/UserStatus' }
+    CreatePromoCodeRequest:
+      type: object
+      required: [planCode, durationDays, maxRedemptions, expiresAt]
+      properties:
+        prefix:
+          type: string
+          pattern: '^[A-Za-z0-9]{1,16}$'
+          description: Optional human-readable prefix.
+        planCode:
+          type: string
+          enum: [PRO]
+        durationDays: { type: integer, minimum: 1 }
+        maxRedemptions: { type: integer, minimum: 1 }
+        expiresAt:
+          type: [string, 'null']
+          format: date-time
+          description: '`null` for a code that never expires.'
+    PromoCode:
+      type: object
+      required: [code, planCode, durationDays, maxRedemptions, redeemedCount, expiresAt, createdBy]
+      properties:
+        code: { $ref: '#/components/schemas/PromoCodeValue' }
+        planCode: { $ref: '#/components/schemas/PlanCode' }
+        durationDays: { type: integer, minimum: 1 }
+        maxRedemptions: { type: integer, minimum: 1 }
+        redeemedCount: { type: integer, minimum: 0 }
+        expiresAt: { type: [string, 'null'], format: date-time }
+        createdBy: { type: [string, 'null'], format: uuid }
+    PromoCodeList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/PromoCode' }
