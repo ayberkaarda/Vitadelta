@@ -14,6 +14,7 @@ import java.time.Instant;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -33,7 +34,8 @@ import org.springframework.transaction.support.TransactionTemplate;
  *   <li>activate or extend PRO for {@code duration_days} (source {@code PROMO}).
  * </ol>
  *
- * Every failure (unknown, expired, exhausted, already redeemed) is the same {@code 400
+ * A value that is not a well-formed code (checked after the verified e-mail, before any lookup) and
+ * every other failure (unknown, expired, exhausted, already redeemed) is the same {@code 400
  * promo_invalid} with the same body; the reason is only logged (without the code) and counted in
  * {@code vitadelta.promo.rejected{reason}}. Successes are counted in {@code
  * vitadelta.promo.redeemed}. The rate limits are applied by the endpoint before this adapter runs.
@@ -46,6 +48,7 @@ public class PromoCodeBillingProvider implements BillingProvider {
 
   /** Why a redemption was rejected (logged and counted only). */
   enum Rejection {
+    MALFORMED,
     UNKNOWN,
     EXPIRED,
     EXHAUSTED,
@@ -58,6 +61,9 @@ public class PromoCodeBillingProvider implements BillingProvider {
   }
 
   private static final Logger LOG = LoggerFactory.getLogger(PromoCodeBillingProvider.class);
+
+  /** Format of every generated code; any other value is rejected before a lookup. */
+  private static final Pattern CODE_FORMAT = Pattern.compile(PromoCodeGenerator.CODE_REGEX);
 
   private final UserRepository users;
   private final PromoCodeRepository promoCodes;
@@ -106,6 +112,9 @@ public class PromoCodeBillingProvider implements BillingProvider {
     if (!user.emailVerified()) {
       throw ProblemException.of(
           ProblemCode.EMAIL_NOT_VERIFIED, "Verify your e-mail address to redeem a promo code.");
+    }
+    if (code == null || !CODE_FORMAT.matcher(code).matches()) {
+      throw reject(userId, Rejection.MALFORMED);
     }
     Instant now = clock.instant();
     if (!promoCodes.insertRedemption(code, userId, now)) {

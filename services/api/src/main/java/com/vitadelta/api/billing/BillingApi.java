@@ -22,9 +22,13 @@ public final class BillingApi {
 
   private BillingApi() {}
 
-  /** {@code POST /me/subscription/promo}. {@link #toString()} hides the code. */
-  public record PromoRedeemRequest(
-      @NotNull @Pattern(regexp = PromoCodeGenerator.CODE_REGEX) String code) {
+  /**
+   * {@code POST /me/subscription/promo}. Any string is accepted here: a value that is not a
+   * well-formed code is a code guess like an unknown one and is answered by the redemption with the
+   * same {@code 400 promo_invalid} after the rate limits; only a missing or {@code null} code is a
+   * malformed request ({@code 422}). {@link #toString()} hides the code.
+   */
+  public record PromoRedeemRequest(@NotNull String code) {
 
     @Override
     public String toString() {
