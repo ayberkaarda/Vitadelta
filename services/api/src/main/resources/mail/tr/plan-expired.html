@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="tr" xmlns:th="http://www.thymeleaf.org">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VitaDelta</title>
+</head>
+<body style="margin:0;padding:24px;background-color:#f4f6f8;font-family:Arial,Helvetica,sans-serif;color:#1f2933;line-height:1.5;">
+<div style="max-width:560px;margin:0 auto;background-color:#ffffff;padding:24px;border-radius:8px;">
+<p>Merhaba,</p>
+<p>[[${planName}]] planınızın süresi doldu ve hesabınız ücretsiz plana geçti.</p>
+<p>Güncel planınızı ve limitlerini hesap sayfanızda görebilirsiniz.</p>
+<p><a th:href="${accountUrl}" style="display:inline-block;padding:12px 20px;background-color:#1d6f42;color:#ffffff;text-decoration:none;border-radius:6px;font-weight:bold;">Hesabımı aç</a></p>
+<p style="font-size:13px;color:#52606d;word-break:break-all;">Düğme çalışmazsa bu bağlantıyı tarayıcınıza kopyalayın:<br><span th:text="${accountUrl}"></span></p>
+<p>VitaDelta'yı kullandığınız için teşekkür ederiz.</p>
+</div>
+<p style="max-width:560px;margin:16px auto 0;font-size:12px;color:#7b8794;">Bu e-postayı VitaDelta hesabınızla ilgili bir işlem nedeniyle alıyorsunuz.<br><a th:href="${privacyUrl}" style="color:#52606d;">Gizlilik bildirimi</a></p>
+</body>
+</html>

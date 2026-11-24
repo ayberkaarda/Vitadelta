@@ -1,0 +1,1 @@
+Your VitaDelta [(${planName})] plan has ended
