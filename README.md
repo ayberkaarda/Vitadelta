@@ -6,7 +6,7 @@ VitaDelta is a vitamin and supplement comparison service. It compares supplement
 
 > VitaDelta provides comparative information only. It is not medical advice and does not replace a conversation with a physician or pharmacist.
 
-**Status: Phase 0, scaffold.** The repository contains the runnable shells of every service, the contracts, the local stack and the CI workflow. Product features arrive in later phases.
+**Status: Phase 1, catalog schema, reference data and seed loader.** The repository contains the runnable shells of every service, the contracts, the local stack and the CI workflow, plus the catalog database schema, the reference data and a loader that seeds them. Product features arrive in later phases.
 
 ## Architecture at a glance
 
@@ -53,6 +53,14 @@ On the first run the script creates `.env` from `.env.example`, fills in develop
 | Mailpit SMTP | 127.0.0.1:1025 |
 | PostgreSQL | 127.0.0.1:54320 (container port 5432; the host port is 54320 so it does not clash with a local PostgreSQL) |
 
+Load the catalog into the running stack with:
+
+```bash
+scripts/seed.sh
+```
+
+It loads the reference data, the synthetic fixtures and the real US label snapshot (with synthetic demo prices). The seed is idempotent: run it again after changing files under `data/`.
+
 Stop the stack with:
 
 ```bash
@@ -77,7 +85,7 @@ Add `--volumes` to the `down` command to delete the database volume as well.
 scripts/test-all.sh
 ```
 
-The script runs every suite that exists (contract linting, scoring, API, web), prints a per-step summary and exits non-zero if anything fails. The suites can also be run on their own:
+The script runs every suite that exists (contract linting, scoring, API, web), prints a per-step summary and exits non-zero if anything fails. The API suite starts PostgreSQL through Testcontainers and therefore needs a running Docker daemon. The suites can also be run on their own:
 
 ```bash
 # scoring (from services/scoring)
