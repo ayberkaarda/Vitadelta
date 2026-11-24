@@ -71,6 +71,9 @@ services:
     build:
       context: ../services/api
       dockerfile: Dockerfile
+      # The scoring client is generated from contracts/scoring-api.openapi.yaml during the build.
+      additional_contexts:
+        contracts: ../contracts
     image: vitadelta/api:dev
     restart: unless-stopped
     environment:
