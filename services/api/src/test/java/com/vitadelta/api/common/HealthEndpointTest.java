@@ -2,6 +2,7 @@ package com.vitadelta.api.common;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.vitadelta.api.support.PostgresIntegrationTest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -19,7 +20,7 @@ import org.springframework.test.web.servlet.client.RestTestClient;
 
 @ExtendWith(OutputCaptureExtension.class)
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-class HealthEndpointTest {
+class HealthEndpointTest extends PostgresIntegrationTest {
 
   @LocalServerPort private int port;
 
