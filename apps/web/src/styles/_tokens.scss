@@ -1,0 +1,132 @@
+// Design tokens exposed as CSS custom properties.
+//
+// Every text/background pair below meets WCAG 2.2 AA (>= 4.5:1) in both themes:
+// text, muted text, accent and the status foregrounds are checked against the page
+// background, the surface and their own tinted status background. Control borders
+// (`--vd-color-border-strong`) and the focus ring meet the 3:1 non-text minimum.
+
+@mixin light-colors {
+  // Neutrals: cool slate, slightly tinted so white surfaces read as raised cards.
+  --vd-color-bg: #f5f7f9;
+  --vd-color-surface: #ffffff;
+  --vd-color-surface-subtle: #eef2f5;
+  --vd-color-text: #121d29;
+  --vd-color-text-muted: #4a5767;
+  --vd-color-border: #dce2e8;
+  --vd-color-border-strong: #7b8794;
+
+  // Brand and interaction.
+  --vd-color-accent: #1d5bb8;
+  --vd-color-accent-hover: #174a97;
+  --vd-color-on-accent: #ffffff;
+  --vd-color-focus: #1d5bb8;
+
+  // Semantic tones: foreground plus a tinted background for badges and notices.
+  --vd-color-success: #136537;
+  --vd-color-success-bg: #e5f3ea;
+  --vd-color-warning: #864800;
+  --vd-color-warning-bg: #fcf0de;
+  --vd-color-danger: #b0261c;
+  --vd-color-danger-bg: #fcebe9;
+  --vd-color-neutral: #4a5767;
+  --vd-color-neutral-bg: #edf0f3;
+
+  --vd-shadow-raised: 0 1px 2px rgb(18 29 41 / 6%), 0 4px 12px rgb(18 29 41 / 5%);
+}
+
+@mixin dark-colors {
+  --vd-color-bg: #0d1318;
+  --vd-color-surface: #151d25;
+  --vd-color-surface-subtle: #1c2630;
+  --vd-color-text: #e5ebf1;
+  --vd-color-text-muted: #a2afbc;
+  --vd-color-border: #2a3541;
+  --vd-color-border-strong: #6c7a88;
+
+  --vd-color-accent: #8db6f5;
+  --vd-color-accent-hover: #aecbf8;
+  --vd-color-on-accent: #0d1318;
+  --vd-color-focus: #8db6f5;
+
+  --vd-color-success: #72d197;
+  --vd-color-success-bg: #12291d;
+  --vd-color-warning: #f0bb5c;
+  --vd-color-warning-bg: #2c220f;
+  --vd-color-danger: #ff9b90;
+  --vd-color-danger-bg: #331a1b;
+  --vd-color-neutral: #b4c0cc;
+  --vd-color-neutral-bg: #1f2933;
+
+  --vd-shadow-raised: 0 1px 2px rgb(0 0 0 / 40%);
+}
+
+:root {
+  color-scheme: light dark;
+
+  // Spacing scale (4px base).
+  --vd-space-1: 0.25rem;
+  --vd-space-2: 0.5rem;
+  --vd-space-3: 0.75rem;
+  --vd-space-4: 1rem;
+  --vd-space-5: 1.5rem;
+  --vd-space-6: 2rem;
+  --vd-space-7: 3rem;
+
+  // Type scale (major third from 1rem) and weights.
+  --vd-font-family:
+    system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --vd-font-size-xs: 0.75rem;
+  --vd-font-size-sm: 0.875rem;
+  --vd-font-size-md: 1rem;
+  --vd-font-size-lg: 1.25rem;
+  --vd-font-size-xl: 1.5rem;
+  --vd-font-size-2xl: 2rem;
+  --vd-font-weight-regular: 400;
+  --vd-font-weight-medium: 500;
+  --vd-font-weight-semibold: 600;
+  --vd-font-weight-bold: 700;
+  --vd-line-height-tight: 1.2;
+  --vd-line-height-normal: 1.5;
+  --vd-letter-spacing-tight: -0.01em;
+  --vd-letter-spacing-caps: 0.06em;
+
+  // Shape and layout.
+  --vd-radius-sm: 0.25rem;
+  --vd-radius-md: 0.5rem;
+  --vd-radius-lg: 0.75rem;
+  --vd-radius-pill: 999px;
+  --vd-focus-ring-width: 3px;
+  --vd-focus-ring-offset: 2px;
+  --vd-content-max-width: 48rem;
+  --vd-control-height: 2.5rem;
+
+  // Motion.
+  --vd-duration-fast: 120ms;
+  --vd-duration-spin: 900ms;
+  --vd-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+
+  @include light-colors;
+
+  // Service status (API health).
+  --vd-status-up: var(--vd-color-success);
+  --vd-status-up-bg: var(--vd-color-success-bg);
+  --vd-status-degraded: var(--vd-color-warning);
+  --vd-status-degraded-bg: var(--vd-color-warning-bg);
+  --vd-status-down: var(--vd-color-danger);
+  --vd-status-down-bg: var(--vd-color-danger-bg);
+  --vd-status-unknown: var(--vd-color-neutral);
+  --vd-status-unknown-bg: var(--vd-color-neutral-bg);
+
+  // Domain semantic colours.
+  --vd-verdict-worth: var(--vd-color-success);
+  --vd-verdict-marginal: var(--vd-color-warning);
+  --vd-verdict-not-worth: var(--vd-color-danger);
+  --vd-flag-warning: var(--vd-color-warning);
+  --vd-locked: var(--vd-color-text-muted);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    @include dark-colors;
+  }
+}
