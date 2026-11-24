@@ -139,11 +139,20 @@ public class EntitlementService {
    * atomic statement that increments only while the counter is below the plan's limit (PRO: always
    * counted). Joins the caller's transaction (the alert evaluator's), or runs on its own.
    *
+   * <p>The user's row is locked before the plan is read and stays locked until the transaction
+   * ends, so a concurrent subscription change (downgrade, activation) runs strictly before or after
+   * the reservation: a consumption can never apply the limit of a plan that has already been
+   * replaced.
+   *
    * @return {@code COUNTED}, or {@code CAP_REACHED} when the notification must not be created and
    *     the month's single cap notice is due unless already created
+   * @throws IllegalStateException when the user does not exist
    */
   @Transactional
   public NotificationAllowance consumeNotification(UUID userId) {
+    if (users.findByIdForUpdate(userId).isEmpty()) {
+      throw new IllegalStateException("user does not exist");
+    }
     Plan plan = currentPlan(userId);
     LocalDate month = currentPeriodMonth();
     Integer limit = plan.notificationsPerMonthLimit();
