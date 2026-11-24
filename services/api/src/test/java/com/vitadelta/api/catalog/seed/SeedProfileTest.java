@@ -20,10 +20,7 @@ class SeedProfileTest extends PostgresIntegrationTest {
     try (ConfigurableApplicationContext context =
         new SpringApplicationBuilder(VitadeltaApiApplication.class)
             .profiles(VitadeltaApiApplication.SEED_PROFILE)
-            .properties(
-                "VITADELTA_DB_URL=" + POSTGRES.getJdbcUrl(),
-                "VITADELTA_DB_USERNAME=" + POSTGRES.getUsername(),
-                "VITADELTA_DB_PASSWORD=" + POSTGRES.getPassword())
+            .properties(applicationProperties())
             .run("--vitadelta.seed.data-dir=" + TestData.dataDir())) {
       assertThat(context).isNotInstanceOf(WebServerApplicationContext.class);
       JdbcTemplate jdbc = context.getBean(JdbcTemplate.class);
