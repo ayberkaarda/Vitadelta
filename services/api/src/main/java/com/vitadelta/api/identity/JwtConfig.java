@@ -7,6 +7,7 @@ import com.nimbusds.jose.jwk.source.ImmutableJWKSet;
 import com.nimbusds.jose.proc.SecurityContext;
 import com.vitadelta.api.config.properties.SecretsProperties;
 import java.time.Clock;
+import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -31,9 +32,10 @@ import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 /**
  * Access-token signing and validation (section 8.1, ADR-0006): HS256 over {@code
  * VITADELTA_JWT_SECRET}, header {@code kid} = first 16 hex characters of the SHA-256 of the secret.
- * The decoder accepts the current secret and, during a rotation, {@code
- * VITADELTA_JWT_SECRET_PREVIOUS}, selected by {@code kid}; a token with a missing or unknown {@code
- * kid} is rejected. {@code SecurityConfig} enables the resource-server filter with this decoder.
+ * Expiry is enforced without clock skew. The decoder accepts the current secret and, during a
+ * rotation, {@code VITADELTA_JWT_SECRET_PREVIOUS}, selected by {@code kid}; a token with a missing
+ * or unknown {@code kid} is rejected. {@code SecurityConfig} enables the resource-server filter
+ * with this decoder.
  */
 @Configuration(proxyBeanMethods = false)
 public class JwtConfig {
@@ -85,7 +87,7 @@ public class JwtConfig {
     SecretKey key = new SecretKeySpec(secret, "HmacSHA256");
     NimbusJwtDecoder decoder =
         NimbusJwtDecoder.withSecretKey(key).macAlgorithm(MacAlgorithm.HS256).build();
-    JwtTimestampValidator timestamps = new JwtTimestampValidator();
+    JwtTimestampValidator timestamps = new JwtTimestampValidator(Duration.ZERO);
     timestamps.setClock(clock);
     OAuth2TokenValidator<Jwt> validator =
         new DelegatingOAuth2TokenValidator<>(
