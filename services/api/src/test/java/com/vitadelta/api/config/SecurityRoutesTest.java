@@ -217,13 +217,8 @@ class SecurityRoutesTest extends PostgresIntegrationTest {
   @ValueSource(
       strings = {
         "/api/v1/auth/unknown",
-        "/api/v1/countries",
-        "/api/v1/nutrients",
-        "/api/v1/weights/defaults",
-        "/api/v1/legal",
         "/api/v1/fx/currencies",
-        "/api/v1/products",
-        "/api/v1/products/123",
+        "/api/v1/products/123/unknown",
         "/api/v1/recommendations/query"
       })
   void publicRoutesNeedNoCredentials(String path) {
@@ -620,7 +615,7 @@ class SecurityRoutesTest extends PostgresIntegrationTest {
             "Authorization",
             "Bearer " + validToken("USER")),
         403);
-    assertSecurityHeaders(raw("GET", "/api/v1/products/unknown-route", none), 404);
+    assertSecurityHeaders(raw("GET", "/api/v1/products/x/unknown-route", none), 404);
     assertSecurityHeaders(raw("DELETE", "/api/v1/products/test-problem", none), 405);
     assertSecurityHeaders(
         raw(

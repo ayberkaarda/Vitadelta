@@ -9,3 +9,6 @@ vitadelta:
     # The local stack runs on http://localhost:8080; cookies cannot carry Secure there.
     require-https: false
     secure-cookies: false
+  operations:
+    # The local stack may run without a privacy contact.
+    require-privacy-contact: false

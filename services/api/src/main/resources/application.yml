@@ -18,6 +18,10 @@ spring:
   flyway:
     locations: classpath:db/migration
     validate-on-migrate: true
+    # V3 and V4 are reserved for Phase 5 while V5 already exists: out-of-order lets a database
+    # that is at V5 apply them later. Validation is unchanged (checksums, missing and failed
+    # migrations are still errors; only the version order of pending migrations is relaxed).
+    out-of-order: true
     clean-disabled: true
   mail:
     host: ${VITADELTA_SMTP_HOST:}
@@ -82,6 +86,16 @@ vitadelta:
     jobs-enabled: ${VITADELTA_JOBS_ENABLED:true}
     unverified-account-ttl-days: ${VITADELTA_UNVERIFIED_ACCOUNT_TTL_DAYS:30}
     privacy-contact: ${VITADELTA_PRIVACY_CONTACT:}
+    # The privacy notice needs a contact: startup fails without VITADELTA_PRIVACY_CONTACT except in
+    # the dev profile (section 15.9).
+    require-privacy-contact: true
+  catalog:
+    # Age after which the selected offer of a product is flagged PRICE_STALE (section 7.4).
+    price-stale-after-days: 30
+    # Admin imports run on a bounded executor: workers and imports that may wait for one (a full
+    # queue fails the new import job at once). Waiting imports hold no database connection.
+    import-threads: 1
+    import-queue-capacity: 4
   http:
     # Request body limits of /api/v1/** (query body 64 kB; import JSON and CSV 20 MB).
     max-body: 64KB
