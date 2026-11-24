@@ -1,5 +1,7 @@
 # VitaDelta
 
+Türkçe: [README.tr.md](README.tr.md)
+
 VitaDelta is a vitamin and supplement comparison service. It compares supplement products by how well they cover reference nutrient values per country, taking upper limits and price per effective dose into account, and ranks them transparently so that people can see what they actually get for their money. The scoring is deterministic: the same input always produces the same ranking.
 
 > VitaDelta provides comparative information only. It is not medical advice and does not replace a conversation with a physician or pharmacist.
