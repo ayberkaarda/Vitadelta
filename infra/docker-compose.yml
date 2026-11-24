@@ -101,6 +101,9 @@ services:
       VITADELTA_ANON_VISIBLE_RESULTS: ${VITADELTA_ANON_VISIBLE_RESULTS:-3}
       VITADELTA_BOOTSTRAP_ADMIN_EMAIL: ${VITADELTA_BOOTSTRAP_ADMIN_EMAIL:-}
       VITADELTA_BOOTSTRAP_ADMIN_PASSWORD: ${VITADELTA_BOOTSTRAP_ADMIN_PASSWORD:-}
+    volumes:
+      # Reference data and fixtures, read by the seed profile (scripts/seed.sh); never written.
+      - ../data:/data:ro
     networks:
       edge:
       data:
