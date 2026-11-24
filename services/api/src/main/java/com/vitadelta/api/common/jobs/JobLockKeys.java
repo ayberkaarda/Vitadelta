@@ -27,5 +27,11 @@ public final class JobLockKeys {
   /** Admin bootstrap at startup (package {@code identity}). */
   public static final long ADMIN_BOOTSTRAP = NAMESPACE | 6;
 
+  /**
+   * Admin catalog imports (package {@code imports}): held while an import runs, and taken by the
+   * start-up recovery that fails jobs left {@code RUNNING} by a crash.
+   */
+  public static final long CATALOG_IMPORT = NAMESPACE | 7;
+
   private JobLockKeys() {}
 }
