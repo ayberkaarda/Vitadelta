@@ -88,8 +88,18 @@ vitadelta:
     import-paths: /api/v1/admin/imports/
   seed:
     # Directory holding reference/, fixtures/ and real/. scripts/seed.sh mounts the repository's
-    # data directory read-only at this path inside the api container.
+    # data directory read-only at this path inside the api container. The API also reads
+    # reference/weak_passwords.txt (breached-password list, section 8.2) from it at every startup
+    # and refuses to start when the file is missing.
     data-dir: /data
+  identity:
+    # The breached-password list can be moved with vitadelta.identity.weak-passwords-file
+    # (default <vitadelta.seed.data-dir>/reference/weak_passwords.txt).
+    # Retention of the daily identity housekeeping purge (section 8.11, 03:15 UTC).
+    anonymous-retention: 180d
+    email-token-retention: 7d
+    refresh-token-retention: 30d
+    housekeeping-batch-size: 1000
 
 server:
   port: 8080
