@@ -1,0 +1,55 @@
+package com.vitadelta.api.common.logging;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+
+class LogRedactorTest {
+
+  private static final String JWT =
+      "eyJraWQiOiJhYmMiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjMiLCJyb2xlIjoiVVNFUiJ9.c2lnbmF0dXJlLXZhbHVl";
+
+  @ParameterizedTest(name = "{0}")
+  @CsvSource(
+      delimiter = '|',
+      value = {
+        "Authorization: Bearer abc.def.ghi|Authorization: [REDACTED]",
+        "authorization=Basic dXNlcjpwYXNz|authorization=[REDACTED]",
+        "{\"Authorization\":\"Bearer xyz\"}|{\"Authorization\":\"[REDACTED]\"}",
+        "token Bearer sometoken123 used|token Bearer [REDACTED] used",
+        "Cookie: vd_refresh=r3fr3sh; vd_anon=4n0n.sig|Cookie: vd_refresh=[REDACTED]; vd_anon=[REDACTED]",
+        "{\"password\":\"hunter2 secret\",\"x\":1}|{\"password\":\"[REDACTED]\",\"x\":1}",
+        "newPassword=Sup3rS3cret&email=x|newPassword=[REDACTED]&email=x",
+        "{'currentPassword': 'abc'}|{'currentPassword': '[REDACTED]'}",
+        "/auth/verify#token=abcdEFGH123|/auth/verify#token=[REDACTED]",
+        "{\"accessToken\":\"tok\",\"refreshToken\":\"tok2\"}|{\"accessToken\":\"[REDACTED]\",\"refreshToken\":\"[REDACTED]\"}",
+        "user alice.smith@example.com logged in|user a***@example.com logged in",
+        "nothing sensitive here|nothing sensitive here"
+      })
+  void redactsSensitiveValues(String input, String expected) {
+    assertThat(LogRedactor.redact(input)).isEqualTo(expected);
+  }
+
+  @Test
+  void redactsBareJsonWebTokens() {
+    assertThat(LogRedactor.redact("decoded " + JWT + " ok")).isEqualTo("decoded [REDACTED] ok");
+  }
+
+  @Test
+  void keepsNullAndEmpty() {
+    assertThat(LogRedactor.redact(null)).isNull();
+    assertThat(LogRedactor.redact("")).isEmpty();
+  }
+
+  @Test
+  void masksEmailAddresses() {
+    assertThat(EmailMasking.mask("alice@example.com")).isEqualTo("a***@example.com");
+    assertThat(EmailMasking.mask(" Bob@Example.org ")).isEqualTo("B***@Example.org");
+    assertThat(EmailMasking.mask("no-at-sign")).isEqualTo("***");
+    assertThat(EmailMasking.mask("@example.com")).isEqualTo("***");
+    assertThat(EmailMasking.mask("bob@")).isEqualTo("***");
+    assertThat(EmailMasking.mask(null)).isEqualTo("***");
+  }
+}
