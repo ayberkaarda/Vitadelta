@@ -64,6 +64,13 @@ vitadelta:
     trusted-proxies: ${VITADELTA_TRUSTED_PROXIES:}
   mail:
     from: ${VITADELTA_MAIL_FROM:}
+    # Asynchronous identity and plan e-mail (AuthMailDispatcher): sender threads, bounded queue
+    # (a full queue drops the mail with the vitadelta.mail.dropped metric) and how long shutdown
+    # waits for queued mails.
+    dispatch:
+      pool-size: 2
+      queue-capacity: 500
+      shutdown-timeout: 10s
   anonymous:
     query-limit: ${VITADELTA_ANON_QUERY_LIMIT:3}
     visible-results: ${VITADELTA_ANON_VISIBLE_RESULTS:3}
