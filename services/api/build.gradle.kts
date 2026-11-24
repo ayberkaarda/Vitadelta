@@ -1,9 +1,12 @@
+import org.openapitools.generator.gradle.plugin.tasks.GenerateTask
+
 plugins {
     java
     jacoco
     id("org.springframework.boot") version "4.2.0"
     id("io.spring.dependency-management") version "1.1.7"
     id("com.diffplug.spotless") version "8.12.0"
+    id("org.openapi.generator") version "7.27.0"
 }
 
 group = "com.vitadelta"
@@ -17,6 +20,60 @@ java {
 
 repositories {
     mavenCentral()
+}
+
+// Client of the scoring service, generated at build time from the authoritative contract
+// (project specification section 9.2). The output lives under the build directory and is never
+// committed; it is compiled in its own source set so that the strict compiler flags, the
+// formatter and the coverage gate apply only to hand-written code.
+val scoringContract = layout.projectDirectory.file("../../contracts/scoring-api.openapi.yaml")
+val scoringClientDirectory = layout.buildDirectory.dir("generated/scoring-client")
+
+val generateScoringClient by tasks.registering(GenerateTask::class) {
+    description = "Generates the scoring service client from contracts/scoring-api.openapi.yaml."
+    group = "build"
+    generatorName = "java"
+    library = "restclient"
+    inputSpec = scoringContract
+    outputDir = scoringClientDirectory
+    invokerPackage = "com.vitadelta.api.recommendation.scoring"
+    apiPackage = "com.vitadelta.api.recommendation.scoring.api"
+    modelPackage = "com.vitadelta.api.recommendation.scoring.model"
+    configOptions =
+        mapOf(
+            "useSpringBoot4" to "true",
+            "useJackson3" to "true",
+            "useJakartaEe" to "true",
+            "openApiNullable" to "false",
+            "dateLibrary" to "java8",
+            "hideGenerationTimestamp" to "true",
+            "sourceFolder" to "src/main/java",
+        )
+    generateApiTests = false
+    generateModelTests = false
+    generateApiDocumentation = false
+    generateModelDocumentation = false
+    cleanupOutput = true
+    inputs.file(scoringContract).withPropertyName("scoringContract")
+}
+
+val scoringClient: SourceSet by sourceSets.creating {
+    java.srcDir(scoringClientDirectory.map { it.dir("src/main/java") })
+}
+
+tasks.named(scoringClient.compileJavaTaskName) {
+    dependsOn(generateScoringClient)
+}
+
+dependencies {
+    // Libraries the generated client is compiled against (Spring RestClient, Jackson 3).
+    scoringClient.implementationConfigurationName("org.springframework.boot:spring-boot-starter-webmvc")
+    scoringClient.implementationConfigurationName("org.springframework.boot:spring-boot-starter-validation")
+    implementation(scoringClient.output)
+    implementation("org.springdoc:springdoc-openapi-starter-webmvc-api:3.2.1")
+    implementation("io.github.resilience4j:resilience4j-spring-boot4:2.4.0")
+    testImplementation("org.wiremock:wiremock-standalone:4.0.0-beta.44")
+    testImplementation("org.testcontainers:testcontainers")
 }
 
 dependencies {
@@ -46,7 +103,11 @@ dependencies {
 
 tasks.withType<JavaCompile>().configureEach {
     options.encoding = "UTF-8"
-    options.compilerArgs.addAll(listOf("-parameters", "-Xlint:all", "-Werror"))
+    if (name == scoringClient.compileJavaTaskName) {
+        options.compilerArgs.add("-parameters")
+    } else {
+        options.compilerArgs.addAll(listOf("-parameters", "-Xlint:all", "-Werror"))
+    }
 }
 
 // Root of the repository's data directory, read by the seed and fixture integrity tests and, as
@@ -97,6 +158,8 @@ tasks.named<Jar>("jar") {
 
 spotless {
     java {
+        // Hand-written sources only; the generated scoring client is not formatted.
+        target("src/**/*.java")
         googleJavaFormat("2.0.0")
         removeUnusedImports()
         trimTrailingWhitespace()
