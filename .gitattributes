@@ -5,3 +5,15 @@
 *.sh text eol=lf
 gradlew text eol=lf
 *.bat text eol=crlf
+
+# Web sources must keep LF endings on every platform (formatter check on Windows checkouts)
+apps/web/**/*.ts text eol=lf
+apps/web/**/*.html text eol=lf
+apps/web/**/*.scss text eol=lf
+apps/web/**/*.css text eol=lf
+apps/web/**/*.json text eol=lf
+apps/web/**/*.js text eol=lf
+apps/web/**/*.mjs text eol=lf
+apps/web/**/*.md text eol=lf
+apps/web/**/*.yml text eol=lf
+apps/web/**/*.yaml text eol=lf
