@@ -24,9 +24,12 @@ public final class IdentityApi {
 
   static final String REDACTED = "<redacted>";
 
+  /** Free text without control characters (NUL, line breaks ...), which PostgreSQL may reject. */
+  public static final String NO_CONTROL_CHARACTERS = "^[^\\p{Cntrl}]*$";
+
   /** {@code RegisterRequest}. */
   public record RegisterRequest(
-      @NotBlank @Email @Size(max = 254) String email,
+      @NotBlank @Email @Size(max = 254) @Pattern(regexp = NO_CONTROL_CHARACTERS) String email,
       @NotNull String password,
       @Pattern(regexp = "^(tr|en)$") String locale,
       @Pattern(regexp = "^[A-Z]{2}$") String countryCode) {
@@ -39,7 +42,8 @@ public final class IdentityApi {
 
   /** {@code LoginRequest}. */
   public record LoginRequest(
-      @NotBlank @Email @Size(max = 254) String email, @NotNull @Size(min = 1) String password) {
+      @NotBlank @Email @Size(max = 254) @Pattern(regexp = NO_CONTROL_CHARACTERS) String email,
+      @NotNull @Size(min = 1) String password) {
 
     @Override
     public String toString() {
@@ -48,7 +52,8 @@ public final class IdentityApi {
   }
 
   /** {@code EmailRequest}. */
-  public record EmailRequest(@NotBlank @Email @Size(max = 254) String email) {
+  public record EmailRequest(
+      @NotBlank @Email @Size(max = 254) @Pattern(regexp = NO_CONTROL_CHARACTERS) String email) {
 
     @Override
     public String toString() {

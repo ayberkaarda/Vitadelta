@@ -5,6 +5,7 @@ import com.vitadelta.api.identity.IdentityApi.AdminUser;
 import com.vitadelta.api.identity.IdentityApi.AdminUserPage;
 import com.vitadelta.api.identity.IdentityApi.SetUserStatusRequest;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import java.util.UUID;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -33,7 +34,10 @@ public class AdminUserController {
 
   @GetMapping
   AdminUserPage list(
-      @RequestParam(required = false) @Size(min = 1, max = 254) String q,
+      @RequestParam(required = false)
+          @Size(min = 1, max = 254)
+          @Pattern(regexp = IdentityApi.NO_CONTROL_CHARACTERS)
+          String q,
       @RequestParam(required = false) Integer page,
       @RequestParam(required = false) Integer pageSize) {
     return users.search(q, PageQuery.of(page, pageSize));
