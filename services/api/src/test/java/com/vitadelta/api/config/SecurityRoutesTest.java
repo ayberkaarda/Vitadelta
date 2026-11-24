@@ -141,6 +141,12 @@ class SecurityRoutesTest extends PostgresIntegrationTest {
       return Map.of("thing", thing);
     }
 
+    @GetMapping("/api/v1/products/test-rate-limited")
+    Map<String, Object> rateLimited() {
+      throw ProblemException.of(ProblemCode.RATE_LIMITED, "Too many requests.")
+          .withHeader(HttpHeaders.RETRY_AFTER, "30");
+    }
+
     @GetMapping("/api/v1/me/test-me")
     Map<String, String> me() {
       return Map.of("ok", "me");
@@ -534,6 +540,112 @@ class SecurityRoutesTest extends PostgresIntegrationTest {
             .exchange()
             .returnResult(String.class);
     assertProblem(result, 413, ProblemCode.TYPE_PREFIX + "validation_failed");
+  }
+
+  // Security headers on early rejections (section 15.2)
+
+  private java.net.http.HttpResponse<String> raw(
+      String method, String path, java.net.http.HttpRequest.BodyPublisher body, String... headers)
+      throws Exception {
+    java.net.http.HttpRequest.Builder request =
+        java.net.http.HttpRequest.newBuilder(java.net.URI.create("http://localhost:" + port + path))
+            .method(method, body);
+    if (headers.length > 0) {
+      request.headers(headers);
+    }
+    try (java.net.http.HttpClient http = java.net.http.HttpClient.newHttpClient()) {
+      return http.send(
+          request.build(),
+          java.net.http.HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+    }
+  }
+
+  private static void assertSecurityHeaders(
+      java.net.http.HttpResponse<String> response, int status) {
+    String what =
+        response.request().method() + " " + response.uri() + " -> " + response.statusCode();
+    assertThat(response.statusCode()).as(what).isEqualTo(status);
+    java.net.http.HttpHeaders headers = response.headers();
+    assertThat(headers.firstValue("X-Content-Type-Options")).as(what).hasValue("nosniff");
+    assertThat(headers.firstValue("Referrer-Policy")).as(what).hasValue("no-referrer");
+    assertThat(headers.firstValue("Content-Security-Policy"))
+        .as(what)
+        .hasValue(SecurityConfig.CONTENT_SECURITY_POLICY);
+    assertThat(headers.firstValue("X-Frame-Options")).as(what).hasValue("DENY");
+    assertThat(headers.firstValue("X-Request-Id")).as(what).isPresent();
+    assertThat(headers.firstValue(HttpHeaders.CONTENT_TYPE))
+        .as(what)
+        .hasValueSatisfying(type -> assertThat(type).startsWith("application/problem+json"));
+    if (response.uri().getPath().startsWith("/api/v1/auth/")) {
+      assertThat(headers.allValues(HttpHeaders.CACHE_CONTROL)).as(what).containsExactly("no-store");
+    }
+  }
+
+  /** A well-formed JSON object over the 64 kB limit, so only the size can reject it. */
+  private static byte[] oversizedJson() {
+    return ("{\"name\":\"" + "a".repeat(64 * 1024) + "\",\"count\":1}")
+        .getBytes(StandardCharsets.UTF_8);
+  }
+
+  private static java.net.http.HttpRequest.BodyPublisher oversized() {
+    return java.net.http.HttpRequest.BodyPublishers.ofByteArray(oversizedJson());
+  }
+
+  private static java.net.http.HttpRequest.BodyPublisher oversizedChunked() {
+    byte[] large = oversizedJson();
+    return java.net.http.HttpRequest.BodyPublishers.ofInputStream(
+        () -> new java.io.ByteArrayInputStream(large));
+  }
+
+  @Test
+  void everyEarlyRejectionCarriesTheApiSecurityHeaders() throws Exception {
+    java.net.http.HttpRequest.BodyPublisher none =
+        java.net.http.HttpRequest.BodyPublishers.noBody();
+    String json = "Content-Type";
+    assertSecurityHeaders(
+        raw("POST", "/api/v1/recommendations/query", oversized(), json, "application/json"), 413);
+    assertSecurityHeaders(
+        raw("POST", "/api/v1/auth/login", oversized(), json, "application/json"), 413);
+    assertSecurityHeaders(
+        raw("POST", "/api/v1/products/test-body", oversizedChunked(), json, "application/json"),
+        413);
+    assertSecurityHeaders(
+        raw("POST", "/api/v1/auth/login", oversizedChunked(), json, "application/json"), 413);
+    assertSecurityHeaders(raw("GET", "/api/v1/me", none), 401);
+    assertSecurityHeaders(
+        raw(
+            "GET",
+            "/api/v1/admin/test-admin",
+            none,
+            "Authorization",
+            "Bearer " + validToken("USER")),
+        403);
+    assertSecurityHeaders(raw("GET", "/api/v1/products/unknown-route", none), 404);
+    assertSecurityHeaders(raw("DELETE", "/api/v1/products/test-problem", none), 405);
+    assertSecurityHeaders(
+        raw(
+            "POST",
+            "/api/v1/products/test-body",
+            java.net.http.HttpRequest.BodyPublishers.ofString("x"),
+            json,
+            "text/plain"),
+        415);
+    java.net.http.HttpResponse<String> limited =
+        raw("GET", "/api/v1/products/test-rate-limited", none);
+    assertSecurityHeaders(limited, 429);
+    assertThat(limited.headers().firstValue(HttpHeaders.RETRY_AFTER)).hasValue("30");
+    assertSecurityHeaders(
+        raw(
+            "OPTIONS",
+            "/api/v1/products",
+            none,
+            "Origin",
+            "https://evil.example",
+            "Access-Control-Request-Method",
+            "GET"),
+        403);
+    assertSecurityHeaders(
+        raw("GET", "/api/v1/auth/unknown", none, "Origin", "https://evil.example"), 403);
   }
 
   // Management port

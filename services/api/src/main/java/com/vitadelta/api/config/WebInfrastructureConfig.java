@@ -8,6 +8,7 @@ import com.vitadelta.api.config.properties.WebProperties;
 import java.time.Duration;
 import java.util.List;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
+import org.springframework.boot.security.autoconfigure.web.servlet.SecurityFilterProperties;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -28,8 +29,13 @@ public class WebInfrastructureConfig {
   /** Order of the request-id filter: before every other filter, including Spring Security. */
   public static final int REQUEST_ID_FILTER_ORDER = Ordered.HIGHEST_PRECEDENCE;
 
-  /** Order of the body limit filter: right after the request-id filter. */
-  public static final int BODY_LIMIT_FILTER_ORDER = Ordered.HIGHEST_PRECEDENCE + 10;
+  /**
+   * Order of the body limit filter: inside the Spring Security filter chain's scope (after it), so
+   * a {@code 413} written for a declared oversized body passes through the security header writer
+   * like every other response (section 15.2).
+   */
+  public static final int BODY_LIMIT_FILTER_ORDER =
+      SecurityFilterProperties.DEFAULT_FILTER_ORDER + 10;
 
   @Bean
   FilterRegistrationBean<RequestIdFilter> requestIdFilter() {
