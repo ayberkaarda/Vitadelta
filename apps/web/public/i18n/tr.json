@@ -1,0 +1,17 @@
+{
+  "shell": {
+    "title": "Vitadelta",
+    "tagline": "Takviyeleri günlük dozun sağladıklarına ve maliyetine göre karşılaştırın",
+    "health": {
+      "label": "API durumu",
+      "loading": "API durumu kontrol ediliyor…",
+      "unreachable": "API'ye ulaşılamıyor",
+      "retry": "Tekrar kontrol et",
+      "status": {
+        "UP": "Çalışıyor",
+        "DEGRADED": "Kısıtlı çalışıyor",
+        "DOWN": "Çalışmıyor"
+      }
+    }
+  }
+}

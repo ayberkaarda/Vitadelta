@@ -1,0 +1,17 @@
+{
+  "shell": {
+    "title": "Vitadelta",
+    "tagline": "Compare supplements by what a daily dose delivers and what it costs",
+    "health": {
+      "label": "API status",
+      "loading": "Checking API status…",
+      "unreachable": "API unreachable",
+      "retry": "Check again",
+      "status": {
+        "UP": "Up",
+        "DEGRADED": "Degraded",
+        "DOWN": "Down"
+      }
+    }
+  }
+}
