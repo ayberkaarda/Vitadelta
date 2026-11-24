@@ -1,0 +1,1 @@
+"""Vitadelta scoring service."""
