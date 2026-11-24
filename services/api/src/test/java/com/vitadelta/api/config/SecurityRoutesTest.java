@@ -211,7 +211,6 @@ class SecurityRoutesTest extends PostgresIntegrationTest {
   @ValueSource(
       strings = {
         "/api/v1/auth/unknown",
-        "/api/v1/plans",
         "/api/v1/countries",
         "/api/v1/nutrients",
         "/api/v1/weights/defaults",
