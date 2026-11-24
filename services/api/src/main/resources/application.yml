@@ -78,6 +78,7 @@ vitadelta:
     email: ${VITADELTA_BOOTSTRAP_ADMIN_EMAIL:}
     password: ${VITADELTA_BOOTSTRAP_ADMIN_PASSWORD:}
   operations:
+    # false disables every scheduler, including SubscriptionExpiryJob (daily 00:05 UTC, section 8.3).
     jobs-enabled: ${VITADELTA_JOBS_ENABLED:true}
     unverified-account-ttl-days: ${VITADELTA_UNVERIFIED_ACCOUNT_TTL_DAYS:30}
     privacy-contact: ${VITADELTA_PRIVACY_CONTACT:}
