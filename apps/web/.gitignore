@@ -1,0 +1,23 @@
+# Build output
+/dist
+/tmp
+/out-tsc
+
+# Dependencies
+/node_modules
+npm-debug.log*
+
+# Caches and reports
+/.angular/cache
+/.angular
+.sass-cache/
+.eslintcache
+/coverage
+__screenshots__/
+
+# Editors and system files
+.idea/
+.vscode/
+*.sublime-workspace
+.DS_Store
+Thumbs.db
