@@ -24,14 +24,22 @@ public final class ReferenceValues {
   public record ReferenceValueRow(
       String referenceSetCode, String nutrientCode, BigDecimal amount, Unit unit) {}
 
-  /** An upper limit row; amount and basis are both null for exempt rows. */
+  /** A form registry row: a form code of one nutrient. */
+  public record FormRow(String code, String nutrientCode, String nameEn) {}
+
+  /**
+   * An upper limit row; amount and basis are both null for exempt rows.
+   *
+   * @param note citation note (required)
+   */
   public record UpperLimitRow(
       String ulSetCode,
       String nutrientCode,
       String formCode,
       BigDecimal amount,
       Unit unit,
-      UlBasis basis) {}
+      UlBasis basis,
+      String note) {}
 
   /** A country registry row. */
   public record CountryRow(
