@@ -85,6 +85,17 @@
           "type": ["string", "null"],
           "maxLength": 500
         },
+        "source_ref": {
+          "description": "Identifier of the record in the external source named by `source` (for example the label id of a label database).",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "source_entry_date": {
+          "description": "Date the record was entered in the external source.",
+          "type": "string",
+          "format": "date"
+        },
         "synthetic": {
           "description": "True for fictional fixture products.",
           "type": "boolean",

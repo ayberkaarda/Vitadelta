@@ -1,0 +1,44 @@
+ul_set_code,nutrient_code,form_code,amount,unit,basis,note
+EFSA,VIT_A,RETINOL,3000,mcg,TOTAL,EFSA UL Overview v11 (2025); EFSA NDA 2024 doi:10.2903/j.efsa.2024.8814; preformed vitamin A only (mcg RE/day)
+EFSA,VIT_A,RETINYL_ACETATE,3000,mcg,TOTAL,EFSA UL Overview v11 (2025); EFSA NDA 2024 doi:10.2903/j.efsa.2024.8814; preformed vitamin A only (mcg RE/day)
+EFSA,VIT_A,RETINYL_PALMITATE,3000,mcg,TOTAL,EFSA UL Overview v11 (2025); EFSA NDA 2024 doi:10.2903/j.efsa.2024.8814; preformed vitamin A only (mcg RE/day)
+EFSA,VIT_A,BETA_CAROTENE,,mcg,,exempt: EFSA UL Overview v11 (2025); EFSA NDA 2024 doi:10.2903/j.efsa.2024.8814; no UL could be established for beta-carotene; smokers should avoid beta-carotene supplements
+EFSA,VIT_D,ANY,100,mcg,TOTAL,EFSA UL Overview v11 (2025); EFSA NDA 2023 doi:10.2903/j.efsa.2023.8145
+EFSA,VIT_E,ANY,300,mg,TOTAL,EFSA UL Overview v11 (2025); EFSA NDA 2024 doi:10.2903/j.efsa.2024.8953 (SCF value retained; all dietary sources; all stereoisomeric forms of alpha-tocopherol)
+EFSA,VIT_B6,ANY,12,mg,TOTAL,EFSA UL Overview v11 (2025); EFSA NDA 2023 doi:10.2903/j.efsa.2023.8006
+EFSA,VIT_B9,FOLIC_ACID,1000,mcg,SUPPLEMENTAL,EFSA UL Overview v11 (2025); EFSA NDA 2023 doi:10.2903/j.efsa.2023.8353; combined folic acid and authorised 5-MTHF salts; excludes natural food folate
+EFSA,VIT_B9,METHYLFOLATE,1000,mcg,SUPPLEMENTAL,EFSA UL Overview v11 (2025); EFSA NDA 2023 doi:10.2903/j.efsa.2023.8353; combined folic acid and authorised 5-MTHF salts; excludes natural food folate
+EFSA,VIT_B3,NICOTINIC_ACID,10,mg,SUPPLEMENTAL,EFSA UL Overview v11 (2025); EFSA 2006 SCF/NDA UL compendium (SCF 2002 niacin); free nicotinic acid
+EFSA,VIT_B3,NICOTINAMIDE,900,mg,SUPPLEMENTAL,EFSA UL Overview v11 (2025); EFSA 2006 SCF/NDA UL compendium (SCF 2002 niacin); nicotinamide
+EFSA,CALCIUM,ANY,2500,mg,TOTAL,EFSA UL Overview v11 (2025); EFSA NDA 2012 doi:10.2903/j.efsa.2012.2814
+EFSA,MAGNESIUM,ANY,250,mg,SUPPLEMENTAL,EFSA UL Overview v11 (2025); EFSA 2006 SCF/NDA UL compendium (SCF 2001 magnesium); readily dissociable salts and MgO in supplements; water and fortified foods; excludes natural food magnesium
+EFSA,ZINC,ANY,25,mg,TOTAL,EFSA UL Overview v11 (2025); EFSA 2006 SCF/NDA UL compendium (SCF 2002 zinc)
+EFSA,SELENIUM,ANY,255,mcg,TOTAL,EFSA UL Overview v11 (2025); EFSA NDA 2023 doi:10.2903/j.efsa.2023.7704
+EFSA,COPPER,ANY,5,mg,TOTAL,EFSA UL Overview v11 (2025); EFSA 2006 SCF/NDA UL compendium (SCF 2003 copper)
+EFSA,IODINE,ANY,600,mcg,TOTAL,EFSA UL Overview v11 (2025); EFSA 2006 SCF/NDA UL compendium (SCF 2003 iodine)
+EFSA,MOLYBDENUM,ANY,600,mcg,TOTAL,EFSA UL Overview v11 (2025); EFSA 2006 SCF/NDA UL compendium (SCF 2000 molybdenum; 0.6 mg/day)
+IOM,VIT_A,RETINOL,3000,mcg,TOTAL,NASEM 2019 DRI Summary Tables Appendix J; as preformed vitamin A only
+IOM,VIT_A,RETINYL_ACETATE,3000,mcg,TOTAL,NASEM 2019 DRI Summary Tables Appendix J; as preformed vitamin A only
+IOM,VIT_A,RETINYL_PALMITATE,3000,mcg,TOTAL,NASEM 2019 DRI Summary Tables Appendix J; as preformed vitamin A only
+IOM,VIT_A,BETA_CAROTENE,,mcg,,exempt: NASEM 2019 DRI Summary Tables Appendix J; carotenoids UL not determinable
+IOM,VIT_D,ANY,100,mcg,TOTAL,NASEM 2019 DRI Summary Tables Appendix J
+IOM,VIT_E,ANY,495,mg,SUPPLEMENTAL,NASEM 2019 DRI Summary Tables Appendix J; IOM 2000 Vitamin C/E/Selenium/Carotenoids ch. 6 Table 6-1; unknown form uses the stricter all-rac value (alpha-tocopherol activity basis)
+IOM,VIT_E,D_ALPHA_TOCOPHEROL,1000,mg,SUPPLEMENTAL,NASEM 2019 DRI Summary Tables Appendix J; IOM 2000 Vitamin C/E/Selenium/Carotenoids ch. 6 Table 6-1; 1000 mg RRR = 1490 IU x 0.67 (alpha-tocopherol activity basis)
+IOM,VIT_E,DL_ALPHA_TOCOPHEROL,495,mg,SUPPLEMENTAL,NASEM 2019 DRI Summary Tables Appendix J; IOM 2000 Vitamin C/E/Selenium/Carotenoids ch. 6 Table 6-1; 1000 mg all-rac = 1100 IU x 0.45 = 495 mg (alpha-tocopherol activity basis)
+IOM,VIT_C,ANY,2000,mg,TOTAL,NASEM 2019 DRI Summary Tables Appendix J
+IOM,VIT_B6,ANY,100,mg,TOTAL,NASEM 2019 DRI Summary Tables Appendix J
+IOM,VIT_B9,FOLIC_ACID,1000,mcg,SUPPLEMENTAL,NASEM 2019 DRI Summary Tables Appendix J; synthetic forms from supplements and fortified foods
+IOM,VIT_B3,ANY,35,mg,SUPPLEMENTAL,NASEM 2019 DRI Summary Tables Appendix J; synthetic forms from supplements and fortified foods
+IOM,CALCIUM,ANY,2500,mg,TOTAL,NASEM 2019 DRI Summary Tables Appendix J; adults 19-50 y (2000 mg from 51 y)
+IOM,MAGNESIUM,ANY,350,mg,SUPPLEMENTAL,NASEM 2019 DRI Summary Tables Appendix J; pharmacological agents only; excludes food and water
+IOM,ZINC,ANY,40,mg,TOTAL,NASEM 2019 DRI Summary Tables Appendix J
+IOM,IRON,ANY,45,mg,TOTAL,NASEM 2019 DRI Summary Tables Appendix J
+IOM,SELENIUM,ANY,400,mcg,TOTAL,NASEM 2019 DRI Summary Tables Appendix J
+IOM,COPPER,ANY,10,mg,TOTAL,NASEM 2019 DRI Summary Tables Appendix J; 10000 mcg/day
+IOM,IODINE,ANY,1100,mcg,TOTAL,NASEM 2019 DRI Summary Tables Appendix J
+IOM,MANGANESE,ANY,11,mg,TOTAL,NASEM 2019 DRI Summary Tables Appendix J
+IOM,MOLYBDENUM,ANY,2000,mcg,TOTAL,NASEM 2019 DRI Summary Tables Appendix J
+IOM,FLUORIDE,ANY,10,mg,TOTAL,NASEM 2019 DRI Summary Tables Appendix J
+IOM,PHOSPHORUS,ANY,4000,mg,TOTAL,NASEM 2019 DRI Summary Tables Appendix J; adults 19-70 y (4 g/day; 3 g/day above 70 y)
+IOM,CHLORIDE,ANY,3600,mg,TOTAL,NASEM 2019 DRI Summary Tables Appendix J; 3.6 g/day; IOM 2005 water and electrolytes report
+IOM,CHOLINE,ANY,3500,mg,TOTAL,NASEM 2019 DRI Summary Tables Appendix J; 3.5 g/day

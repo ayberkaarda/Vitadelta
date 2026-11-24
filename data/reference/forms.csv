@@ -1,0 +1,22 @@
+code,nutrient_code,name_en
+RETINOL,VIT_A,Retinol
+RETINYL_ACETATE,VIT_A,Retinyl acetate
+RETINYL_PALMITATE,VIT_A,Retinyl palmitate
+BETA_CAROTENE,VIT_A,Beta-carotene
+D2_ERGOCALCIFEROL,VIT_D,Vitamin D2 (ergocalciferol)
+D3_CHOLECALCIFEROL,VIT_D,Vitamin D3 (cholecalciferol)
+D_ALPHA_TOCOPHEROL,VIT_E,d-alpha-tocopherol and its esters (natural RRR form)
+DL_ALPHA_TOCOPHEROL,VIT_E,dl-alpha-tocopherol and its esters (synthetic all-rac form)
+NICOTINIC_ACID,VIT_B3,Nicotinic acid
+NICOTINAMIDE,VIT_B3,Nicotinamide
+FOLIC_ACID,VIT_B9,Folic acid (pteroylmonoglutamic acid)
+METHYLFOLATE,VIT_B9,5-methyltetrahydrofolate (authorised salts)
+CYANOCOBALAMIN,VIT_B12,Cyanocobalamin
+METHYLCOBALAMIN,VIT_B12,Methylcobalamin
+MAGNESIUM_CITRATE,MAGNESIUM,Magnesium citrate
+MAGNESIUM_OXIDE,MAGNESIUM,Magnesium oxide
+MAGNESIUM_BISGLYCINATE,MAGNESIUM,Magnesium bisglycinate
+ZINC_PICOLINATE,ZINC,Zinc picolinate
+ZINC_GLUCONATE,ZINC,Zinc gluconate
+UBIQUINONE,COQ10,Ubiquinone (oxidised coenzyme Q10)
+UBIQUINOL,COQ10,Ubiquinol (reduced coenzyme Q10)

@@ -1,0 +1,2086 @@
+{
+  "schema_version": 1,
+  "products": [
+    {
+      "code": "GOLD-A",
+      "brand": "Fixture Labs",
+      "name": "Gold Standard Daily A",
+      "dosage_form": "TABLET",
+      "units_per_container": 60,
+      "units_per_serving": 1,
+      "servings_per_day": 1,
+      "source": "Synthetic fixture set (fictional brand and formulation)",
+      "synthetic": true,
+      "nutrients": [
+        {
+          "nutrient_code": "VIT_C",
+          "amount_per_serving": 300,
+          "unit": "mg",
+          "form_label": "ascorbic acid"
+        },
+        {
+          "nutrient_code": "VIT_D",
+          "amount_per_serving": 10,
+          "unit": "mcg",
+          "form_code": "D3_CHOLECALCIFEROL",
+          "form_label": "cholecalciferol (vitamin D3)"
+        },
+        {
+          "nutrient_code": "VIT_B12",
+          "amount_per_serving": 2.5,
+          "unit": "mcg",
+          "form_code": "CYANOCOBALAMIN",
+          "form_label": "cyanocobalamin"
+        },
+        {
+          "nutrient_code": "ZINC",
+          "amount_per_serving": 10,
+          "unit": "mg",
+          "form_code": "ZINC_GLUCONATE",
+          "form_label": "zinc gluconate"
+        },
+        {
+          "nutrient_code": "MAGNESIUM",
+          "amount_per_serving": 100,
+          "unit": "mg",
+          "form_code": "MAGNESIUM_OXIDE",
+          "form_label": "magnesium oxide"
+        }
+      ],
+      "availability": [
+        {
+          "country_code": "TR",
+          "status": "AVAILABLE"
+        }
+      ]
+    },
+    {
+      "code": "GOLD-B",
+      "brand": "Fixture Labs",
+      "name": "Gold Standard Daily B",
+      "dosage_form": "TABLET",
+      "units_per_container": 60,
+      "units_per_serving": 1,
+      "servings_per_day": 1,
+      "source": "Synthetic fixture set (fictional brand and formulation)",
+      "synthetic": true,
+      "nutrients": [
+        {
+          "nutrient_code": "VIT_C",
+          "amount_per_serving": 350,
+          "unit": "mg",
+          "form_label": "ascorbic acid"
+        },
+        {
+          "nutrient_code": "VIT_D",
+          "amount_per_serving": 10,
+          "unit": "mcg",
+          "form_code": "D3_CHOLECALCIFEROL",
+          "form_label": "cholecalciferol (vitamin D3)"
+        },
+        {
+          "nutrient_code": "VIT_B12",
+          "amount_per_serving": 2.5,
+          "unit": "mcg",
+          "form_code": "CYANOCOBALAMIN",
+          "form_label": "cyanocobalamin"
+        },
+        {
+          "nutrient_code": "ZINC",
+          "amount_per_serving": 10,
+          "unit": "mg",
+          "form_code": "ZINC_GLUCONATE",
+          "form_label": "zinc gluconate"
+        },
+        {
+          "nutrient_code": "MAGNESIUM",
+          "amount_per_serving": 100,
+          "unit": "mg",
+          "form_code": "MAGNESIUM_OXIDE",
+          "form_label": "magnesium oxide"
+        }
+      ],
+      "availability": [
+        {
+          "country_code": "TR",
+          "status": "AVAILABLE"
+        }
+      ]
+    },
+    {
+      "code": "ZN40",
+      "brand": "Fixture Labs",
+      "name": "Zinc 40 High Strength",
+      "dosage_form": "TABLET",
+      "units_per_container": 60,
+      "units_per_serving": 1,
+      "servings_per_day": 1,
+      "source": "Synthetic fixture set (fictional brand and formulation)",
+      "synthetic": true,
+      "nutrients": [
+        {
+          "nutrient_code": "ZINC",
+          "amount_per_serving": 40,
+          "unit": "mg",
+          "form_code": "ZINC_PICOLINATE",
+          "form_label": "zinc picolinate"
+        }
+      ],
+      "availability": [
+        {
+          "country_code": "TR",
+          "status": "AVAILABLE"
+        }
+      ]
+    },
+    {
+      "code": "BH-DAILY",
+      "brand": "Bosphorus Health",
+      "name": "Daily Multivitamin and Mineral",
+      "dosage_form": "TABLET",
+      "units_per_container": 30,
+      "units_per_serving": 1,
+      "servings_per_day": 1,
+      "source": "Synthetic fixture set (fictional brand and formulation)",
+      "synthetic": true,
+      "nutrients": [
+        {
+          "nutrient_code": "VIT_A",
+          "amount_per_serving": 400,
+          "unit": "mcg",
+          "form_code": "RETINYL_ACETATE",
+          "form_label": "retinyl acetate"
+        },
+        {
+          "nutrient_code": "VIT_C",
+          "amount_per_serving": 80,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "VIT_D",
+          "amount_per_serving": 5,
+          "unit": "mcg",
+          "form_code": "D3_CHOLECALCIFEROL",
+          "form_label": "cholecalciferol (vitamin D3)"
+        },
+        {
+          "nutrient_code": "VIT_E",
+          "amount_per_serving": 12,
+          "unit": "mg",
+          "form_code": "DL_ALPHA_TOCOPHEROL",
+          "form_label": "dl-alpha-tocopheryl acetate"
+        },
+        {
+          "nutrient_code": "VIT_K",
+          "amount_per_serving": 37.5,
+          "unit": "mcg",
+          "form_label": "phylloquinone"
+        },
+        {
+          "nutrient_code": "VIT_B1",
+          "amount_per_serving": 1.1,
+          "unit": "mg",
+          "form_label": "thiamine mononitrate"
+        },
+        {
+          "nutrient_code": "VIT_B2",
+          "amount_per_serving": 1.4,
+          "unit": "mg",
+          "form_label": "riboflavin"
+        },
+        {
+          "nutrient_code": "VIT_B3",
+          "amount_per_serving": 16,
+          "unit": "mg",
+          "form_code": "NICOTINAMIDE",
+          "form_label": "nicotinamide"
+        },
+        {
+          "nutrient_code": "VIT_B5",
+          "amount_per_serving": 6,
+          "unit": "mg",
+          "form_label": "calcium D-pantothenate"
+        },
+        {
+          "nutrient_code": "VIT_B6",
+          "amount_per_serving": 1.4,
+          "unit": "mg",
+          "form_label": "pyridoxine hydrochloride"
+        },
+        {
+          "nutrient_code": "VIT_B7",
+          "amount_per_serving": 50,
+          "unit": "mcg",
+          "form_label": "D-biotin"
+        },
+        {
+          "nutrient_code": "VIT_B9",
+          "amount_per_serving": 200,
+          "unit": "mcg",
+          "form_code": "FOLIC_ACID",
+          "form_label": "folic acid"
+        },
+        {
+          "nutrient_code": "VIT_B12",
+          "amount_per_serving": 2.5,
+          "unit": "mcg",
+          "form_code": "CYANOCOBALAMIN",
+          "form_label": "cyanocobalamin"
+        },
+        {
+          "nutrient_code": "CALCIUM",
+          "amount_per_serving": 120,
+          "unit": "mg",
+          "form_label": "calcium carbonate"
+        },
+        {
+          "nutrient_code": "MAGNESIUM",
+          "amount_per_serving": 56.25,
+          "unit": "mg",
+          "form_code": "MAGNESIUM_OXIDE",
+          "form_label": "magnesium oxide"
+        },
+        {
+          "nutrient_code": "ZINC",
+          "amount_per_serving": 5,
+          "unit": "mg",
+          "form_code": "ZINC_GLUCONATE",
+          "form_label": "zinc gluconate"
+        },
+        {
+          "nutrient_code": "IRON",
+          "amount_per_serving": 7,
+          "unit": "mg",
+          "form_label": "ferrous fumarate"
+        },
+        {
+          "nutrient_code": "COPPER",
+          "amount_per_serving": 0.5,
+          "unit": "mg",
+          "form_label": "copper sulfate"
+        },
+        {
+          "nutrient_code": "MANGANESE",
+          "amount_per_serving": 1,
+          "unit": "mg",
+          "form_label": "manganese sulfate"
+        },
+        {
+          "nutrient_code": "SELENIUM",
+          "amount_per_serving": 27.5,
+          "unit": "mcg",
+          "form_label": "sodium selenite"
+        },
+        {
+          "nutrient_code": "IODINE",
+          "amount_per_serving": 75,
+          "unit": "mcg",
+          "form_label": "potassium iodide"
+        }
+      ],
+      "availability": [
+        {
+          "country_code": "TR",
+          "status": "AVAILABLE"
+        }
+      ]
+    },
+    {
+      "code": "BH-COQ10-100",
+      "brand": "Bosphorus Health",
+      "name": "Coenzyme Q10 100 mg with B Vitamins",
+      "dosage_form": "SOFTGEL",
+      "units_per_container": 30,
+      "units_per_serving": 1,
+      "servings_per_day": 1,
+      "source": "Synthetic fixture set (fictional brand and formulation)",
+      "synthetic": true,
+      "nutrients": [
+        {
+          "nutrient_code": "COQ10",
+          "amount_per_serving": 100,
+          "unit": "mg",
+          "form_code": "UBIQUINONE",
+          "form_label": "ubiquinone"
+        },
+        {
+          "nutrient_code": "VIT_E",
+          "amount_per_serving": 10,
+          "unit": "mg",
+          "form_code": "D_ALPHA_TOCOPHEROL",
+          "form_label": "d-alpha-tocopherol"
+        },
+        {
+          "nutrient_code": "VIT_B1",
+          "amount_per_serving": 1.1,
+          "unit": "mg",
+          "form_label": "thiamine hydrochloride"
+        },
+        {
+          "nutrient_code": "VIT_B2",
+          "amount_per_serving": 1.4,
+          "unit": "mg",
+          "form_label": "riboflavin"
+        },
+        {
+          "nutrient_code": "VIT_B6",
+          "amount_per_serving": 1.4,
+          "unit": "mg",
+          "form_label": "pyridoxine hydrochloride"
+        },
+        {
+          "nutrient_code": "SELENIUM",
+          "amount_per_serving": 55,
+          "unit": "mcg",
+          "form_label": "L-selenomethionine"
+        }
+      ],
+      "availability": [
+        {
+          "country_code": "TR",
+          "status": "AVAILABLE"
+        },
+        {
+          "country_code": "DE",
+          "status": "NOT_SOLD"
+        }
+      ]
+    },
+    {
+      "code": "BH-FAMILY-GUMMY",
+      "brand": "Bosphorus Health",
+      "name": "Family Multivitamin Gummies",
+      "dosage_form": "GUMMY",
+      "units_per_container": 60,
+      "units_per_serving": 2,
+      "servings_per_day": 1,
+      "source": "Synthetic fixture set (fictional brand and formulation)",
+      "synthetic": true,
+      "nutrients": [
+        {
+          "nutrient_code": "VIT_A",
+          "amount_per_serving": 200,
+          "unit": "mcg",
+          "form_code": "RETINYL_ACETATE",
+          "form_label": "retinyl acetate"
+        },
+        {
+          "nutrient_code": "VIT_C",
+          "amount_per_serving": 40,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "VIT_D",
+          "amount_per_serving": 5,
+          "unit": "mcg",
+          "form_code": "D3_CHOLECALCIFEROL",
+          "form_label": "cholecalciferol (vitamin D3)"
+        },
+        {
+          "nutrient_code": "VIT_E",
+          "amount_per_serving": 6,
+          "unit": "mg",
+          "form_code": "DL_ALPHA_TOCOPHEROL",
+          "form_label": "dl-alpha-tocopheryl acetate"
+        },
+        {
+          "nutrient_code": "VIT_B6",
+          "amount_per_serving": 0.7,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "VIT_B7",
+          "amount_per_serving": 25,
+          "unit": "mcg"
+        },
+        {
+          "nutrient_code": "VIT_B9",
+          "amount_per_serving": 100,
+          "unit": "mcg",
+          "form_code": "FOLIC_ACID",
+          "form_label": "folic acid"
+        },
+        {
+          "nutrient_code": "VIT_B12",
+          "amount_per_serving": 1.25,
+          "unit": "mcg",
+          "form_code": "CYANOCOBALAMIN",
+          "form_label": "cyanocobalamin"
+        },
+        {
+          "nutrient_code": "ZINC",
+          "amount_per_serving": 2.5,
+          "unit": "mg",
+          "form_label": "zinc citrate"
+        },
+        {
+          "nutrient_code": "IODINE",
+          "amount_per_serving": 40,
+          "unit": "mcg",
+          "form_label": "potassium iodide"
+        }
+      ],
+      "availability": [
+        {
+          "country_code": "TR",
+          "status": "AVAILABLE"
+        }
+      ]
+    },
+    {
+      "code": "BH-MAG-B6",
+      "brand": "Bosphorus Health",
+      "name": "Magnesium Citrate with B6",
+      "dosage_form": "TABLET",
+      "units_per_container": 60,
+      "units_per_serving": 1,
+      "servings_per_day": 2,
+      "source": "Synthetic fixture set (fictional brand and formulation)",
+      "synthetic": true,
+      "nutrients": [
+        {
+          "nutrient_code": "MAGNESIUM",
+          "amount_per_serving": 100,
+          "unit": "mg",
+          "form_code": "MAGNESIUM_CITRATE",
+          "form_label": "magnesium citrate"
+        },
+        {
+          "nutrient_code": "VIT_B6",
+          "amount_per_serving": 1.4,
+          "unit": "mg",
+          "form_label": "pyridoxine hydrochloride"
+        },
+        {
+          "nutrient_code": "VIT_B1",
+          "amount_per_serving": 0.55,
+          "unit": "mg",
+          "form_label": "thiamine hydrochloride"
+        },
+        {
+          "nutrient_code": "VIT_B9",
+          "amount_per_serving": 100,
+          "unit": "mcg",
+          "form_code": "FOLIC_ACID",
+          "form_label": "folic acid"
+        },
+        {
+          "nutrient_code": "VIT_B12",
+          "amount_per_serving": 1.25,
+          "unit": "mcg",
+          "form_code": "CYANOCOBALAMIN",
+          "form_label": "cyanocobalamin"
+        }
+      ],
+      "availability": [
+        {
+          "country_code": "TR",
+          "status": "AVAILABLE"
+        }
+      ]
+    },
+    {
+      "code": "FL-VISION-30",
+      "brand": "Fixture Labs",
+      "name": "Vision and Vitality Multi with Lutein and CoQ10",
+      "dosage_form": "CAPSULE",
+      "units_per_container": 60,
+      "units_per_serving": 1,
+      "servings_per_day": 1,
+      "source": "Synthetic fixture set (fictional brand and formulation)",
+      "synthetic": true,
+      "nutrients": [
+        {
+          "nutrient_code": "VIT_A",
+          "amount_per_serving": 400,
+          "unit": "mcg",
+          "form_code": "BETA_CAROTENE",
+          "form_label": "beta-carotene"
+        },
+        {
+          "nutrient_code": "VIT_C",
+          "amount_per_serving": 120,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "VIT_E",
+          "amount_per_serving": 10,
+          "unit": "mg",
+          "form_code": "DL_ALPHA_TOCOPHEROL",
+          "form_label": "dl-alpha-tocopheryl acetate"
+        },
+        {
+          "nutrient_code": "VIT_B2",
+          "amount_per_serving": 1.4,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "ZINC",
+          "amount_per_serving": 10,
+          "unit": "mg",
+          "form_code": "ZINC_GLUCONATE",
+          "form_label": "zinc gluconate"
+        },
+        {
+          "nutrient_code": "COPPER",
+          "amount_per_serving": 1,
+          "unit": "mg",
+          "form_label": "copper gluconate"
+        },
+        {
+          "nutrient_code": "SELENIUM",
+          "amount_per_serving": 40,
+          "unit": "mcg",
+          "form_label": "sodium selenite"
+        },
+        {
+          "nutrient_code": "LUTEIN",
+          "amount_per_serving": 10,
+          "unit": "mg",
+          "form_label": "marigold extract"
+        },
+        {
+          "nutrient_code": "ZEAXANTHIN",
+          "amount_per_serving": 2,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "COQ10",
+          "amount_per_serving": 30,
+          "unit": "mg",
+          "form_code": "UBIQUINONE",
+          "form_label": "ubiquinone"
+        }
+      ],
+      "availability": [
+        {
+          "country_code": "TR",
+          "status": "AVAILABLE"
+        },
+        {
+          "country_code": "DE",
+          "status": "AVAILABLE"
+        }
+      ]
+    },
+    {
+      "code": "FL-D3K2",
+      "brand": "Fixture Labs",
+      "name": "Bone Support D3 and K2",
+      "dosage_form": "TABLET",
+      "units_per_container": 90,
+      "units_per_serving": 1,
+      "servings_per_day": 1,
+      "source": "Synthetic fixture set (fictional brand and formulation)",
+      "synthetic": true,
+      "nutrients": [
+        {
+          "nutrient_code": "VIT_D",
+          "amount_per_serving": 1000,
+          "unit": "IU",
+          "form_code": "D3_CHOLECALCIFEROL",
+          "form_label": "cholecalciferol (vitamin D3)"
+        },
+        {
+          "nutrient_code": "VIT_K",
+          "amount_per_serving": 75,
+          "unit": "mcg",
+          "form_label": "menaquinone-7"
+        },
+        {
+          "nutrient_code": "CALCIUM",
+          "amount_per_serving": 200,
+          "unit": "mg",
+          "form_label": "calcium carbonate"
+        },
+        {
+          "nutrient_code": "MAGNESIUM",
+          "amount_per_serving": 100,
+          "unit": "mg",
+          "form_code": "MAGNESIUM_CITRATE",
+          "form_label": "magnesium citrate"
+        },
+        {
+          "nutrient_code": "ZINC",
+          "amount_per_serving": 5,
+          "unit": "mg",
+          "form_code": "ZINC_GLUCONATE",
+          "form_label": "zinc gluconate"
+        }
+      ],
+      "availability": [
+        {
+          "country_code": "TR",
+          "status": "AVAILABLE"
+        },
+        {
+          "country_code": "GB",
+          "status": "AVAILABLE"
+        }
+      ]
+    },
+    {
+      "code": "FL-OMEGA-LIQUID",
+      "brand": "Fixture Labs",
+      "name": "Omega-3 Fish Oil Liquid with Vitamins A, D and E",
+      "dosage_form": "LIQUID",
+      "units_per_container": 200,
+      "units_per_serving": 5,
+      "servings_per_day": 1,
+      "source": "Synthetic fixture set (fictional brand and formulation)",
+      "synthetic": true,
+      "nutrients": [
+        {
+          "nutrient_code": "OMEGA3_EPA",
+          "amount_per_serving": 400,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "OMEGA3_DHA",
+          "amount_per_serving": 600,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "VIT_A",
+          "amount_per_serving": 250,
+          "unit": "mcg",
+          "form_code": "RETINOL",
+          "form_label": "retinol"
+        },
+        {
+          "nutrient_code": "VIT_D",
+          "amount_per_serving": 10,
+          "unit": "mcg",
+          "form_code": "D3_CHOLECALCIFEROL",
+          "form_label": "cholecalciferol (vitamin D3)"
+        },
+        {
+          "nutrient_code": "VIT_E",
+          "amount_per_serving": 10,
+          "unit": "mg",
+          "form_code": "D_ALPHA_TOCOPHEROL",
+          "form_label": "d-alpha-tocopherol"
+        }
+      ],
+      "availability": [
+        {
+          "country_code": "TR",
+          "status": "AVAILABLE"
+        },
+        {
+          "country_code": "DE",
+          "status": "AVAILABLE"
+        }
+      ]
+    },
+    {
+      "code": "FL-HAIR",
+      "brand": "Fixture Labs",
+      "name": "Hair, Skin and Nails Complex",
+      "dosage_form": "CAPSULE",
+      "units_per_container": 60,
+      "units_per_serving": 1,
+      "servings_per_day": 1,
+      "source": "Synthetic fixture set (fictional brand and formulation)",
+      "synthetic": true,
+      "nutrients": [
+        {
+          "nutrient_code": "VIT_B7",
+          "amount_per_serving": 2500,
+          "unit": "mcg",
+          "form_label": "D-biotin"
+        },
+        {
+          "nutrient_code": "VIT_B5",
+          "amount_per_serving": 6,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "VIT_C",
+          "amount_per_serving": 40,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "ZINC",
+          "amount_per_serving": 10,
+          "unit": "mg",
+          "form_code": "ZINC_GLUCONATE",
+          "form_label": "zinc gluconate"
+        },
+        {
+          "nutrient_code": "SELENIUM",
+          "amount_per_serving": 55,
+          "unit": "mcg",
+          "form_label": "L-selenomethionine"
+        },
+        {
+          "nutrient_code": "COPPER",
+          "amount_per_serving": 1,
+          "unit": "mg",
+          "form_label": "copper bisglycinate"
+        }
+      ],
+      "availability": [
+        {
+          "country_code": "TR",
+          "status": "AVAILABLE"
+        },
+        {
+          "country_code": "DE",
+          "status": "AVAILABLE"
+        }
+      ]
+    },
+    {
+      "code": "FL-IRON",
+      "brand": "Fixture Labs",
+      "name": "Gentle Iron with Vitamin C and Folic Acid",
+      "dosage_form": "TABLET",
+      "units_per_container": 30,
+      "units_per_serving": 1,
+      "servings_per_day": 1,
+      "source": "Synthetic fixture set (fictional brand and formulation)",
+      "synthetic": true,
+      "nutrients": [
+        {
+          "nutrient_code": "IRON",
+          "amount_per_serving": 14,
+          "unit": "mg",
+          "form_label": "ferrous bisglycinate"
+        },
+        {
+          "nutrient_code": "VIT_C",
+          "amount_per_serving": 80,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "VIT_B6",
+          "amount_per_serving": 1.4,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "VIT_B9",
+          "amount_per_serving": 200,
+          "unit": "mcg",
+          "form_code": "FOLIC_ACID",
+          "form_label": "folic acid"
+        },
+        {
+          "nutrient_code": "VIT_B12",
+          "amount_per_serving": 2.5,
+          "unit": "mcg",
+          "form_code": "CYANOCOBALAMIN",
+          "form_label": "cyanocobalamin"
+        },
+        {
+          "nutrient_code": "COPPER",
+          "amount_per_serving": 0.5,
+          "unit": "mg"
+        }
+      ],
+      "availability": [
+        {
+          "country_code": "TR",
+          "status": "AVAILABLE"
+        },
+        {
+          "country_code": "GB",
+          "status": "AVAILABLE"
+        }
+      ]
+    },
+    {
+      "code": "MV-UBIQ-200",
+      "brand": "Meridian Vitals",
+      "name": "Ubiquinol CoQ10 Twice Daily",
+      "dosage_form": "SOFTGEL",
+      "units_per_container": 60,
+      "units_per_serving": 1,
+      "servings_per_day": 2,
+      "source": "Synthetic fixture set (fictional brand and formulation)",
+      "synthetic": true,
+      "nutrients": [
+        {
+          "nutrient_code": "COQ10",
+          "amount_per_serving": 100,
+          "unit": "mg",
+          "form_code": "UBIQUINOL",
+          "form_label": "ubiquinol"
+        },
+        {
+          "nutrient_code": "VIT_E",
+          "amount_per_serving": 15,
+          "unit": "IU",
+          "form_code": "D_ALPHA_TOCOPHEROL",
+          "form_label": "d-alpha-tocopherol"
+        },
+        {
+          "nutrient_code": "SELENIUM",
+          "amount_per_serving": 50,
+          "unit": "mcg",
+          "form_label": "L-selenomethionine"
+        },
+        {
+          "nutrient_code": "VIT_B1",
+          "amount_per_serving": 1.1,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "VIT_B2",
+          "amount_per_serving": 1.4,
+          "unit": "mg"
+        }
+      ],
+      "availability": [
+        {
+          "country_code": "TR",
+          "status": "AVAILABLE"
+        },
+        {
+          "country_code": "DE",
+          "status": "AVAILABLE"
+        },
+        {
+          "country_code": "GB",
+          "status": "AVAILABLE"
+        },
+        {
+          "country_code": "US",
+          "status": "AVAILABLE"
+        }
+      ]
+    },
+    {
+      "code": "NN-ESSENTIAL",
+      "brand": "Northline Nutrition",
+      "name": "Essential Multi Adults",
+      "dosage_form": "TABLET",
+      "units_per_container": 90,
+      "units_per_serving": 1,
+      "servings_per_day": 1,
+      "source": "Synthetic fixture set (fictional brand and formulation)",
+      "synthetic": true,
+      "nutrients": [
+        {
+          "nutrient_code": "VIT_A",
+          "amount_per_serving": 900,
+          "unit": "mcg",
+          "ul_amount_per_serving": 300,
+          "form_code": "RETINYL_ACETATE",
+          "form_label": "retinyl acetate 300 mcg and beta-carotene 600 mcg"
+        },
+        {
+          "nutrient_code": "VIT_C",
+          "amount_per_serving": 90,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "VIT_D",
+          "amount_per_serving": 20,
+          "unit": "mcg",
+          "form_code": "D3_CHOLECALCIFEROL",
+          "form_label": "cholecalciferol (vitamin D3)"
+        },
+        {
+          "nutrient_code": "VIT_E",
+          "amount_per_serving": 15,
+          "unit": "mg",
+          "form_code": "D_ALPHA_TOCOPHEROL",
+          "form_label": "d-alpha-tocopherol"
+        },
+        {
+          "nutrient_code": "VIT_K",
+          "amount_per_serving": 80,
+          "unit": "mcg"
+        },
+        {
+          "nutrient_code": "VIT_B1",
+          "amount_per_serving": 1.2,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "VIT_B2",
+          "amount_per_serving": 1.4,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "VIT_B3",
+          "amount_per_serving": 16,
+          "unit": "mg",
+          "form_code": "NICOTINAMIDE",
+          "form_label": "nicotinamide"
+        },
+        {
+          "nutrient_code": "VIT_B5",
+          "amount_per_serving": 6,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "VIT_B6",
+          "amount_per_serving": 1.7,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "VIT_B7",
+          "amount_per_serving": 40,
+          "unit": "mcg"
+        },
+        {
+          "nutrient_code": "VIT_B9",
+          "amount_per_serving": 400,
+          "unit": "mcg",
+          "form_code": "FOLIC_ACID",
+          "form_label": "folic acid"
+        },
+        {
+          "nutrient_code": "VIT_B12",
+          "amount_per_serving": 6,
+          "unit": "mcg",
+          "form_code": "CYANOCOBALAMIN",
+          "form_label": "cyanocobalamin"
+        },
+        {
+          "nutrient_code": "CALCIUM",
+          "amount_per_serving": 160,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "MAGNESIUM",
+          "amount_per_serving": 100,
+          "unit": "mg",
+          "form_code": "MAGNESIUM_OXIDE",
+          "form_label": "magnesium oxide"
+        },
+        {
+          "nutrient_code": "ZINC",
+          "amount_per_serving": 11,
+          "unit": "mg",
+          "form_code": "ZINC_GLUCONATE",
+          "form_label": "zinc gluconate"
+        },
+        {
+          "nutrient_code": "SELENIUM",
+          "amount_per_serving": 55,
+          "unit": "mcg"
+        },
+        {
+          "nutrient_code": "COPPER",
+          "amount_per_serving": 0.9,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "MANGANESE",
+          "amount_per_serving": 2.3,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "CHROMIUM",
+          "amount_per_serving": 35,
+          "unit": "mcg"
+        },
+        {
+          "nutrient_code": "MOLYBDENUM",
+          "amount_per_serving": 45,
+          "unit": "mcg"
+        },
+        {
+          "nutrient_code": "IODINE",
+          "amount_per_serving": 150,
+          "unit": "mcg"
+        }
+      ],
+      "availability": [
+        {
+          "country_code": "TR",
+          "status": "AVAILABLE"
+        },
+        {
+          "country_code": "DE",
+          "status": "AVAILABLE"
+        },
+        {
+          "country_code": "GB",
+          "status": "AVAILABLE"
+        },
+        {
+          "country_code": "US",
+          "status": "AVAILABLE"
+        }
+      ]
+    },
+    {
+      "code": "NN-GUMMY",
+      "brand": "Northline Nutrition",
+      "name": "Essential Multi Gummies",
+      "dosage_form": "GUMMY",
+      "units_per_container": 120,
+      "units_per_serving": 2,
+      "servings_per_day": 1,
+      "source": "Synthetic fixture set (fictional brand and formulation)",
+      "synthetic": true,
+      "nutrients": [
+        {
+          "nutrient_code": "VIT_A",
+          "amount_per_serving": 300,
+          "unit": "mcg",
+          "form_code": "RETINYL_ACETATE",
+          "form_label": "retinyl acetate"
+        },
+        {
+          "nutrient_code": "VIT_C",
+          "amount_per_serving": 60,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "VIT_D",
+          "amount_per_serving": 25,
+          "unit": "mcg",
+          "form_code": "D3_CHOLECALCIFEROL",
+          "form_label": "cholecalciferol (vitamin D3)"
+        },
+        {
+          "nutrient_code": "VIT_E",
+          "amount_per_serving": 9,
+          "unit": "mg",
+          "form_code": "DL_ALPHA_TOCOPHEROL",
+          "form_label": "dl-alpha-tocopheryl acetate"
+        },
+        {
+          "nutrient_code": "VIT_B6",
+          "amount_per_serving": 2,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "VIT_B7",
+          "amount_per_serving": 150,
+          "unit": "mcg"
+        },
+        {
+          "nutrient_code": "VIT_B9",
+          "amount_per_serving": 200,
+          "unit": "mcg",
+          "form_code": "FOLIC_ACID",
+          "form_label": "folic acid"
+        },
+        {
+          "nutrient_code": "VIT_B12",
+          "amount_per_serving": 5,
+          "unit": "mcg",
+          "form_code": "CYANOCOBALAMIN",
+          "form_label": "cyanocobalamin"
+        },
+        {
+          "nutrient_code": "ZINC",
+          "amount_per_serving": 5,
+          "unit": "mg",
+          "form_label": "zinc citrate"
+        },
+        {
+          "nutrient_code": "IODINE",
+          "amount_per_serving": 75,
+          "unit": "mcg"
+        },
+        {
+          "nutrient_code": "CHOLINE",
+          "amount_per_serving": 25,
+          "unit": "mg",
+          "form_label": "choline bitartrate"
+        }
+      ],
+      "availability": [
+        {
+          "country_code": "TR",
+          "status": "AVAILABLE"
+        },
+        {
+          "country_code": "DE",
+          "status": "AVAILABLE"
+        },
+        {
+          "country_code": "GB",
+          "status": "AVAILABLE"
+        },
+        {
+          "country_code": "US",
+          "status": "AVAILABLE"
+        }
+      ]
+    },
+    {
+      "code": "MV-ACTIVE-50",
+      "brand": "Meridian Vitals",
+      "name": "Active 50+ Multivitamin",
+      "dosage_form": "TABLET",
+      "units_per_container": 60,
+      "units_per_serving": 1,
+      "servings_per_day": 1,
+      "source": "Synthetic fixture set (fictional brand and formulation)",
+      "synthetic": true,
+      "nutrients": [
+        {
+          "nutrient_code": "VIT_A",
+          "amount_per_serving": 600,
+          "unit": "mcg",
+          "form_code": "RETINYL_ACETATE",
+          "form_label": "retinyl acetate"
+        },
+        {
+          "nutrient_code": "VIT_C",
+          "amount_per_serving": 120,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "VIT_D",
+          "amount_per_serving": 25,
+          "unit": "mcg",
+          "form_code": "D3_CHOLECALCIFEROL",
+          "form_label": "cholecalciferol (vitamin D3)"
+        },
+        {
+          "nutrient_code": "VIT_E",
+          "amount_per_serving": 20,
+          "unit": "mg",
+          "form_code": "DL_ALPHA_TOCOPHEROL",
+          "form_label": "dl-alpha-tocopheryl acetate"
+        },
+        {
+          "nutrient_code": "VIT_K",
+          "amount_per_serving": 60,
+          "unit": "mcg"
+        },
+        {
+          "nutrient_code": "VIT_B1",
+          "amount_per_serving": 2.2,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "VIT_B2",
+          "amount_per_serving": 2.8,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "VIT_B3",
+          "amount_per_serving": 18,
+          "unit": "mg",
+          "form_code": "NICOTINAMIDE",
+          "form_label": "nicotinamide"
+        },
+        {
+          "nutrient_code": "VIT_B6",
+          "amount_per_serving": 5,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "VIT_B9",
+          "amount_per_serving": 300,
+          "unit": "mcg",
+          "form_code": "FOLIC_ACID",
+          "form_label": "folic acid"
+        },
+        {
+          "nutrient_code": "VIT_B12",
+          "amount_per_serving": 25,
+          "unit": "mcg",
+          "form_code": "CYANOCOBALAMIN",
+          "form_label": "cyanocobalamin"
+        },
+        {
+          "nutrient_code": "CALCIUM",
+          "amount_per_serving": 200,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "MAGNESIUM",
+          "amount_per_serving": 150,
+          "unit": "mg",
+          "form_code": "MAGNESIUM_CITRATE",
+          "form_label": "magnesium citrate"
+        },
+        {
+          "nutrient_code": "ZINC",
+          "amount_per_serving": 10,
+          "unit": "mg",
+          "form_code": "ZINC_GLUCONATE",
+          "form_label": "zinc gluconate"
+        },
+        {
+          "nutrient_code": "SELENIUM",
+          "amount_per_serving": 55,
+          "unit": "mcg"
+        },
+        {
+          "nutrient_code": "IODINE",
+          "amount_per_serving": 150,
+          "unit": "mcg"
+        },
+        {
+          "nutrient_code": "LUTEIN",
+          "amount_per_serving": 2,
+          "unit": "mg"
+        }
+      ],
+      "availability": [
+        {
+          "country_code": "DE",
+          "status": "AVAILABLE"
+        },
+        {
+          "country_code": "GB",
+          "status": "AVAILABLE"
+        },
+        {
+          "country_code": "TR",
+          "status": "NOT_SOLD"
+        }
+      ]
+    },
+    {
+      "code": "MV-IMMUNE",
+      "brand": "Meridian Vitals",
+      "name": "Immune Defence C 1000 Effervescent",
+      "dosage_form": "TABLET",
+      "units_per_container": 20,
+      "units_per_serving": 1,
+      "servings_per_day": 1,
+      "source": "Synthetic fixture set (fictional brand and formulation)",
+      "synthetic": true,
+      "nutrients": [
+        {
+          "nutrient_code": "VIT_C",
+          "amount_per_serving": 1000,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "VIT_D",
+          "amount_per_serving": 25,
+          "unit": "mcg",
+          "form_code": "D3_CHOLECALCIFEROL",
+          "form_label": "cholecalciferol (vitamin D3)"
+        },
+        {
+          "nutrient_code": "ZINC",
+          "amount_per_serving": 10,
+          "unit": "mg",
+          "form_code": "ZINC_GLUCONATE",
+          "form_label": "zinc gluconate"
+        },
+        {
+          "nutrient_code": "SELENIUM",
+          "amount_per_serving": 55,
+          "unit": "mcg"
+        },
+        {
+          "nutrient_code": "VIT_B6",
+          "amount_per_serving": 1.4,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "VIT_B12",
+          "amount_per_serving": 2.5,
+          "unit": "mcg",
+          "form_code": "CYANOCOBALAMIN",
+          "form_label": "cyanocobalamin"
+        }
+      ],
+      "availability": [
+        {
+          "country_code": "DE",
+          "status": "AVAILABLE"
+        },
+        {
+          "country_code": "GB",
+          "status": "AVAILABLE"
+        }
+      ]
+    },
+    {
+      "code": "NN-WOMENS",
+      "brand": "Northline Nutrition",
+      "name": "Women's Multi with Methylfolate",
+      "dosage_form": "CAPSULE",
+      "units_per_container": 60,
+      "units_per_serving": 1,
+      "servings_per_day": 1,
+      "source": "Synthetic fixture set (fictional brand and formulation)",
+      "synthetic": true,
+      "nutrients": [
+        {
+          "nutrient_code": "VIT_B9",
+          "amount_per_serving": 400,
+          "unit": "mcg",
+          "form_code": "METHYLFOLATE",
+          "form_label": "L-methylfolate calcium"
+        },
+        {
+          "nutrient_code": "IRON",
+          "amount_per_serving": 14,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "VIT_D",
+          "amount_per_serving": 10,
+          "unit": "mcg",
+          "form_code": "D3_CHOLECALCIFEROL",
+          "form_label": "cholecalciferol (vitamin D3)"
+        },
+        {
+          "nutrient_code": "VIT_B12",
+          "amount_per_serving": 10,
+          "unit": "mcg",
+          "form_code": "METHYLCOBALAMIN",
+          "form_label": "methylcobalamin"
+        },
+        {
+          "nutrient_code": "VIT_B6",
+          "amount_per_serving": 1.4,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "VIT_C",
+          "amount_per_serving": 80,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "IODINE",
+          "amount_per_serving": 150,
+          "unit": "mcg"
+        },
+        {
+          "nutrient_code": "ZINC",
+          "amount_per_serving": 7.5,
+          "unit": "mg",
+          "form_code": "ZINC_PICOLINATE",
+          "form_label": "zinc picolinate"
+        },
+        {
+          "nutrient_code": "MAGNESIUM",
+          "amount_per_serving": 57,
+          "unit": "mg",
+          "form_code": "MAGNESIUM_BISGLYCINATE",
+          "form_label": "magnesium bisglycinate"
+        }
+      ],
+      "availability": [
+        {
+          "country_code": "DE",
+          "status": "AVAILABLE"
+        },
+        {
+          "country_code": "GB",
+          "status": "AVAILABLE"
+        }
+      ]
+    },
+    {
+      "code": "MV-COMPLETE-4",
+      "brand": "Meridian Vitals",
+      "name": "Complete Four-a-Day Multinutrient",
+      "dosage_form": "CAPSULE",
+      "units_per_container": 120,
+      "units_per_serving": 2,
+      "servings_per_day": 2,
+      "source": "Synthetic fixture set (fictional brand and formulation)",
+      "synthetic": true,
+      "nutrients": [
+        {
+          "nutrient_code": "VIT_A",
+          "amount_per_serving": 400,
+          "unit": "mcg",
+          "form_code": "RETINYL_PALMITATE",
+          "form_label": "retinyl palmitate"
+        },
+        {
+          "nutrient_code": "VIT_C",
+          "amount_per_serving": 125,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "VIT_D",
+          "amount_per_serving": 12.5,
+          "unit": "mcg",
+          "form_code": "D3_CHOLECALCIFEROL",
+          "form_label": "cholecalciferol (vitamin D3)"
+        },
+        {
+          "nutrient_code": "VIT_E",
+          "amount_per_serving": 10,
+          "unit": "mg",
+          "form_code": "D_ALPHA_TOCOPHEROL",
+          "form_label": "d-alpha-tocopherol"
+        },
+        {
+          "nutrient_code": "VIT_K",
+          "amount_per_serving": 40,
+          "unit": "mcg"
+        },
+        {
+          "nutrient_code": "VIT_B1",
+          "amount_per_serving": 2.5,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "VIT_B2",
+          "amount_per_serving": 2.5,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "VIT_B3",
+          "amount_per_serving": 10,
+          "unit": "mg",
+          "form_code": "NICOTINAMIDE",
+          "form_label": "nicotinamide"
+        },
+        {
+          "nutrient_code": "VIT_B5",
+          "amount_per_serving": 5,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "VIT_B6",
+          "amount_per_serving": 2.5,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "VIT_B7",
+          "amount_per_serving": 50,
+          "unit": "mcg"
+        },
+        {
+          "nutrient_code": "VIT_B9",
+          "amount_per_serving": 200,
+          "unit": "mcg",
+          "form_code": "FOLIC_ACID",
+          "form_label": "folic acid"
+        },
+        {
+          "nutrient_code": "VIT_B12",
+          "amount_per_serving": 5,
+          "unit": "mcg",
+          "form_code": "METHYLCOBALAMIN",
+          "form_label": "methylcobalamin"
+        },
+        {
+          "nutrient_code": "CHOLINE",
+          "amount_per_serving": 25,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "MAGNESIUM",
+          "amount_per_serving": 100,
+          "unit": "mg",
+          "form_code": "MAGNESIUM_BISGLYCINATE",
+          "form_label": "magnesium bisglycinate"
+        },
+        {
+          "nutrient_code": "ZINC",
+          "amount_per_serving": 7.5,
+          "unit": "mg",
+          "form_code": "ZINC_PICOLINATE",
+          "form_label": "zinc picolinate"
+        },
+        {
+          "nutrient_code": "SELENIUM",
+          "amount_per_serving": 50,
+          "unit": "mcg"
+        },
+        {
+          "nutrient_code": "COPPER",
+          "amount_per_serving": 0.5,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "MANGANESE",
+          "amount_per_serving": 1,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "CHROMIUM",
+          "amount_per_serving": 25,
+          "unit": "mcg"
+        },
+        {
+          "nutrient_code": "MOLYBDENUM",
+          "amount_per_serving": 25,
+          "unit": "mcg"
+        },
+        {
+          "nutrient_code": "IODINE",
+          "amount_per_serving": 75,
+          "unit": "mcg"
+        },
+        {
+          "nutrient_code": "ALPHA_LIPOIC_ACID",
+          "amount_per_serving": 25,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "INOSITOL",
+          "amount_per_serving": 25,
+          "unit": "mg"
+        }
+      ],
+      "availability": [
+        {
+          "country_code": "DE",
+          "status": "AVAILABLE"
+        },
+        {
+          "country_code": "GB",
+          "status": "AVAILABLE"
+        },
+        {
+          "country_code": "US",
+          "status": "AVAILABLE"
+        }
+      ]
+    },
+    {
+      "code": "RD-ADULT",
+      "brand": "Redwood Daily",
+      "name": "Adult Daily Multivitamin",
+      "dosage_form": "TABLET",
+      "units_per_container": 100,
+      "units_per_serving": 1,
+      "servings_per_day": 1,
+      "source": "Synthetic fixture set (fictional brand and formulation)",
+      "synthetic": true,
+      "nutrients": [
+        {
+          "nutrient_code": "VIT_A",
+          "amount_per_serving": 900,
+          "unit": "mcg",
+          "ul_amount_per_serving": 450,
+          "form_code": "RETINYL_ACETATE",
+          "form_label": "900 mcg RAE, 50% as retinyl acetate and 50% as beta-carotene"
+        },
+        {
+          "nutrient_code": "VIT_C",
+          "amount_per_serving": 90,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "VIT_D",
+          "amount_per_serving": 25,
+          "unit": "mcg",
+          "form_code": "D3_CHOLECALCIFEROL",
+          "form_label": "cholecalciferol (vitamin D3)"
+        },
+        {
+          "nutrient_code": "VIT_E",
+          "amount_per_serving": 13.5,
+          "unit": "mg",
+          "form_code": "DL_ALPHA_TOCOPHEROL",
+          "form_label": "dl-alpha-tocopheryl acetate"
+        },
+        {
+          "nutrient_code": "VIT_K",
+          "amount_per_serving": 30,
+          "unit": "mcg"
+        },
+        {
+          "nutrient_code": "VIT_B1",
+          "amount_per_serving": 1.2,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "VIT_B2",
+          "amount_per_serving": 1.3,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "VIT_B3",
+          "amount_per_serving": 16,
+          "unit": "mg",
+          "form_code": "NICOTINAMIDE",
+          "form_label": "nicotinamide"
+        },
+        {
+          "nutrient_code": "VIT_B5",
+          "amount_per_serving": 5,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "VIT_B6",
+          "amount_per_serving": 1.7,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "VIT_B7",
+          "amount_per_serving": 30,
+          "unit": "mcg"
+        },
+        {
+          "nutrient_code": "VIT_B9",
+          "amount_per_serving": 680,
+          "unit": "mcg",
+          "ul_amount_per_serving": 400,
+          "form_code": "FOLIC_ACID",
+          "form_label": "680 mcg DFE (400 mcg folic acid)"
+        },
+        {
+          "nutrient_code": "VIT_B12",
+          "amount_per_serving": 6,
+          "unit": "mcg",
+          "form_code": "CYANOCOBALAMIN",
+          "form_label": "cyanocobalamin"
+        },
+        {
+          "nutrient_code": "CHOLINE",
+          "amount_per_serving": 55,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "CALCIUM",
+          "amount_per_serving": 200,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "MAGNESIUM",
+          "amount_per_serving": 50,
+          "unit": "mg",
+          "form_code": "MAGNESIUM_OXIDE",
+          "form_label": "magnesium oxide"
+        },
+        {
+          "nutrient_code": "ZINC",
+          "amount_per_serving": 11,
+          "unit": "mg",
+          "form_code": "ZINC_GLUCONATE",
+          "form_label": "zinc gluconate"
+        },
+        {
+          "nutrient_code": "SELENIUM",
+          "amount_per_serving": 55,
+          "unit": "mcg"
+        },
+        {
+          "nutrient_code": "COPPER",
+          "amount_per_serving": 0.9,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "MANGANESE",
+          "amount_per_serving": 2.3,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "CHROMIUM",
+          "amount_per_serving": 35,
+          "unit": "mcg"
+        },
+        {
+          "nutrient_code": "MOLYBDENUM",
+          "amount_per_serving": 45,
+          "unit": "mcg"
+        },
+        {
+          "nutrient_code": "IODINE",
+          "amount_per_serving": 150,
+          "unit": "mcg"
+        },
+        {
+          "nutrient_code": "POTASSIUM",
+          "amount_per_serving": 80,
+          "unit": "mg"
+        }
+      ],
+      "availability": [
+        {
+          "country_code": "US",
+          "status": "AVAILABLE"
+        },
+        {
+          "country_code": "TR",
+          "status": "NOT_SOLD"
+        }
+      ]
+    },
+    {
+      "code": "RD-BONE",
+      "brand": "Redwood Daily",
+      "name": "Calcium Magnesium Zinc with D3 and K",
+      "dosage_form": "TABLET",
+      "units_per_container": 120,
+      "units_per_serving": 2,
+      "servings_per_day": 1,
+      "source": "Synthetic fixture set (fictional brand and formulation)",
+      "synthetic": true,
+      "nutrients": [
+        {
+          "nutrient_code": "CALCIUM",
+          "amount_per_serving": 600,
+          "unit": "mg",
+          "form_label": "calcium carbonate"
+        },
+        {
+          "nutrient_code": "MAGNESIUM",
+          "amount_per_serving": 200,
+          "unit": "mg",
+          "form_code": "MAGNESIUM_OXIDE",
+          "form_label": "magnesium oxide"
+        },
+        {
+          "nutrient_code": "VIT_D",
+          "amount_per_serving": 1000,
+          "unit": "IU",
+          "form_code": "D3_CHOLECALCIFEROL",
+          "form_label": "cholecalciferol (vitamin D3)"
+        },
+        {
+          "nutrient_code": "VIT_K",
+          "amount_per_serving": 90,
+          "unit": "mcg"
+        },
+        {
+          "nutrient_code": "ZINC",
+          "amount_per_serving": 5,
+          "unit": "mg",
+          "form_code": "ZINC_GLUCONATE",
+          "form_label": "zinc gluconate"
+        }
+      ],
+      "availability": [
+        {
+          "country_code": "US",
+          "status": "AVAILABLE"
+        },
+        {
+          "country_code": "TR",
+          "status": "NOT_SOLD"
+        }
+      ]
+    },
+    {
+      "code": "RD-EYE",
+      "brand": "Redwood Daily",
+      "name": "Eye Health Omega Softgels",
+      "dosage_form": "SOFTGEL",
+      "units_per_container": 60,
+      "units_per_serving": 1,
+      "servings_per_day": 1,
+      "source": "Synthetic fixture set (fictional brand and formulation)",
+      "synthetic": true,
+      "nutrients": [
+        {
+          "nutrient_code": "OMEGA3_EPA",
+          "amount_per_serving": 350,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "OMEGA3_DHA",
+          "amount_per_serving": 250,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "LUTEIN",
+          "amount_per_serving": 10,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "ZEAXANTHIN",
+          "amount_per_serving": 2,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "VIT_E",
+          "amount_per_serving": 30,
+          "unit": "IU",
+          "form_code": "D_ALPHA_TOCOPHEROL",
+          "form_label": "d-alpha-tocopherol"
+        },
+        {
+          "nutrient_code": "ZINC",
+          "amount_per_serving": 10,
+          "unit": "mg",
+          "form_code": "ZINC_GLUCONATE",
+          "form_label": "zinc gluconate"
+        }
+      ],
+      "availability": [
+        {
+          "country_code": "US",
+          "status": "AVAILABLE"
+        }
+      ]
+    },
+    {
+      "code": "RD-BCOMPLEX",
+      "brand": "Redwood Daily",
+      "name": "B-Complex 50",
+      "dosage_form": "CAPSULE",
+      "units_per_container": 60,
+      "units_per_serving": 1,
+      "servings_per_day": 1,
+      "source": "Synthetic fixture set (fictional brand and formulation)",
+      "synthetic": true,
+      "nutrients": [
+        {
+          "nutrient_code": "VIT_B1",
+          "amount_per_serving": 25,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "VIT_B2",
+          "amount_per_serving": 25,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "VIT_B3",
+          "amount_per_serving": 30,
+          "unit": "mg",
+          "form_code": "NICOTINAMIDE",
+          "form_label": "nicotinamide"
+        },
+        {
+          "nutrient_code": "VIT_B5",
+          "amount_per_serving": 50,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "VIT_B6",
+          "amount_per_serving": 25,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "VIT_B7",
+          "amount_per_serving": 300,
+          "unit": "mcg"
+        },
+        {
+          "nutrient_code": "VIT_B9",
+          "amount_per_serving": 400,
+          "unit": "mcg",
+          "form_code": "FOLIC_ACID",
+          "form_label": "folic acid"
+        },
+        {
+          "nutrient_code": "VIT_B12",
+          "amount_per_serving": 100,
+          "unit": "mcg",
+          "form_code": "METHYLCOBALAMIN",
+          "form_label": "methylcobalamin"
+        },
+        {
+          "nutrient_code": "CHOLINE",
+          "amount_per_serving": 50,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "INOSITOL",
+          "amount_per_serving": 50,
+          "unit": "mg"
+        }
+      ],
+      "availability": [
+        {
+          "country_code": "US",
+          "status": "AVAILABLE"
+        }
+      ]
+    },
+    {
+      "code": "RD-COQ10-ENERGY",
+      "brand": "Redwood Daily",
+      "name": "CoQ10 Energy Complex",
+      "dosage_form": "SOFTGEL",
+      "units_per_container": 60,
+      "units_per_serving": 1,
+      "servings_per_day": 1,
+      "source": "Synthetic fixture set (fictional brand and formulation)",
+      "synthetic": true,
+      "nutrients": [
+        {
+          "nutrient_code": "COQ10",
+          "amount_per_serving": 100,
+          "unit": "mg",
+          "form_code": "UBIQUINONE",
+          "form_label": "ubiquinone"
+        },
+        {
+          "nutrient_code": "ALPHA_LIPOIC_ACID",
+          "amount_per_serving": 100,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "PQQ",
+          "amount_per_serving": 10,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "VIT_B1",
+          "amount_per_serving": 1.2,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "VIT_B2",
+          "amount_per_serving": 1.3,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "MAGNESIUM",
+          "amount_per_serving": 50,
+          "unit": "mg",
+          "form_code": "MAGNESIUM_CITRATE",
+          "form_label": "magnesium citrate"
+        }
+      ],
+      "availability": [
+        {
+          "country_code": "US",
+          "status": "AVAILABLE"
+        },
+        {
+          "country_code": "TR",
+          "status": "NOT_SOLD"
+        }
+      ]
+    },
+    {
+      "code": "NN-ELECTRO",
+      "brand": "Northline Nutrition",
+      "name": "Electrolyte Hydration Powder",
+      "dosage_form": "POWDER",
+      "units_per_container": 30,
+      "units_per_serving": 1,
+      "servings_per_day": 1,
+      "source": "Synthetic fixture set (fictional brand and formulation)",
+      "synthetic": true,
+      "nutrients": [
+        {
+          "nutrient_code": "POTASSIUM",
+          "amount_per_serving": 0.3,
+          "unit": "g",
+          "form_label": "potassium citrate"
+        },
+        {
+          "nutrient_code": "MAGNESIUM",
+          "amount_per_serving": 100,
+          "unit": "mg",
+          "form_code": "MAGNESIUM_CITRATE",
+          "form_label": "magnesium citrate"
+        },
+        {
+          "nutrient_code": "CHLORIDE",
+          "amount_per_serving": 450,
+          "unit": "mg",
+          "form_label": "sodium chloride"
+        },
+        {
+          "nutrient_code": "CALCIUM",
+          "amount_per_serving": 50,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "VIT_C",
+          "amount_per_serving": 100,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "ZINC",
+          "amount_per_serving": 5,
+          "unit": "mg",
+          "form_code": "ZINC_GLUCONATE",
+          "form_label": "zinc gluconate"
+        }
+      ],
+      "availability": [
+        {
+          "country_code": "US",
+          "status": "AVAILABLE"
+        }
+      ]
+    },
+    {
+      "code": "RD-MEN-50",
+      "brand": "Redwood Daily",
+      "name": "Men's 50+ Multivitamin",
+      "dosage_form": "TABLET",
+      "units_per_container": 90,
+      "units_per_serving": 1,
+      "servings_per_day": 1,
+      "source": "Synthetic fixture set (fictional brand and formulation)",
+      "synthetic": true,
+      "nutrients": [
+        {
+          "nutrient_code": "VIT_A",
+          "amount_per_serving": 750,
+          "unit": "mcg",
+          "form_code": "BETA_CAROTENE",
+          "form_label": "beta-carotene"
+        },
+        {
+          "nutrient_code": "VIT_C",
+          "amount_per_serving": 120,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "VIT_D",
+          "amount_per_serving": 25,
+          "unit": "mcg",
+          "form_code": "D3_CHOLECALCIFEROL",
+          "form_label": "cholecalciferol (vitamin D3)"
+        },
+        {
+          "nutrient_code": "VIT_E",
+          "amount_per_serving": 22.5,
+          "unit": "mg",
+          "form_code": "DL_ALPHA_TOCOPHEROL",
+          "form_label": "dl-alpha-tocopheryl acetate"
+        },
+        {
+          "nutrient_code": "VIT_B6",
+          "amount_per_serving": 6,
+          "unit": "mg"
+        },
+        {
+          "nutrient_code": "VIT_B9",
+          "amount_per_serving": 400,
+          "unit": "mcg",
+          "form_code": "FOLIC_ACID",
+          "form_label": "folic acid"
+        },
+        {
+          "nutrient_code": "VIT_B12",
+          "amount_per_serving": 25,
+          "unit": "mcg",
+          "form_code": "CYANOCOBALAMIN",
+          "form_label": "cyanocobalamin"
+        },
+        {
+          "nutrient_code": "MAGNESIUM",
+          "amount_per_serving": 50,
+          "unit": "mg",
+          "form_code": "MAGNESIUM_OXIDE",
+          "form_label": "magnesium oxide"
+        },
+        {
+          "nutrient_code": "ZINC",
+          "amount_per_serving": 15,
+          "unit": "mg",
+          "form_code": "ZINC_GLUCONATE",
+          "form_label": "zinc gluconate"
+        },
+        {
+          "nutrient_code": "SELENIUM",
+          "amount_per_serving": 70,
+          "unit": "mcg"
+        },
+        {
+          "nutrient_code": "LYCOPENE",
+          "amount_per_serving": 300,
+          "unit": "mcg"
+        }
+      ],
+      "availability": [
+        {
+          "country_code": "US",
+          "status": "AVAILABLE"
+        },
+        {
+          "country_code": "GB",
+          "status": "DISCONTINUED"
+        }
+      ]
+    }
+  ]
+}

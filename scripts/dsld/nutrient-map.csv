@@ -1,0 +1,138 @@
+match,key,nutrient_code,note
+unii,81G40H8B0T,VIT_A,Vitamin A
+unii,PQ6CK8PD0R,VIT_C,Vitamin C (ascorbic acid)
+unii,1C6V77QF41,VIT_D,Vitamin D3 (cholecalciferol)
+unii,9VU1KI44GP,VIT_D,Vitamin D (unspecified)
+unii,VS041H42XC,VIT_D,Vitamin D2 (ergocalciferol)
+unii,H4N855PNZ1,VIT_E,Vitamin E (alpha-tocopherol)
+unii,A034SE7857,VIT_K,Vitamin K1 (phytonadione)
+unii,71ANL51TLA,VIT_K,Vitamin K2 (menaquinone)
+unii,27Y876D139,VIT_K,Menaquinone-4
+unii,8427BML8NY,VIT_K,Menaquinone-7
+unii,X66NSO3N35,VIT_B1,Thiamin
+unii,TLM2976OFR,VIT_B2,Riboflavin
+unii,2679MF687A,VIT_B3,Niacin
+unii,25X51I8RD4,VIT_B3,Niacinamide
+unii,19F5HK2737,VIT_B5,Pantothenic acid
+unii,KV2JZ1BI6Z,VIT_B6,Vitamin B6 (pyridoxine)
+unii,6SO6U10H04,VIT_B7,Biotin
+unii,935E97BOY8,VIT_B9,Folic acid (DSLD also uses this code for the folate row)
+unii,TYK22LML8F,VIT_B9,L-5-methyltetrahydrofolate
+unii,8406EY2OQA,VIT_B12,Vitamin B12 (cobalamin)
+unii,P6YC3EG204,VIT_B12,Cyanocobalamin
+unii,N91BDP6H0X,CHOLINE,Choline
+unii,SY7Q814VUP,CALCIUM,Calcium
+unii,I38ZP9992A,MAGNESIUM,Magnesium
+unii,J41CSQ7QDS,ZINC,Zinc
+unii,E1UOL152H7,IRON,Iron
+unii,H6241UJ22B,SELENIUM,Selenium
+unii,789U1901C5,COPPER,Copper
+unii,42Z2K6ZL8P,MANGANESE,Manganese
+unii,0R0008Q3JB,CHROMIUM,Chromium
+unii,81AH48963U,MOLYBDENUM,Molybdenum
+unii,9679TC07X4,IODINE,Iodine
+unii,09G4I6V86Q,IODINE,Iodide
+unii,RWP5GA015D,POTASSIUM,Potassium
+unii,27YLU75U4W,PHOSPHORUS,Phosphorus
+unii,Q32ZN48698,CHLORIDE,Chloride
+name,Vitamin A,VIT_A,
+name,Vitamin A (unspecified),VIT_A,
+name,Vitamin A (mixed),VIT_A,
+name,Vitamin A (vitamin A Palmitate),VIT_A,
+name,Vitamin A Palmitate,VIT_A,
+name,Vitamin A Acetate,VIT_A,
+name,Vitamin C,VIT_C,
+name,Vitamin C (unspecified),VIT_C,
+name,Vitamin D,VIT_D,
+name,Vitamin D2,VIT_D,
+name,Vitamin D3,VIT_D,
+name,"Vitamin D3, Natural",VIT_D,
+name,Vitamin D (unspecified),VIT_D,
+name,Vitamin D (cholecalciferol),VIT_D,
+name,Cholecalciferol,VIT_D,
+name,Vitamin E,VIT_E,
+name,Vitamin E (unspecified),VIT_E,
+name,Vitamin E (alpha-tocopherol),VIT_E,
+name,Vitamin E (alpha-tocopheryl succinate),VIT_E,
+name,Vitamin E (alpha-tocopheryl acetate),VIT_E,
+name,Vitamin K,VIT_K,
+name,Vitamin K1,VIT_K,
+name,Vitamin K2,VIT_K,
+name,Vitamin K (unspecified),VIT_K,
+name,Vitamin K (Phylloquinone),VIT_K,
+name,Vitamin K (menaquinone),VIT_K,
+name,Menaquinone-4,VIT_K,
+name,Menaquinone-7,VIT_K,
+name,Thiamin,VIT_B1,
+name,Thiamine,VIT_B1,
+name,Vitamin B1,VIT_B1,
+name,Vitamin B1 (Thiamine),VIT_B1,
+name,Vitamin B1 (thiamine HCl),VIT_B1,
+name,Riboflavin,VIT_B2,
+name,Vitamin B2,VIT_B2,
+name,Vitamin B2 (Riboflavin),VIT_B2,
+name,Vitamin B2 (riboflavin 5-phosphate),VIT_B2,
+name,Niacin,VIT_B3,
+name,Niacinamide,VIT_B3,
+name,Vitamin B3,VIT_B3,
+name,Vitamin B3 (Niacin),VIT_B3,
+name,Vitamin B3 (Niacinamide),VIT_B3,
+name,Vitamin B3 (mixed),VIT_B3,
+name,Pantothenic Acid,VIT_B5,
+name,Pantothenic Acid (Vitamin B5),VIT_B5,
+name,Vitamin B5,VIT_B5,
+name,Vitamin B5 (Pantothenic Acid),VIT_B5,
+name,Vitamin B5 (calcium pantothenate),VIT_B5,
+name,Vitamin B5 (unspecified),VIT_B5,
+name,Vitamin B6,VIT_B6,
+name,Vitamin B6 (unspecified),VIT_B6,
+name,Vitamin B6 (pyridoxal 5 phosphate),VIT_B6,
+name,Biotin,VIT_B7,
+name,Vitamin B7,VIT_B7,
+name,Vitamin B7 (biotin),VIT_B7,
+name,Folate,VIT_B9,
+name,Folic Acid,VIT_B9,
+name,Vitamin B9,VIT_B9,
+name,Vitamin B9 (Folate),VIT_B9,
+name,Vitamin B9 (folic acid),VIT_B9,
+name,Vitamin B9 (5-Methyltetrahydrofolate),VIT_B9,
+name,Vitamin B9 (methyltetrahydrofolate),VIT_B9,
+name,L-5-Methyltetrahydrofolate,VIT_B9,
+name,5-Methyltetrahydrofolate,VIT_B9,
+name,L-Methylfolate Calcium,VIT_B9,
+name,Calcium Folinate,VIT_B9,Folinic acid salt; DSLD groups it under calcium
+name,Vitamin B12,VIT_B12,
+name,Vitamin B12 (unspecified),VIT_B12,
+name,Vitamin B12 (mixed),VIT_B12,
+name,Vitamin B12 (methylcobalamin),VIT_B12,
+name,Choline,CHOLINE,
+name,Calcium,CALCIUM,
+name,Magnesium,MAGNESIUM,
+name,Magnesiium,MAGNESIUM,Misspelt ingredient group in DSLD
+name,Zinc,ZINC,
+name,Iron,IRON,
+name,Selenium,SELENIUM,
+name,Copper,COPPER,
+name,Manganese,MANGANESE,
+name,Chromium,CHROMIUM,
+name,Molybdenum,MOLYBDENUM,
+name,Iodine,IODINE,
+name,Potassium,POTASSIUM,
+name,Phosphorus,PHOSPHORUS,
+name,Chloride,CHLORIDE,
+name,Fluoride,FLUORIDE,
+name,Coenzyme Q10,COQ10,
+name,CoQ10,COQ10,
+name,Alpha Lipoic Acid,ALPHA_LIPOIC_ACID,
+name,Alpha-Lipoic Acid,ALPHA_LIPOIC_ACID,
+name,PQQ,PQQ,
+name,Pyrroloquinoline Quinone,PQQ,
+name,NADH,NADH,
+name,Lutein,LUTEIN,
+name,Zeaxanthin,ZEAXANTHIN,
+name,Lycopene,LYCOPENE,
+name,EPA,OMEGA3_EPA,
+name,Eicosapentaenoic Acid,OMEGA3_EPA,
+name,DHA,OMEGA3_DHA,
+name,Docosahexaenoic Acid,OMEGA3_DHA,
+name,Inositol,INOSITOL,

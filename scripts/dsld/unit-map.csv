@@ -1,0 +1,12 @@
+dsld_unit,unit,nutrients,note
+mg,mg,!VIT_A,Vitamin A rows in mg state carotenoid mass and not vitamin A activity; they are not mapped
+mcg,mcg,*,
+µg,mcg,*,Normalised spelling
+ug,mcg,*,Normalised spelling
+Gram(s),g,!VIT_A,Vitamin A rows in grams state mass and not vitamin A activity; they are not mapped
+grams,g,!VIT_A,Vitamin A rows in grams state mass and not vitamin A activity; they are not mapped
+IU,IU,VIT_A|VIT_D|VIT_E,IU is accepted only for vitamins A D and E
+iu,IU,VIT_A|VIT_D|VIT_E,Normalised spelling
+mcg DFE,mcg,VIT_B9,Recorded as labelled (dietary folate equivalents); no equivalence factor applied
+mcg RAE,mcg,VIT_A,Recorded as labelled (retinol activity equivalents); no equivalence factor applied
+mg NE,mg,VIT_B3,Recorded as labelled (niacin equivalents); no equivalence factor applied

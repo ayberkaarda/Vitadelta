@@ -6,7 +6,7 @@ VitaDelta, vitamin ve takviye karşılaştırma hizmetidir. Takviye ürünlerini
 
 > VitaDelta yalnızca karşılaştırmalı bilgi sunar. Tıbbi tavsiye değildir ve bir hekim ya da eczacıyla yapılacak görüşmenin yerini tutmaz.
 
-**Durum: Faz 0, iskelet.** Depo; tüm servislerin çalıştırılabilir iskeletlerini, sözleşmeleri, yerel ortamı ve CI iş akışını içerir. Ürün özellikleri sonraki fazlarda gelecektir.
+**Durum: Faz 1, katalog şeması, referans veriler ve seed yükleyici.** Depo; tüm servislerin çalıştırılabilir iskeletlerini, sözleşmeleri, yerel ortamı ve CI iş akışını, ayrıca katalog veritabanı şemasını, referans verileri ve bunları yükleyen bir seed yükleyiciyi içerir. Ürün özellikleri sonraki fazlarda gelecektir.
 
 ## Mimariye genel bakış
 
@@ -53,6 +53,14 @@ scripts/dev-up.sh
 | Mailpit SMTP | 127.0.0.1:1025 |
 | PostgreSQL | 127.0.0.1:54320 (konteyner portu 5432; yerel bir PostgreSQL ile çakışmaması için ana makine portu 54320'dir) |
 
+Kataloğu çalışan yığına şu komutla yükleyin:
+
+```bash
+scripts/seed.sh
+```
+
+Betik referans verileri, sentetik fixture'ları ve gerçek ABD etiket anlık görüntüsünü (sentetik demo fiyatlarla) yükler. Seed idempotenttir: `data/` altındaki dosyaları değiştirdikten sonra yeniden çalıştırın.
+
 Yığını şu komutlarla durdurun:
 
 ```bash
@@ -77,7 +85,7 @@ Veritabanı volume'unu da silmek için `down` komutuna `--volumes` ekleyin.
 scripts/test-all.sh
 ```
 
-Betik, mevcut tüm test takımlarını (sözleşme lint'i, puanlama, API, web) çalıştırır, adım adım bir özet yazdırır ve herhangi bir adım başarısız olursa sıfırdan farklı bir kodla çıkar. Test takımları ayrı ayrı da çalıştırılabilir:
+Betik, mevcut tüm test takımlarını (sözleşme lint'i, puanlama, API, web) çalıştırır, adım adım bir özet yazdırır ve herhangi bir adım başarısız olursa sıfırdan farklı bir kodla çıkar. API test takımı PostgreSQL'i Testcontainers üzerinden başlatır, bu yüzden çalışan bir Docker daemon gerektirir. Test takımları ayrı ayrı da çalıştırılabilir:
 
 ```bash
 # scoring (from services/scoring)
@@ -107,9 +115,21 @@ contracts/           OpenAPI and JSON Schema contracts
 infra/               Docker Compose stack and nginx configuration
 scripts/             dev-up.sh, dev-down.sh, test-all.sh
 .github/             CI workflow and Dependabot configuration
+data/                Reference data, synthetic fixtures and the real label snapshot (from Phase 1)
+scripts/dsld/        Converter for the real label snapshot (from Phase 1)
 ```
 
 Mimari kararlar [docs/adr](docs/adr) altında kayıt altına alınır.
+
+## Veri kaynakları ve uyarılar
+
+- **Sentetik fixture'lar.** Test ve gösterim fixture'ları kurgusal markalar kullanır ve sentetik olarak işaretlenir.
+- **Gerçek ABD etiket anlık görüntüsü.** Faz 1'den itibaren depo, [NIH Dietary Supplement Label Database](https://dsld.od.nih.gov/) (DSLD) kaynağından genel API üzerinden alınmış gerçek ABD multivitamin ve mineral etiket verisinin bir anlık görüntüsünü de içerir. API belirtimi verinin CC0 1.0 olduğunu belirtir; sitenin kullanım koşulları sayfaları okunamadığı için lisans yalnızca API belirtiminden doğrulanmıştır. Bkz. [ADR-0012](docs/adr/0012-real-label-data-source.md).
+- **İsimler yalnızca tanımlama içindir.** Marka ve ürün adları yalnızca ürünleri tanımlamak için kullanılır. VitaDelta markalarla ya da NIH ile bağlantılı değildir ve onlar tarafından onaylanmamıştır.
+- **Canlı veri değil, anlık görüntü.** Etiket verisi, giriş tarihi gösterilen bir anlık görüntüdür; etiketler o tarihten sonra değişmiş olabilir.
+- **Fiyatlar demo değerleridir.** Gerçek ürünlerin fiyatları uydurulmuş demo tekliflerdir ve hiçbir gerçek satıcıyı yansıtmaz.
+- **Görsel ve logo yok.** Etiket görselleri ya da marka logoları kullanılmaz.
+- **Tıbbi tavsiye değildir.** Karşılaştırma bilgilendirme amaçlıdır ve bir hekim ya da eczacının tavsiyesinin yerini tutmaz.
 
 ## Sürekli entegrasyon
 

@@ -1,0 +1,79 @@
+{
+  "_comment": "Hand-made test samples for the DSLD converter tests. These are NOT real labels: ids, brand and product names are invented, and only the fields the converter reads are present.",
+  "base_label": {
+    "id": 900000,
+    "brandName": "Test Sample Brand",
+    "fullName": "Test Sample Multi",
+    "offMarket": 0,
+    "entryDate": "2026-01-15",
+    "productVersionCode": "TEST-1",
+    "upcSku": null,
+    "physicalState": {"langualCode": "E0155", "langualCodeDescription": "Tablet or Pill"},
+    "servingSizes": [{"order": 1, "minQuantity": 1, "maxQuantity": 1, "minDailyServings": 1, "maxDailyServings": 1, "unit": "Tablet(s)"}],
+    "servingsPerContainer": "30",
+    "netContents": [{"order": 1, "quantity": 30, "unit": "Tablet(s)"}]
+  },
+  "filler_rows": [
+    {"name": "Vitamin C", "ingredientGroup": "Vitamin C", "uniiCode": "PQ6CK8PD0R", "category": "vitamin", "forms": [], "nestedRows": [],
+     "quantity": [{"servingSizeOrder": 1, "servingSizeQuantity": 1, "operator": "=", "quantity": 60, "unit": "mg"}]},
+    {"name": "Vitamin D3", "ingredientGroup": "Vitamin D", "uniiCode": "1C6V77QF41", "category": "vitamin", "forms": [], "nestedRows": [],
+     "quantity": [{"servingSizeOrder": 1, "servingSizeQuantity": 1, "operator": "=", "quantity": 25, "unit": "mcg"}]},
+    {"name": "Zinc", "ingredientGroup": "Zinc", "uniiCode": "J41CSQ7QDS", "category": "mineral", "forms": [], "nestedRows": [],
+     "quantity": [{"servingSizeOrder": 1, "servingSizeQuantity": 1, "operator": "=", "quantity": 11, "unit": "mg"}]},
+    {"name": "Iodine", "ingredientGroup": "Iodine", "uniiCode": "9679TC07X4", "category": "mineral", "forms": [], "nestedRows": [],
+     "quantity": [{"servingSizeOrder": 1, "servingSizeQuantity": 1, "operator": "=", "quantity": 150, "unit": "mcg"}]},
+    {"name": "Biotin", "ingredientGroup": "Biotin", "uniiCode": "6SO6U10H04", "category": "vitamin", "forms": [], "nestedRows": [],
+     "quantity": [{"servingSizeOrder": 1, "servingSizeQuantity": 1, "operator": "=", "quantity": 30, "unit": "mcg"}]}
+  ],
+  "cases": {
+    "vitamin_a_preformed_subtotal_rest_unstated": [
+      {"name": "Vitamin A", "ingredientGroup": "Vitamin A", "uniiCode": "81G40H8B0T", "category": "vitamin", "forms": [],
+       "quantity": [{"servingSizeOrder": 1, "servingSizeQuantity": 1, "operator": "=", "quantity": 900, "unit": "mcg RAE"}],
+       "nestedRows": [
+         {"name": "Vitamin A", "ingredientGroup": "Vitamin A", "uniiCode": null, "category": "vitamin", "nestedRows": [],
+          "forms": [{"name": "Retinol"}],
+          "quantity": [{"servingSizeOrder": 1, "servingSizeQuantity": 1, "operator": "=", "quantity": 300, "unit": "mcg RAE"}]}
+       ]}
+    ],
+    "vitamin_a_preformed_and_beta_carotene_stated": [
+      {"name": "Vitamin A", "ingredientGroup": "Vitamin A", "uniiCode": "81G40H8B0T", "category": "vitamin", "forms": [],
+       "quantity": [{"servingSizeOrder": 1, "servingSizeQuantity": 1, "operator": "=", "quantity": 900, "unit": "mcg RAE"}],
+       "nestedRows": [
+         {"name": "Vitamin A", "ingredientGroup": "Vitamin A", "uniiCode": null, "category": "vitamin", "nestedRows": [],
+          "forms": [{"name": "Retinol"}],
+          "quantity": [{"servingSizeOrder": 1, "servingSizeQuantity": 1, "operator": "=", "quantity": 300, "unit": "mcg RAE"}]},
+         {"name": "Vitamin A", "ingredientGroup": "Vitamin A", "uniiCode": null, "category": "vitamin", "nestedRows": [],
+          "forms": [{"name": "Beta-Carotene"}],
+          "quantity": [{"servingSizeOrder": 1, "servingSizeQuantity": 1, "operator": "=", "quantity": 600, "unit": "mcg RAE"}]}
+       ]}
+    ],
+    "vitamin_a_beta_carotene_part_stated": [
+      {"name": "Vitamin A", "ingredientGroup": "Vitamin A", "uniiCode": "81G40H8B0T", "category": "vitamin",
+       "forms": [{"name": "Retinyl Acetate"}],
+       "quantity": [{"servingSizeOrder": 1, "servingSizeQuantity": 1, "operator": "=", "quantity": 900, "unit": "mcg RAE"}],
+       "nestedRows": [
+         {"name": "Vitamin A", "ingredientGroup": "Vitamin A", "uniiCode": null, "category": "vitamin", "nestedRows": [],
+          "forms": [{"name": "Beta-Carotene"}],
+          "quantity": [{"servingSizeOrder": 1, "servingSizeQuantity": 1, "operator": "=", "quantity": 600, "unit": "mcg RAE"}]}
+       ]}
+    ],
+    "folate_dfe_total_with_folic_acid_in_mg": [
+      {"name": "Folate", "ingredientGroup": "Folate", "uniiCode": "935E97BOY8", "category": "vitamin", "forms": [],
+       "quantity": [{"servingSizeOrder": 1, "servingSizeQuantity": 1, "operator": "=", "quantity": 667, "unit": "mcg DFE"}],
+       "nestedRows": [
+         {"name": "Folic Acid", "ingredientGroup": "Folate", "uniiCode": "935E97BOY8", "category": "vitamin", "nestedRows": [],
+          "forms": [],
+          "quantity": [{"servingSizeOrder": 1, "servingSizeQuantity": 1, "operator": "=", "quantity": 0.4, "unit": "mg"}]}
+       ]}
+    ],
+    "folate_dfe_total_with_folic_acid_in_mcg": [
+      {"name": "Folate", "ingredientGroup": "Folate", "uniiCode": "935E97BOY8", "category": "vitamin", "forms": [],
+       "quantity": [{"servingSizeOrder": 1, "servingSizeQuantity": 1, "operator": "=", "quantity": 667, "unit": "mcg DFE"}],
+       "nestedRows": [
+         {"name": "Folic Acid", "ingredientGroup": "Folate", "uniiCode": "935E97BOY8", "category": "vitamin", "nestedRows": [],
+          "forms": [],
+          "quantity": [{"servingSizeOrder": 1, "servingSizeQuantity": 1, "operator": "=", "quantity": 400, "unit": "mcg"}]}
+       ]}
+    ]
+  }
+}
