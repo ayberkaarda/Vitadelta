@@ -1,0 +1,12 @@
+nutrient_code,from_unit,to_unit,factor,form_code,note
+*,g,mg,1000,ANY,generic SI prefix
+*,mg,mcg,1000,ANY,generic SI prefix
+*,mcg,mg,0.001,ANY,generic SI prefix
+*,mg,g,0.001,ANY,generic SI prefix
+VIT_D,IU,mcg,0.025,ANY,"40 IU = 1 mcg; FDA guidance Converting Units of Measure for Folate, Niacin, and Vitamins A, D, and E (August 2019) Table 4"
+VIT_A,IU,mcg,0.3,RETINOL,"retinol basis; FDA guidance Converting Units of Measure for Folate, Niacin, and Vitamins A, D, and E (August 2019) Table 3"
+VIT_A,IU,mcg,0.3,RETINYL_ACETATE,"retinol basis (1 IU = 0.30 mcg all-trans-retinol activity); FDA guidance Converting Units of Measure for Folate, Niacin, and Vitamins A, D, and E (August 2019) Table 3"
+VIT_A,IU,mcg,0.3,RETINYL_PALMITATE,"retinol basis (1 IU = 0.30 mcg all-trans-retinol activity); FDA guidance Converting Units of Measure for Folate, Niacin, and Vitamins A, D, and E (August 2019) Table 3"
+VIT_E,IU,mg,0.67,D_ALPHA_TOCOPHEROL,"natural RRR-alpha-tocopherol and esters; FDA guidance Converting Units of Measure for Folate, Niacin, and Vitamins A, D, and E (August 2019) Table 6"
+VIT_E,IU,mg,0.45,DL_ALPHA_TOCOPHEROL,"synthetic all-rac-alpha-tocopherol and esters; FDA guidance Converting Units of Measure for Folate, Niacin, and Vitamins A, D, and E (August 2019) Table 6"
+VIT_E,IU,mg,0.67,ANY,form unknown; natural factor assumed (project rule); flag CONVERSION_ASSUMED
