@@ -102,8 +102,13 @@ if begin_suite scoring services/scoring uv; then
   run_step scoring "pytest" services/scoring uv run --locked pytest
 fi
 
+# data-tools
+if begin_suite data-tools scripts/dsld/tests uv; then
+  run_step data-tools "pytest dsld" "$ROOT" uv run --no-project --with pytest==9.2.0 pytest scripts/dsld/tests -q
+fi
+
 # api
-if begin_suite api services/api java; then
+if begin_suite api services/api java docker; then
   run_step api "gradlew check" services/api sh ./gradlew check
 fi
 
