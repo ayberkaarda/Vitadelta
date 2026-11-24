@@ -114,11 +114,90 @@ class PromoRedemptionIntegrationTest extends BillingIntegrationTest {
         .sum();
   }
 
+  /** Code values that can never be a promo code: wrong format, empty, oversized, control chars. */
+  private static final List<String> MALFORMED =
+      List.of(
+          "!",
+          "",
+          "x".repeat(500),
+          PROMO_PREFIX + "-\u0001" + "0123456789ABCDE",
+          "not a code",
+          PROMO_PREFIX + "-0123456789ABCDEFG",
+          PROMO_PREFIX + "-0123456789ABCDEI",
+          "\u0000' OR 1=1--",
+          " " + PROMO_PREFIX + "-0123456789ABCDEF",
+          "ÄÖ-0123456789ABCDEF");
+
   @Test
-  void malformedCodesAndAnonymousCallersAreRejected() {
+  void malformedCodeValuesGetTheUniformInvalidBody() {
     TestUser user = user();
-    assertProblem(redeem("not a code", user.token()), 422, "validation_failed");
+    String requestId = "promo-" + UUID.randomUUID().toString().substring(0, 8);
+    EntityExchangeResult<String> unknown =
+        redeem(generator.generate(PROMO_PREFIX), user.token(), ip, requestId);
+    assertProblem(unknown, 400, "promo_invalid");
+    double malformedBefore =
+        meters.counter("vitadelta.promo.rejected", "reason", "malformed").count();
+    for (String code : MALFORMED.subList(0, 4)) {
+      EntityExchangeResult<String> result = redeem(code, user.token(), ip, requestId);
+      assertProblem(result, 400, "promo_invalid");
+      assertThat(result.getResponseBodyContent())
+          .as("code %s", code.length() > 20 ? code.substring(0, 20) + "..." : code)
+          .isEqualTo(unknown.getResponseBodyContent());
+      assertThat(result.getResponseHeaders().getContentType())
+          .isEqualTo(unknown.getResponseHeaders().getContentType());
+    }
+    assertThat(meters.counter("vitadelta.promo.rejected", "reason", "malformed").count())
+        .isEqualTo(malformedBefore + 4);
+    assertThat(
+            jdbc.sql("SELECT count(*) FROM promo_redemption WHERE user_id = ?")
+                .param(user.id())
+                .query(Long.class)
+                .single())
+        .isZero();
+  }
+
+  @Test
+  void malformedCodeValuesCountAgainstThePerUserLimit() {
+    TestUser user = user();
+    for (String code : MALFORMED.subList(0, 5)) {
+      assertProblem(redeem(code, user.token(), randomIp(), null), 400, "promo_invalid");
+    }
+    EntityExchangeResult<String> limited = redeem(promo(30, 10, null), user.token(), ip, null);
+    assertProblem(limited, 429, "rate_limited");
+    assertThat(limited.getResponseHeaders().getFirst(HttpHeaders.RETRY_AFTER)).isNotBlank();
+  }
+
+  @Test
+  void malformedCodeValuesCountAgainstThePerIpLimit() {
+    for (String code : MALFORMED) {
+      assertProblem(redeem(code, user().token()), 400, "promo_invalid");
+    }
+    EntityExchangeResult<String> limited = redeem(promo(30, 10, null), user().token());
+    assertProblem(limited, 429, "rate_limited");
+    assertThat(limited.getResponseHeaders().getFirst(HttpHeaders.RETRY_AFTER)).isNotBlank();
+  }
+
+  @Test
+  void anUnverifiedEmailWinsOverAMalformedCode() {
+    TestUser unverified = user(false, Role.USER);
+    assertProblem(redeem("!", unverified.token()), 403, "email_not_verified");
+  }
+
+  @Test
+  void aMissingOrNonTextCodeIsAMalformedRequest() {
+    TestUser user = user();
     assertProblem(post(REDEEM, "{}", user.token()), 422, "validation_failed");
+    assertProblem(post(REDEEM, "{\"code\":null}", user.token()), 422, "validation_failed");
+    assertProblem(post(REDEEM, "{\"code\":[\"!\"]}", user.token()), 422, "validation_failed");
+    assertProblem(post(REDEEM, "{\"code\":{\"a\":1}}", user.token()), 422, "validation_failed");
+    // Malformed requests are not code guesses: the per-user budget of five is still intact.
+    for (int i = 0; i < 5; i++) {
+      assertProblem(redeem(generator.generate(PROMO_PREFIX), user.token()), 400, "promo_invalid");
+    }
+  }
+
+  @Test
+  void anonymousCallersAreRejected() {
     assertProblem(redeem(promo(30, 10, null), null), 401, "unauthorized");
   }
 
