@@ -1,0 +1,5 @@
+code,name_en,currency,reference_set_code,ul_set_code,default_locale
+TR,Türkiye,TRY,EU_NRV,EFSA,tr
+DE,Germany,EUR,EU_NRV,EFSA,en
+GB,United Kingdom,GBP,EU_NRV,EFSA,en
+US,United States,USD,US_DV,IOM,en
