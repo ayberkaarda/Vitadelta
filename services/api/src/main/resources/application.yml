@@ -3,6 +3,24 @@ spring:
     name: vitadelta-api
   main:
     banner-mode: "off"
+  datasource:
+    url: ${VITADELTA_DB_URL}
+    username: ${VITADELTA_DB_USERNAME}
+    password: ${VITADELTA_DB_PASSWORD}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    locations: classpath:db/migration
+    validate-on-migrate: true
+    clean-disabled: true
+
+vitadelta:
+  seed:
+    # Directory holding reference/, fixtures/ and real/. scripts/seed.sh mounts the repository's
+    # data directory read-only at this path inside the api container.
+    data-dir: /data
 
 server:
   port: 8080
