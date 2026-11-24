@@ -23,7 +23,7 @@ import tools.jackson.dataformat.yaml.YAMLMapper;
  * schemas are copied into {@code $defs} and each check validates against {@code
  * {"$ref":"#/$defs/<name>"}}.
  */
-final class ContractSchemas {
+public final class ContractSchemas {
 
   private static final JsonMapper JSON = JsonMapper.builder().build();
   private static final Map<String, Schema> SCHEMAS = new ConcurrentHashMap<>();
@@ -56,12 +56,12 @@ final class ContractSchemas {
   }
 
   /** Schema violations of {@code json} against component schema {@code name}. */
-  static List<?> violations(String name, String json) {
+  public static List<?> violations(String name, String json) {
     return schema(name).validate(JSON.readTree(json));
   }
 
   /** Asserts that {@code json} conforms to component schema {@code name}. */
-  static void assertConforms(String name, String json) {
+  public static void assertConforms(String name, String json) {
     assertThat(violations(name, json)).as("%s conforms to %s", json, name).isEmpty();
   }
 }
