@@ -106,7 +106,8 @@ services:
       # sets SPRING_PROFILES_ACTIVE (scripts/seed.sh runs the seed profile).
       SPRING_PROFILES_INCLUDE: dev
     volumes:
-      # Reference data and fixtures, read by the seed profile (scripts/seed.sh); never written.
+      # Reference data and fixtures; never written. The API reads reference/weak_passwords.txt from
+      # it at every start, and the seed profile (scripts/seed.sh) loads the rest.
       - ../data:/data:ro
     networks:
       edge:
