@@ -408,6 +408,16 @@ def json_number(value: Decimal):
     return float(format(value, "f"))
 
 
+MASS_IN_MCG = {"mcg": Decimal(1), "mg": Decimal(1000), "g": Decimal(1000000)}
+
+
+def convert_mass(amount: Decimal, from_unit: str, to_unit: str) -> Decimal | None:
+    """Convert a mass amount between mcg, mg and g (None for IU or other units)."""
+    if from_unit not in MASS_IN_MCG or to_unit not in MASS_IN_MCG:
+        return None
+    return (amount * MASS_IN_MCG[from_unit] / MASS_IN_MCG[to_unit]).quantize(AMOUNT_STEP, rounding=ROUND_HALF_UP)
+
+
 def quantity_of(row: dict) -> dict | None:
     rows = row.get("quantity") or []
     first = [q for q in rows if q.get("servingSizeOrder") in (1, None)]
@@ -550,20 +560,17 @@ class LabelConverter:
                            and s["raw_unit"] == part["raw_unit"]), Decimal(0))
             bc_sum = sum((s["amount"] for s in part["splits"] if self._codes(s["forms"]) == {"BETA_CAROTENE"}
                           and s["raw_unit"] == part["raw_unit"]), Decimal(0))
-            if pre_sum > 0:
+            # The UL-relevant amount is reduced only by a share explicitly stated as beta-carotene
+            # (exempt); a preformed subtotal alone does not account for the rest of the total.
+            if pre_sum > 0 and bc_sum > 0 and pre_sum + bc_sum == part["amount"]:
                 return pre_sum, preformed, False
             if bc_sum > 0 and part["amount"] - bc_sum >= 0:
                 return part["amount"] - bc_sum, preformed, part["amount"] == bc_sum
         if preformed and has_bc:
             bc_entries = [e for e in part["forms"] if e["code"] == "BETA_CAROTENE"]
-            pre_entries = [e for e in part["forms"] if e["code"] in PREFORMED_VITAMIN_A]
             other = [e for e in part["forms"] if e["code"] not in PREFORMED_VITAMIN_A | {"BETA_CAROTENE"}]
             if not other and bc_entries and all(e["percent"] is not None for e in bc_entries):
                 share = 100 - sum(e["percent"] for e in bc_entries)
-                if 0 <= share <= 100:
-                    return (part["amount"] * share / 100).quantize(AMOUNT_STEP, rounding=ROUND_HALF_UP), preformed, False
-            if not other and pre_entries and all(e["percent"] is not None for e in pre_entries):
-                share = sum(e["percent"] for e in pre_entries)
                 if 0 <= share <= 100:
                     return (part["amount"] * share / 100).quantize(AMOUNT_STEP, rounding=ROUND_HALF_UP), preformed, False
             return None, preformed, False
@@ -638,9 +645,10 @@ class LabelConverter:
             result = {"nutrient_code": "VIT_B9", "amount_per_serving": total_part["amount"],
                       "unit": total_part["unit"], "form_label": self._label(forms), "ul_amount_per_serving": None}
             ul_parts = [s for s in split_parts if self._codes(s["forms"]) and self._codes(s["forms"]) <= FOLATE_UL_FORMS
-                        and all(e["code"] for e in s["forms"]) and s["unit"] == total_part["unit"]]
+                        and all(e["code"] for e in s["forms"])
+                        and convert_mass(s["amount"], s["unit"], total_part["unit"]) is not None]
             if ul_parts:
-                ul = sum((s["amount"] for s in ul_parts), Decimal(0))
+                ul = sum((convert_mass(s["amount"], s["unit"], total_part["unit"]) for s in ul_parts), Decimal(0))
                 codes = set().union(*(self._codes(s["forms"]) for s in ul_parts))
                 if 0 <= ul < total_part["amount"]:
                     result["ul_amount_per_serving"] = ul
