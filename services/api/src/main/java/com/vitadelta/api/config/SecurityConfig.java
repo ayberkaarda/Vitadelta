@@ -31,9 +31,10 @@ import org.springframework.web.filter.CorsFilter;
  * <p>Route matrix (base path {@code /api/v1}):
  *
  * <ul>
- *   <li>public: {@code GET /health}, {@code /auth/**}, {@code /plans}, {@code /session/quota},
- *       {@code /countries}, {@code /nutrients}, {@code /weights/defaults}, {@code /legal}, {@code
- *       /fx/**}, {@code /products/**}, {@code /recommendations/**} ({@link #PUBLIC_PATHS});
+ *   <li>public: {@code GET /health}, {@code GET /openapi.json} ({@link #OPENAPI_DOCUMENT}), {@code
+ *       /auth/**}, {@code /plans}, {@code /session/quota}, {@code /countries}, {@code /nutrients},
+ *       {@code /weights/defaults}, {@code /legal}, {@code /fx/**}, {@code /products/**}, {@code
+ *       /recommendations/**} ({@link #PUBLIC_PATHS});
  *   <li>authenticated (USER or ADMIN bearer token): {@code /me} and {@code /me/**};
  *   <li>role ADMIN: {@code /admin/**};
  *   <li>Actuator {@code health} and {@code metrics} on the separate management port only;
@@ -79,6 +80,12 @@ public class SecurityConfig {
     API + "/products/**",
     API + "/recommendations/**"
   };
+
+  /**
+   * The OpenAPI description generated from the code ({@code springdoc.api-docs.path}); public and
+   * read-only, it describes no more than the published contract.
+   */
+  public static final String OPENAPI_DOCUMENT = API + "/openapi.json";
 
   /** Content security policy of every API response. */
   public static final String CONTENT_SECURITY_POLICY = "default-src 'none'; frame-ancestors 'none'";
@@ -126,7 +133,7 @@ public class SecurityConfig {
                 .permitAll()
                 .requestMatchers(managementEndpoints)
                 .permitAll()
-                .requestMatchers(HttpMethod.GET, API + "/health")
+                .requestMatchers(HttpMethod.GET, API + "/health", OPENAPI_DOCUMENT)
                 .permitAll()
                 .requestMatchers(PUBLIC_PATHS)
                 .permitAll()

@@ -219,7 +219,7 @@ class SecurityRoutesTest extends PostgresIntegrationTest {
         "/api/v1/auth/unknown",
         "/api/v1/fx/currencies",
         "/api/v1/products/123/unknown",
-        "/api/v1/recommendations/query"
+        "/api/v1/recommendations/unknown"
       })
   void publicRoutesNeedNoCredentials(String path) {
     EntityExchangeResult<String> result = get(path, null);
