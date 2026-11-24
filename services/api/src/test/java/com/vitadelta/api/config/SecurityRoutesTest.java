@@ -212,7 +212,6 @@ class SecurityRoutesTest extends PostgresIntegrationTest {
       strings = {
         "/api/v1/auth/unknown",
         "/api/v1/plans",
-        "/api/v1/session/quota",
         "/api/v1/countries",
         "/api/v1/nutrients",
         "/api/v1/weights/defaults",
@@ -345,7 +344,7 @@ class SecurityRoutesTest extends PostgresIntegrationTest {
             .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "GET")
             .exchange()
             .returnResult(String.class);
-    assertThat(foreign.getStatus().value()).isEqualTo(403);
+    assertProblem(foreign, 403, ProblemCode.TYPE_PREFIX + "forbidden");
     assertThat(foreign.getResponseHeaders().containsHeader(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN))
         .isFalse();
     EntityExchangeResult<String> simple =
@@ -355,8 +354,20 @@ class SecurityRoutesTest extends PostgresIntegrationTest {
             .header(HttpHeaders.ORIGIN, "https://evil.example")
             .exchange()
             .returnResult(String.class);
+    assertProblem(simple, 403, ProblemCode.TYPE_PREFIX + "forbidden");
     assertThat(simple.getResponseHeaders().containsHeader(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN))
         .isFalse();
+    assertThat(simple.getResponseHeaders().getFirst("Content-Security-Policy"))
+        .isEqualTo(SecurityConfig.CONTENT_SECURITY_POLICY);
+    EntityExchangeResult<String> foreignMethod =
+        client
+            .method(HttpMethod.OPTIONS)
+            .uri("/api/v1/products")
+            .header(HttpHeaders.ORIGIN, TestEnvironment.WEB_ORIGIN)
+            .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "TRACE")
+            .exchange()
+            .returnResult(String.class);
+    assertProblem(foreignMethod, 403, ProblemCode.TYPE_PREFIX + "forbidden");
   }
 
   // Request id

@@ -22,6 +22,7 @@ import org.springframework.security.web.header.writers.DelegatingRequestMatcherH
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.filter.CorsFilter;
 
 /**
  * The single HTTP security filter chain of the API (project specification sections 8.1, 8.4, 9.1,
@@ -100,7 +101,8 @@ public class SecurityConfig {
         .logout(AbstractHttpConfigurer::disable)
         .requestCache(AbstractHttpConfigurer::disable)
         .anonymous(anonymous -> {})
-        .cors(cors -> cors.configurationSource(corsConfigurationSource))
+        .cors(AbstractHttpConfigurer::disable)
+        .addFilter(corsFilter(corsConfigurationSource))
         .sessionManagement(
             session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
         .headers(headers ->
@@ -144,6 +146,16 @@ public class SecurityConfig {
                   jwt.decoder(decoder).jwtAuthenticationConverter(jwtAuthenticationConverter())));
     }
     return http.build();
+  }
+
+  /**
+   * The CORS filter at the standard position of the chain; rejected cross-origin requests get the
+   * {@code 403} {@code forbidden} problem body.
+   */
+  static CorsFilter corsFilter(CorsConfigurationSource source) {
+    CorsFilter filter = new CorsFilter(source);
+    filter.setCorsProcessor(ProblemSecurityHandlers.corsProcessor());
+    return filter;
   }
 
   /** Maps the {@code role} claim to {@code ROLE_<role>}; {@code sub} is the principal name. */
