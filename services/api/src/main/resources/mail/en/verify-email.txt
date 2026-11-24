@@ -1,0 +1,14 @@
+Hello,
+
+Please confirm your e-mail address to activate your VitaDelta account.
+
+Confirm e-mail address:
+[(${verifyUrl})]
+
+The link can be used once and expires after a short time.
+
+If you did not create a VitaDelta account, you can ignore this e-mail.
+
+--
+You receive this e-mail because of an action on your VitaDelta account.
+Privacy notice: [(${privacyUrl})]

@@ -1,3 +1,7 @@
+# Configuration comes from VITADELTA_* environment variables (documented in .env.example).
+# Secrets have no defaults: the application refuses to start without VITADELTA_JWT_SECRET,
+# VITADELTA_COOKIE_SECRET and VITADELTA_WEB_BASE_URL (bound below to vitadelta.secrets.* and
+# vitadelta.web.*, validated by the classes in com.vitadelta.api.config.properties).
 spring:
   application:
     name: vitadelta-api
@@ -15,15 +19,94 @@ spring:
     locations: classpath:db/migration
     validate-on-migrate: true
     clean-disabled: true
+  mail:
+    host: ${VITADELTA_SMTP_HOST:}
+    port: ${VITADELTA_SMTP_PORT:587}
+    username: ${VITADELTA_SMTP_USERNAME:}
+    password: ${VITADELTA_SMTP_PASSWORD:}
+    default-encoding: UTF-8
+    properties:
+      "[mail.smtp.starttls.enable]": ${VITADELTA_SMTP_STARTTLS:false}
+      "[mail.smtp.starttls.required]": ${VITADELTA_SMTP_STARTTLS:false}
+      "[mail.smtp.connectiontimeout]": 5000
+      "[mail.smtp.timeout]": 10000
+      "[mail.smtp.writetimeout]": 10000
+  thymeleaf:
+    # Mail templates live under resources/mail/{tr,en}; the mail package configures its own
+    # template resolver. No web views are rendered.
+    check-template-location: false
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 20MB
+  task:
+    scheduling:
+      pool:
+        size: 4
+      thread-name-prefix: vitadelta-job-
+  web:
+    resources:
+      add-mappings: false
 
 vitadelta:
+  secrets:
+    jwt-secret: ${VITADELTA_JWT_SECRET:}
+    jwt-secret-previous: ${VITADELTA_JWT_SECRET_PREVIOUS:}
+    cookie-secret: ${VITADELTA_COOKIE_SECRET:}
+  web:
+    origins: ${VITADELTA_WEB_ORIGINS:}
+    base-url: ${VITADELTA_WEB_BASE_URL:}
+    # https is required for base-url and cookies are Secure outside the dev profile.
+    require-https: true
+    secure-cookies: true
+  proxy:
+    trust-proxy: ${VITADELTA_TRUST_PROXY:false}
+    trusted-proxies: ${VITADELTA_TRUSTED_PROXIES:}
+  mail:
+    from: ${VITADELTA_MAIL_FROM:}
+    # Asynchronous identity and plan e-mail (AuthMailDispatcher): sender threads, bounded queue
+    # (a full queue drops the mail with the vitadelta.mail.dropped metric) and how long shutdown
+    # waits for queued mails.
+    dispatch:
+      pool-size: 2
+      queue-capacity: 500
+      shutdown-timeout: 10s
+  anonymous:
+    query-limit: ${VITADELTA_ANON_QUERY_LIMIT:3}
+    visible-results: ${VITADELTA_ANON_VISIBLE_RESULTS:3}
+  bootstrap-admin:
+    email: ${VITADELTA_BOOTSTRAP_ADMIN_EMAIL:}
+    password: ${VITADELTA_BOOTSTRAP_ADMIN_PASSWORD:}
+  operations:
+    # false disables every scheduler, including SubscriptionExpiryJob (daily 00:05 UTC, section 8.3).
+    jobs-enabled: ${VITADELTA_JOBS_ENABLED:true}
+    unverified-account-ttl-days: ${VITADELTA_UNVERIFIED_ACCOUNT_TTL_DAYS:30}
+    privacy-contact: ${VITADELTA_PRIVACY_CONTACT:}
+  http:
+    # Request body limits of /api/v1/** (query body 64 kB; import JSON and CSV 20 MB).
+    max-body: 64KB
+    import-max-body: 20MB
+    import-paths: /api/v1/admin/imports/
   seed:
     # Directory holding reference/, fixtures/ and real/. scripts/seed.sh mounts the repository's
-    # data directory read-only at this path inside the api container.
+    # data directory read-only at this path inside the api container. The API also reads
+    # reference/weak_passwords.txt (breached-password list, section 8.2) from it at every startup
+    # and refuses to start when the file is missing.
     data-dir: /data
+  identity:
+    # The breached-password list can be moved with vitadelta.identity.weak-passwords-file
+    # (default <vitadelta.seed.data-dir>/reference/weak_passwords.txt).
+    # Retention of the daily identity housekeeping purge (section 8.11, 03:15 UTC).
+    anonymous-retention: 180d
+    email-token-retention: 7d
+    refresh-token-retention: 30d
+    housekeeping-batch-size: 1000
 
 server:
   port: 8080
+  # The socket peer stays the real peer; X-Forwarded-For is evaluated only by ClientIpResolver.
+  forward-headers-strategy: none
+  max-http-request-header-size: 16KB
   error:
     include-stacktrace: never
     include-message: never
@@ -31,3 +114,31 @@ server:
     include-exception: false
     whitelabel:
       enabled: false
+
+management:
+  server:
+    # Actuator runs on its own port, which is neither published by compose nor proxied by nginx.
+    port: 8081
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics
+  endpoint:
+    health:
+      show-details: never
+      show-components: never
+      probes:
+        enabled: false
+  health:
+    mail:
+      # SMTP outages are handled by the asynchronous mail dispatch and reported in
+      # /api/v1/admin/health; they do not make the service unhealthy.
+      enabled: false
+
+logging:
+  structured:
+    format:
+      console: logstash
+    json:
+      # Removes credentials and personal data from every log line (LogRedactor).
+      customizer: com.vitadelta.api.common.logging.RedactingJsonMembersCustomizer

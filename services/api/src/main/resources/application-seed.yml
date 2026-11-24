@@ -2,3 +2,7 @@
 spring:
   main:
     web-application-type: none
+
+vitadelta:
+  operations:
+    jobs-enabled: false

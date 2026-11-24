@@ -1,0 +1,17 @@
+Merhaba,
+
+Birisi (muhtemelen siz) bu e-posta adresiyle yeni bir VitaDelta hesabı oluşturmaya çalıştı. Bu adrese kayıtlı bir hesap zaten var.
+
+Giriş yap:
+[(${loginUrl})]
+
+Şifremi sıfırla:
+[(${forgotUrl})]
+
+Şifrenizi unuttuysanız ikinci bağlantıyla yeni bir şifre belirleyebilirsiniz.
+
+Bu işlemi siz yapmadıysanız bir şey yapmanıza gerek yok. Hesabınızda hiçbir değişiklik yapılmadı.
+
+--
+Bu e-postayı VitaDelta hesabınızla ilgili bir işlem nedeniyle alıyorsunuz.
+Gizlilik bildirimi: [(${privacyUrl})]

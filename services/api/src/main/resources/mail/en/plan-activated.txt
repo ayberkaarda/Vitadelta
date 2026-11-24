@@ -1,0 +1,14 @@
+Hello,
+
+Your [(${planName})] plan is now active until [(${periodEnd})] (UTC).
+
+You can see your plan and your usage on your account page.
+
+Open my account:
+[(${accountUrl})]
+
+Thank you for using VitaDelta.
+
+--
+You receive this e-mail because of an action on your VitaDelta account.
+Privacy notice: [(${privacyUrl})]

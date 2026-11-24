@@ -1,0 +1,14 @@
+Merhaba,
+
+[(${planName})] planınız [(${periodEnd})] tarihine (UTC) kadar etkin.
+
+Planınızı ve kullanımınızı hesap sayfanızda görebilirsiniz.
+
+Hesabımı aç:
+[(${accountUrl})]
+
+VitaDelta'yı kullandığınız için teşekkür ederiz.
+
+--
+Bu e-postayı VitaDelta hesabınızla ilgili bir işlem nedeniyle alıyorsunuz.
+Gizlilik bildirimi: [(${privacyUrl})]

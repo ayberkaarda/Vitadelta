@@ -1,0 +1,17 @@
+Hello,
+
+Someone, possibly you, tried to register a new VitaDelta account with this e-mail address. An account with this address already exists.
+
+Log in:
+[(${loginUrl})]
+
+Reset password:
+[(${forgotUrl})]
+
+If you forgot your password, you can set a new one with the second link.
+
+If this was not you, no action is needed. Your account has not been changed.
+
+--
+You receive this e-mail because of an action on your VitaDelta account.
+Privacy notice: [(${privacyUrl})]

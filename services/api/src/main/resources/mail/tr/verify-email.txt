@@ -1,0 +1,14 @@
+Merhaba,
+
+VitaDelta hesabınızı etkinleştirmek için lütfen e-posta adresinizi doğrulayın.
+
+E-posta adresimi doğrula:
+[(${verifyUrl})]
+
+Bağlantı yalnızca bir kez kullanılabilir ve kısa bir süre sonra geçerliliğini yitirir.
+
+Bir VitaDelta hesabı oluşturmadıysanız bu e-postayı yok sayabilirsiniz.
+
+--
+Bu e-postayı VitaDelta hesabınızla ilgili bir işlem nedeniyle alıyorsunuz.
+Gizlilik bildirimi: [(${privacyUrl})]

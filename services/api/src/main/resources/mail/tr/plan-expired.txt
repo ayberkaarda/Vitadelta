@@ -1,0 +1,14 @@
+Merhaba,
+
+[(${planName})] planınızın süresi doldu ve hesabınız ücretsiz plana geçti.
+
+Güncel planınızı ve limitlerini hesap sayfanızda görebilirsiniz.
+
+Hesabımı aç:
+[(${accountUrl})]
+
+VitaDelta'yı kullandığınız için teşekkür ederiz.
+
+--
+Bu e-postayı VitaDelta hesabınızla ilgili bir işlem nedeniyle alıyorsunuz.
+Gizlilik bildirimi: [(${privacyUrl})]

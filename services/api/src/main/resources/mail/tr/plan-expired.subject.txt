@@ -1,0 +1,1 @@
+VitaDelta [(${planName})] planınızın süresi doldu

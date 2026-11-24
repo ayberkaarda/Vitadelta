@@ -6,7 +6,7 @@ VitaDelta, vitamin ve takviye karşılaştırma hizmetidir. Takviye ürünlerini
 
 > VitaDelta yalnızca karşılaştırmalı bilgi sunar. Tıbbi tavsiye değildir ve bir hekim ya da eczacıyla yapılacak görüşmenin yerini tutmaz.
 
-**Durum: Faz 2, puanlama motoru (`/score` ve `/compare`, golden ve property testleri, karar kalibrasyonu).** Depo; tüm servislerin çalıştırılabilir iskeletlerini, sözleşmeleri, yerel ortamı ve CI iş akışını, katalog veritabanı şemasını, referans verileri ve bunları yükleyen bir seed yükleyiciyi, ayrıca dahili `/score` ve `/compare` uç noktalarının arkasındaki puanlama motorunu içerir. Puanlama formülleri, yapılandırma ve hata modeli [services/scoring/README.md](services/scoring/README.md) dosyasında; karar kalibrasyonu sonucu [services/scoring/calibration/verdict-calibration.md](services/scoring/calibration/verdict-calibration.md) dosyasında yer alır. Kalan ürün özellikleri sonraki fazlarda gelecektir.
+**Durum: Faz 3, e-posta doğrulamalı hesaplar, oturumlar, planlar (FREE ve PRO), promosyon kodları ve yönetici rolü; temelde Faz 2 puanlama motoru (`/score` ve `/compare`, golden ve property testleri, karar kalibrasyonu) yer alır.** Depo; tüm servislerin çalıştırılabilir iskeletlerini, sözleşmeleri, yerel ortamı ve CI iş akışını, katalog veritabanı şemasını, referans verileri ve bunları yükleyen bir seed yükleyiciyi, ayrıca dahili `/score` ve `/compare` uç noktalarının arkasındaki puanlama motorunu içerir. Puanlama formülleri, yapılandırma ve hata modeli [services/scoring/README.md](services/scoring/README.md) dosyasında; karar kalibrasyonu sonucu [services/scoring/calibration/verdict-calibration.md](services/scoring/calibration/verdict-calibration.md) dosyasında yer alır. API artık kayıt, e-posta doğrulama, yenileme oturumlu giriş, parola sıfırlama, plan yetkileri ve promosyon kodlarını da sağlar. Kalan ürün özellikleri sonraki fazlarda gelecektir.
 
 ## Mimariye genel bakış
 
@@ -78,6 +78,10 @@ docker compose --env-file .env -f infra/docker-compose.yml down
 ```
 
 Veritabanı volume'unu da silmek için `down` komutuna `--volumes` ekleyin.
+
+## Geliştirmede hesaplar ve e-posta
+
+API üzerinden kayıt olun (`POST /api/v1/auth/register`); doğrulama ve parola sıfırlama e-postalarını Mailpit yakalar ve http://127.0.0.1:8025 adresinden okunabilir. İlk yönetici, `.env` içindeki `VITADELTA_BOOTSTRAP_ADMIN_EMAIL` ve `VITADELTA_BOOTSTRAP_ADMIN_PASSWORD` değerlerinden oluşturulur; varsayılan kimlik bilgisi yoktur, bu yüzden API'yi başlatmadan önce ikisini de ayarlayın, aksi halde yönetici oluşturulmaz. İlk `scripts/dev-up.sh` çalıştırması tüm gizli anahtarları `.env` içine üretir. Actuator sağlık ve metrik uç noktaları, api konteynerinin içinde yayınlanmayan ve proxy'lenmeyen dahili bir portta sunulur; loglar yapılandırılmış JSON'dur ve kimlik bilgileri ile e-posta adresleri maskelenir.
 
 ## Testleri çalıştırma
 

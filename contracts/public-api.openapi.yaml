@@ -19,6 +19,10 @@ info:
     - Errors use RFC 9457 `application/problem+json`. The problem `type` is
       `https://vitadelta.dev/problems/<code>`; generic HTTP errors without
       additional semantics (for example an unknown alert id) use `about:blank`.
+    - A request body over the size limit is answered with 413 `validation_failed`
+      before it is processed. A JSON operation called with another content type
+      answers 415 (`about:blank`), except the cookie-scoped auth operations,
+      which answer 403 `forbidden`.
     - Every request may carry `X-Request-Id`; every response echoes the id in
       effect for that request in `X-Request-Id`.
     - Principals: `ANONYMOUS` (signed `vd_anon` cookie), `USER` and `ADMIN`
@@ -196,8 +200,13 @@ paths:
       summary: Quota counters of the current principal
       description: |
         For anonymous callers returns the trial counters and creates the `vd_anon`
-        cookie when it is missing. For signed-in users returns the plan usage
-        summary of `GET /me`.
+        cookie when it is missing. A missing or invalid (tampered) cookie
+        creates a new identity; creation is limited to 60 per hour per client
+        IP, while requests with a valid cookie are never limited by it. For
+        signed-in users returns the plan usage summary of `GET /me`.
+
+        Problem codes: `unauthorized` (401, invalid bearer token),
+        `rate_limited` (429, anonymous identity creation).
       security:
         - {}
         - bearerAuth: []
@@ -227,6 +236,7 @@ paths:
                       alertSubscriptions: { used: 1, limit: 3 }
                       notificationsThisMonth: { used: 4, limit: 30, periodMonth: '2026-11-01' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalError' }
 
   /recommendations/query:
@@ -566,10 +576,19 @@ paths:
       description: |
         Returns the FREE and PRO plans. A `null` limit means unlimited. Prices are
         converted to the display currency; the native currency of a price is the
-        currency stored on the plan.
+        currency stored on the plan. Credentials are optional: a valid bearer
+        token only supplies the user's display-currency preference. When no
+        rate exists for the requested supported currency, money stays in the
+        native currency, `meta.currency` equals `meta.nativeCurrency`,
+        `meta.fx.quote` names the requested currency and `meta.fx.status` is
+        `UNAVAILABLE`.
 
-        Problem codes: `fx_unsupported_currency` (422).
-      security: []
+        Problem codes: `unauthorized` (401, invalid bearer token),
+        `validation_failed` (422, `displayCurrency` not three upper-case
+        letters), `fx_unsupported_currency` (422).
+      security:
+        - {}
+        - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/XRequestId'
         - $ref: '#/components/parameters/DisplayCurrencyQuery'
@@ -581,19 +600,38 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/PlanList' }
-              example:
-                meta:
-                  nativeCurrency: TRY
-                  currency: TRY
-                  fx: { base: TRY, quote: TRY, rate: 1, asOf: null, source: null, stale: false, status: OK }
-                items:
-                  - { code: FREE, name: Free, savedProductsLimit: 5, alertSubscriptionsLimit: 3, notificationsPerMonthLimit: 30, price: null }
-                  - code: PRO
-                    name: Pro
-                    savedProductsLimit: null
-                    alertSubscriptionsLimit: null
-                    notificationsPerMonthLimit: null
-                    price: { amount: 199.0, amountNative: 199.0, currency: TRY, nativeCurrency: TRY, billingPeriod: MONTHLY }
+              examples:
+                native:
+                  summary: Native currency
+                  value:
+                    meta:
+                      nativeCurrency: TRY
+                      currency: TRY
+                      fx: { base: TRY, quote: TRY, rate: 1, asOf: null, source: null, stale: false, status: OK }
+                    items:
+                      - { code: FREE, name: Free, savedProductsLimit: 5, alertSubscriptionsLimit: 3, notificationsPerMonthLimit: 30, price: null }
+                      - code: PRO
+                        name: Pro
+                        savedProductsLimit: null
+                        alertSubscriptionsLimit: null
+                        notificationsPerMonthLimit: null
+                        price: { amount: 199.0, amountNative: 199.0, currency: TRY, nativeCurrency: TRY, billingPeriod: MONTHLY }
+                fxUnavailable:
+                  summary: Display currency requested while no rate exists
+                  value:
+                    meta:
+                      nativeCurrency: TRY
+                      currency: TRY
+                      fx: { base: TRY, quote: EUR, rate: null, asOf: null, source: null, stale: false, status: UNAVAILABLE }
+                    items:
+                      - { code: FREE, name: Free, savedProductsLimit: 5, alertSubscriptionsLimit: 3, notificationsPerMonthLimit: 30, price: null }
+                      - code: PRO
+                        name: Pro
+                        savedProductsLimit: null
+                        alertSubscriptionsLimit: null
+                        notificationsPerMonthLimit: null
+                        price: { amount: 199.0, amountNative: 199.0, currency: TRY, nativeCurrency: TRY, billingPeriod: MONTHLY }
+        '401': { $ref: '#/components/responses/Unauthorized' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '500': { $ref: '#/components/responses/InternalError' }
 
@@ -700,6 +738,7 @@ paths:
               schema: { $ref: '#/components/schemas/AcceptedMessage' }
               example: { messageKey: auth.register.check_email }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalError' }
@@ -729,6 +768,8 @@ paths:
           headers:
             X-Request-Id: { $ref: '#/components/headers/XRequestId' }
         '400': { $ref: '#/components/responses/TokenRejected' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalError' }
@@ -761,6 +802,8 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/AcceptedMessage' }
               example: { messageKey: auth.verify.resent }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalError' }
@@ -816,6 +859,7 @@ paths:
                   createdAt: '2026-11-01T10:00:00Z'
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalError' }
@@ -860,6 +904,7 @@ paths:
               schema: { $ref: '#/components/schemas/AuthTokenResponse' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalError' }
 
@@ -896,6 +941,7 @@ paths:
             X-Request-Id: { $ref: '#/components/headers/XRequestId' }
             Set-Cookie: { $ref: '#/components/headers/SetCookieClearRefresh' }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
         '500': { $ref: '#/components/responses/InternalError' }
 
   /auth/forgot-password:
@@ -927,6 +973,8 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/AcceptedMessage' }
               example: { messageKey: auth.forgot.check_email }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalError' }
@@ -958,6 +1006,8 @@ paths:
           headers:
             X-Request-Id: { $ref: '#/components/headers/XRequestId' }
         '400': { $ref: '#/components/responses/TokenRejected' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalError' }
@@ -1030,6 +1080,8 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Me' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '500': { $ref: '#/components/responses/InternalError' }
     delete:
@@ -1060,6 +1112,8 @@ paths:
             X-Request-Id: { $ref: '#/components/headers/XRequestId' }
             Set-Cookie: { $ref: '#/components/headers/SetCookieClearRefresh' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '500': { $ref: '#/components/responses/InternalError' }
 
@@ -1431,12 +1485,14 @@ paths:
         Code lookup is case-insensitive. Activating PRO cancels the current
         subscription and starts an ACTIVE PRO subscription for the code's
         duration; an existing PRO period is extended. Every failure (unknown,
-        expired, exhausted or already redeemed by this user) returns the same
-        400 `promo_invalid`.
+        expired, exhausted, already redeemed by this user, or a value that is
+        not a well-formed code) returns the same 400 `promo_invalid` and counts
+        against both rate limits.
 
         Problem codes: `unauthorized` (401), `email_not_verified` (403),
         `promo_invalid` (400), `conflict_retry` (409), `validation_failed`
-        (422), `rate_limited` (429, 10 per hour per IP and 5 per hour per user).
+        (422, only for a missing or null `code` or a body that cannot be read
+        as this request), `rate_limited` (429, 10 per hour per IP and 5 per hour per user).
       security:
         - bearerAuth: []
       parameters:
@@ -1462,6 +1518,8 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalError' }
@@ -1641,10 +1699,12 @@ paths:
       operationId: listUsers
       summary: Search users
       description: |
-        Requires role ADMIN. Never returns password hashes.
+        Requires role ADMIN. Never returns password hashes. Results are ordered
+        newest first.
 
         Problem codes: `unauthorized` (401), `forbidden` (403),
-        `validation_failed` (422).
+        `validation_failed` (422, including a `q` that contains control
+        characters).
       x-required-role: ADMIN
       security:
         - bearerAuth: []
@@ -1653,8 +1713,8 @@ paths:
         - name: q
           in: query
           required: false
-          description: Case-insensitive search over the e-mail address.
-          schema: { type: string, minLength: 1, maxLength: 254 }
+          description: Case-insensitive substring search over the e-mail address. Control characters are rejected (422).
+          schema: { type: string, minLength: 1, maxLength: 254, pattern: '^[^\x00-\x1F\x7F]*$' }
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/PageSize'
       responses:
@@ -1709,6 +1769,8 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '500': { $ref: '#/components/responses/InternalError' }
 
@@ -1747,6 +1809,8 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '500': { $ref: '#/components/responses/InternalError' }
 
@@ -1809,6 +1873,8 @@ paths:
               example: { code: LAUNCH-7K3M9QXT2B4N6PRW, planCode: PRO, durationDays: 30, maxRedemptions: 100, redeemedCount: 0, expiresAt: '2027-01-31T23:59:59Z', createdBy: 9f1c2d3e-4b5a-4c6d-8e7f-0a1b2c3d4e5f }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '500': { $ref: '#/components/responses/InternalError' }
 
@@ -2150,12 +2216,26 @@ components:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
     PayloadTooLarge:
-      description: Request body exceeds the size limit (query 64 kB, import JSON 20 MB, CSV 20 MB). Code `validation_failed`.
+      description: Request body exceeds the size limit (64 kB for every request body including the query, import JSON 20 MB, CSV 20 MB). Code `validation_failed`.
       headers:
         X-Request-Id: { $ref: '#/components/headers/XRequestId' }
       content:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
+    UnsupportedMediaType:
+      description: The request body is not `application/json`. Generic problem with type `about:blank`.
+      headers:
+        X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+          example:
+            type: about:blank
+            title: Unsupported Media Type
+            status: 415
+            detail: Unsupported Media Type.
+            instance: /api/v1/me
+            requestId: 8c1d2e3f-4a5b-4c6d-9e7f-0a1b2c3d4e5f
     UnprocessableEntity:
       description: |
         The request is syntactically or semantically invalid. Codes:
@@ -2280,6 +2360,11 @@ components:
       type: string
       format: email
       maxLength: 254
+      pattern: '^[^\x00-\x1F\x7F]*$'
+      description: |
+        E-mail address. Control characters are rejected (422
+        `validation_failed`). Addresses are stored, compared and returned
+        without surrounding white space and in lower case.
       example: user@example.com
     Money:
       type: number
@@ -2662,7 +2747,10 @@ components:
         currency:
           allOf:
             - $ref: '#/components/schemas/CurrencyCode'
-          description: Currency of every monetary field (display currency).
+          description: |
+            Currency of every monetary field (display currency). Equals
+            `nativeCurrency` when `fx.status` is `UNAVAILABLE`; `fx.quote` then
+            names the requested currency.
         fx: { $ref: '#/components/schemas/FxMeta' }
     ExcludedCounts:
       type: object
@@ -3607,7 +3695,13 @@ components:
       type: object
       required: [code]
       properties:
-        code: { $ref: '#/components/schemas/PromoCodeValue' }
+        code:
+          type: string
+          description: >-
+            The code to redeem. Any string is accepted; a value that does not match
+            `PromoCodeValue` is rejected with the same 400 `promo_invalid` as an
+            unknown code.
+          example: LAUNCH-7K3M9QXT2B4N6PRW
     SubscriptionActivation:
       type: object
       required: [plan, subscription]
@@ -3740,7 +3834,7 @@ components:
         planCode:
           type: string
           enum: [PRO]
-        durationDays: { type: integer, minimum: 1 }
+        durationDays: { type: integer, minimum: 1, maximum: 3650 }
     SetUserStatusRequest:
       type: object
       required: [status]
@@ -3757,12 +3851,12 @@ components:
         planCode:
           type: string
           enum: [PRO]
-        durationDays: { type: integer, minimum: 1 }
+        durationDays: { type: integer, minimum: 1, maximum: 3650 }
         maxRedemptions: { type: integer, minimum: 1 }
         expiresAt:
           type: [string, 'null']
           format: date-time
-          description: '`null` for a code that never expires.'
+          description: '`null` for a code that never expires; otherwise it must lie in the future (422, code `not_in_future`).'
     PromoCode:
       type: object
       required: [code, planCode, durationDays, maxRedemptions, redeemedCount, expiresAt, createdBy]
