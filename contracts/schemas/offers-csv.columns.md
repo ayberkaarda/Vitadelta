@@ -12,9 +12,9 @@ summary and row errors are read with `GET /api/v1/admin/imports/{jobId}`.
 | Encoding | UTF-8. A leading byte order mark (`EF BB BF`) is accepted and ignored. Invalid UTF-8 fails the whole file (`invalid_encoding`). |
 | Size limit | 20 MB (20 971 520 bytes). Larger uploads are rejected before processing with `413` (problem+json); no job rows are written. |
 | Dialect | RFC 4180. Delimiter `,` (comma). Line endings `CRLF` or `LF`; a final line break is optional. |
-| Quoting | A field containing a comma, a double quote, `CR` or `LF` is enclosed in double quotes; a double quote inside a quoted field is written as two double quotes (`""`). Any other field may be quoted. |
+| Quoting | A field containing a comma, a double quote, `CR` or `LF` is enclosed in double quotes; a double quote inside a quoted field is written as two double quotes (`""`). Any other field may be quoted. A file that cannot be parsed under these rules (an unterminated quoted field, a double quote inside an unquoted field, or text after a closing quote) fails the whole file (`invalid_csv`). |
 | Whitespace | Significant inside quotes. Unquoted leading or trailing spaces and tabs are trimmed. |
-| Header | The first record is the header. It must contain exactly the eight column names below, each once, in the order given, written in lower case (`invalid_header` otherwise; the whole file fails). |
+| Header | The first record is the header. It must contain exactly the eight column names below, each once, in the order given, written in lower case (`invalid_header` otherwise, including an empty file; the whole file fails). |
 | Empty lines | Lines that are completely empty are skipped and are not counted as rows. |
 | Rows | Every data record has exactly eight fields (`wrong_column_count` otherwise). A file with a header and no data rows is valid and changes nothing. |
 | Row numbers | `row_number` in row errors is the 1-based record number in the file, header included, so the first data row is row 2. |
@@ -53,8 +53,19 @@ Every row is validated before anything is written. All row errors of the file ar
 | `checked_at_in_future` | `checked_at` is later than the import time. |
 | `duplicate_offer_key` | Another row of the file has the same `(product_code, country_code, retailer)`. |
 
-File-level failures (`invalid_encoding`, `invalid_header`) are recorded as a single error with
-`row_number` 1.
+File-level failures are recorded as a single error with `row_number` 1, and no row is validated:
+
+| Code | Condition |
+|---|---|
+| `invalid_encoding` | The file is not valid UTF-8. |
+| `invalid_csv` | The file cannot be parsed as CSV under the dialect and quoting rules above (for example an unterminated quoted field). |
+| `invalid_header` | The file is empty or its first record is not exactly the header above. |
+
+A record with the wrong number of fields in an otherwise parseable file is the row error
+`wrong_column_count`, not a file-level failure.
+
+The import job API (`GET /api/v1/admin/imports/{jobId}`) returns each error as `rowNumber`,
+`code` (the code above) and `message` (`<code>: <detail> (row N)`).
 
 **All-or-nothing.** If the file has any row error or file-level failure, the job ends `FAILED`,
 no offer is inserted, updated or deleted, `catalog_version` is not bumped and no `OFFERS_CHANGED`
@@ -87,7 +98,8 @@ in one write transaction:
    selected offer, or a price change at a retailer that is not the cheapest) is not a change.
 
 The job summary reports the counts `rows`, `inserted`, `updated`, `unchanged`, `deleted` and
-`changed_pairs`.
+`changedPairs` (camelCase keys, as in every API response). A failed job reports `rows` and 0 for
+every other count.
 
 ## Example
 
