@@ -7,6 +7,7 @@ import com.vitadelta.api.identity.IdentityApi.Me;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
@@ -78,7 +79,13 @@ public class AccountService {
 
   /** Applies the settings present in {@code body} ({@code UpdateMeRequest}). */
   public Me update(UUID userId, JsonNode body) {
-    UserAccount current = user(userId);
+    transactions.executeWithoutResult(status -> applySettings(userId, body));
+    return me(userId);
+  }
+
+  /** Read-merge-write under the user-row lock, so concurrent updates never lose a field. */
+  private void applySettings(UUID userId, JsonNode body) {
+    UserAccount current = users.findByIdForUpdate(userId).orElseThrow(CurrentUser::unauthorized);
     if (body == null || !body.isObject() || SETTINGS.stream().noneMatch(body::has)) {
       throw ProblemException.validation(
           "The request contains invalid fields.",
@@ -151,7 +158,6 @@ public class AccountService {
             current.createdAt(),
             clock.instant());
     users.updateSettings(updated, updated.updatedAt());
-    return me(userId);
   }
 
   private static FieldViolation invalid(String field, String message) {
@@ -159,19 +165,21 @@ public class AccountService {
   }
 
   /**
-   * Re-checks the password and hard-deletes the account with the cascade of section 5.9. {@link
-   * UserDeletingEvent} is published inside the deletion transaction.
+   * Re-checks the password against the current hash under the user-row lock and hard-deletes the
+   * account with the cascade of section 5.9. {@link UserDeletingEvent} is published inside the
+   * deletion transaction.
    */
   public void delete(UUID userId, String password) {
-    UserAccount user = user(userId);
-    if (!hasher.matches(password, user.passwordHash())) {
-      throw AuthService.invalidCredentials();
-    }
+    user(userId);
     boolean deleted =
         Boolean.TRUE.equals(
             transactions.execute(status -> {
-              if (users.findByIdForUpdate(userId).isEmpty()) {
+              Optional<UserAccount> locked = users.findByIdForUpdate(userId);
+              if (locked.isEmpty()) {
                 return false;
+              }
+              if (!hasher.matches(password, locked.get().passwordHash())) {
+                throw AuthService.invalidCredentials();
               }
               events.publishEvent(new UserDeletingEvent(userId));
               return users.delete(userId);
