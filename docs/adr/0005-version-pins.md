@@ -117,6 +117,17 @@ These versions were checked on 2026-11-24 and are the pins to use when the corre
 | `types-jsonschema` | 4.26.0.20261006 | `services/scoring/pyproject.toml` | typing stubs for strict mypy |
 | pytest for the label-converter tests | 9.2.0 | `scripts/test-all.sh` | same version as the scoring service |
 
+### Added in Phase 2
+
+| Item | Pin | Where pinned | Notes |
+|---|---|---|---|
+| `hypothesis` | 6.170.17 | `services/scoring/pyproject.toml` | dev dependency; property-based tests of the scoring engine (derandomised); PyPI release 2026-11-20 |
+| `pytest-cov` | 7.1.0 | `services/scoring/pyproject.toml` | dev dependency; coverage gate of 95 % in the pytest options; PyPI release 2026-03-21 |
+| `pyyaml` | 6.0.4 | `services/scoring/pyproject.toml` | dev dependency; reads the OpenAPI contract in the contract-equality tests; PyPI release 2026-11-20 |
+| `types-pyyaml` | 6.0.12.20261122 | `services/scoring/pyproject.toml` | dev dependency; typing stubs for strict mypy; PyPI release 2026-11-22 |
+| `coverage`, `sortedcontainers` | 7.17.5, 2.4.0 | `services/scoring/uv.lock` | transitive (`pytest-cov`, `hypothesis`); no direct pin |
+| Runtime dependencies | unchanged | `services/scoring/pyproject.toml` | no new runtime dependency in Phase 2 |
+
 ## Consequences
 
 - Builds are reproducible from the manifests and lock files (`uv.lock`, `package-lock.json`, the Gradle wrapper checksum).
