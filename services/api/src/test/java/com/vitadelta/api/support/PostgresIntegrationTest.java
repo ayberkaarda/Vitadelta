@@ -19,7 +19,10 @@ public abstract class PostgresIntegrationTest {
   public static final String POSTGRES_IMAGE = "postgres:18.7-alpine";
 
   protected static final PostgreSQLContainer POSTGRES =
-      new PostgreSQLContainer(DockerImageName.parse(POSTGRES_IMAGE)).withDatabaseName("vitadelta");
+      new PostgreSQLContainer(DockerImageName.parse(POSTGRES_IMAGE))
+          .withDatabaseName("vitadelta")
+          // Every cached test context keeps its own connection pool.
+          .withCommand("postgres", "-c", "max_connections=400");
 
   static {
     POSTGRES.start();

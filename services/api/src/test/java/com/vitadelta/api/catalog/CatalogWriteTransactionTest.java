@@ -295,7 +295,7 @@ class CatalogWriteTransactionTest extends PostgresIntegrationTest {
                     Unit.fromSymbol(rs.getString(4)).orElseThrow()));
     List<UpperLimitRow> storedLimits =
         jdbc.query(
-            "SELECT ul_set_code, nutrient_code, form_code, amount, unit, basis FROM upper_limit",
+            "SELECT ul_set_code, nutrient_code, form_code, amount, unit, basis, note FROM upper_limit",
             (rs, i) ->
                 new UpperLimitRow(
                     rs.getString(1),
@@ -303,7 +303,8 @@ class CatalogWriteTransactionTest extends PostgresIntegrationTest {
                     rs.getString(3),
                     rs.getBigDecimal(4),
                     Unit.fromSymbol(rs.getString(5)).orElseThrow(),
-                    rs.getString(6) == null ? null : UlBasis.valueOf(rs.getString(6))));
+                    rs.getString(6) == null ? null : UlBasis.valueOf(rs.getString(6)),
+                    rs.getString(7)));
     List<ConversionRule> storedRules =
         jdbc.query(
             "SELECT nutrient_code, from_unit, to_unit, factor, form_code, note FROM unit_conversion",
@@ -318,7 +319,7 @@ class CatalogWriteTransactionTest extends PostgresIntegrationTest {
     List<ReferenceValueRow> values = new ArrayList<>(storedValues);
     values.add(new ReferenceValueRow("TXR_REF", "TXR_N", BigDecimal.TEN, Unit.MG));
     List<UpperLimitRow> limits = new ArrayList<>(storedLimits);
-    limits.add(new UpperLimitRow("TXR_UL", "TXR_N", "ANY", null, Unit.MG, null));
+    limits.add(new UpperLimitRow("TXR_UL", "TXR_N", "ANY", null, Unit.MG, null, "exempt note"));
     List<ConversionRule> rules = new ArrayList<>(storedRules);
     rules.add(new ConversionRule("TXR_N", Unit.G, Unit.MG, new BigDecimal("1000"), "ANY", "t"));
     writeTransaction.execute(() -> {
@@ -339,7 +340,8 @@ class CatalogWriteTransactionTest extends PostgresIntegrationTest {
     changedValues.add(new ReferenceValueRow("TXR_REF", "TXR_N", BigDecimal.ONE, Unit.MG));
     List<UpperLimitRow> changedLimits = new ArrayList<>(storedLimits);
     changedLimits.add(
-        new UpperLimitRow("TXR_UL", "TXR_N", "ANY", BigDecimal.TEN, Unit.MG, UlBasis.TOTAL));
+        new UpperLimitRow(
+            "TXR_UL", "TXR_N", "ANY", BigDecimal.TEN, Unit.MG, UlBasis.TOTAL, "limit note"));
     List<ConversionRule> changedRules = new ArrayList<>(storedRules);
     changedRules.add(
         new ConversionRule("TXR_N", Unit.G, Unit.MG, new BigDecimal("999"), "ANY", "t"));

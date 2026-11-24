@@ -45,6 +45,7 @@ class CatalogRepositoriesReadOnlyTest {
         .extracting(Class::getSimpleName)
         .containsExactlyInAnyOrder(
             "NutrientRepository",
+            "NutrientFormRepository",
             "ReferenceSetRepository",
             "UlSetRepository",
             "ReferenceValueRepository",
