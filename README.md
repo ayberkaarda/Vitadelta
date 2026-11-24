@@ -6,7 +6,7 @@ VitaDelta is a vitamin and supplement comparison service. It compares supplement
 
 > VitaDelta provides comparative information only. It is not medical advice and does not replace a conversation with a physician or pharmacist.
 
-**Status: Phase 2, scoring engine (`/score` and `/compare`, golden and property tests, verdict calibration).** The repository contains the runnable shells of every service, the contracts, the local stack and the CI workflow, the catalog database schema, the reference data and a loader that seeds them, and the scoring engine behind the internal `/score` and `/compare` endpoints. The scoring formulas, configuration and error model are described in [services/scoring/README.md](services/scoring/README.md); the verdict calibration result is in [services/scoring/calibration/verdict-calibration.md](services/scoring/calibration/verdict-calibration.md). Remaining product features arrive in later phases.
+**Status: Phase 3, accounts with e-mail verification, sessions, plans (FREE and PRO), promo codes and an admin role, on top of the Phase 2 scoring engine (`/score` and `/compare`, golden and property tests, verdict calibration).** The repository contains the runnable shells of every service, the contracts, the local stack and the CI workflow, the catalog database schema, the reference data and a loader that seeds them, and the scoring engine behind the internal `/score` and `/compare` endpoints. The scoring formulas, configuration and error model are described in [services/scoring/README.md](services/scoring/README.md); the verdict calibration result is in [services/scoring/calibration/verdict-calibration.md](services/scoring/calibration/verdict-calibration.md). The API now also provides registration, e-mail verification, login with refresh sessions, password reset, plan entitlements and promo codes. Remaining product features arrive in later phases.
 
 ## Architecture at a glance
 
@@ -78,6 +78,10 @@ docker compose --env-file .env -f infra/docker-compose.yml down
 ```
 
 Add `--volumes` to the `down` command to delete the database volume as well.
+
+## Accounts and e-mail in development
+
+Register through the API (`POST /api/v1/auth/register`); the verification and password-reset e-mails are caught by Mailpit and can be read at http://127.0.0.1:8025. The first administrator is created from `VITADELTA_BOOTSTRAP_ADMIN_EMAIL` and `VITADELTA_BOOTSTRAP_ADMIN_PASSWORD` in `.env`; no default credentials exist, so set both before starting the API or no administrator is created. The first `scripts/dev-up.sh` run generates every secret into `.env`. Actuator health and metrics are served on an internal port inside the api container that is not published or proxied, and logs are structured JSON with credentials and e-mail addresses redacted.
 
 ## Running the tests
 
