@@ -12,13 +12,17 @@ dependencies = [
 [dependency-groups]
 dev = [
     "httpx==0.28.1",
+    "hypothesis==6.170.17",
     "jsonschema==4.26.0",
     "mypy==2.4.1",
     "pytest==9.2.0",
+    "pytest-cov==7.1.0",
+    "pyyaml==6.0.4",
     "rfc3339-validator==0.1.4",
     "rfc3986-validator==0.1.1",
     "ruff==0.17.6",
     "types-jsonschema==4.26.0.20261006",
+    "types-pyyaml==6.0.12.20261122",
 ]
 
 [build-system]
@@ -30,12 +34,26 @@ packages = ["src/vitadelta_scoring"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src"]
+pythonpath = ["src", "tests", "scripts"]
+addopts = [
+    "--strict-markers",
+    "--cov=vitadelta_scoring",
+    "--cov-report=term-missing:skip-covered",
+    "--cov-fail-under=95",
+]
+markers = ["perf: performance budget tests (spec 6.12)"]
+
+[tool.coverage.run]
+branch = true
+source = ["vitadelta_scoring"]
+
+[tool.coverage.report]
+show_missing = true
 
 [tool.ruff]
 line-length = 100
 target-version = "py314"
-src = ["src", "tests"]
+src = ["src", "tests", "scripts"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "SIM", "N"]
@@ -43,5 +61,5 @@ select = ["E", "F", "I", "B", "UP", "SIM", "N"]
 [tool.mypy]
 strict = true
 python_version = "3.14"
-files = ["src", "tests"]
+files = ["src", "tests", "scripts"]
 plugins = ["pydantic.mypy"]
