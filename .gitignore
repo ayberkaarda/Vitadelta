@@ -1,0 +1,23 @@
+# Local environment and secrets (the template stays tracked)
+.env
+.env.*
+!.env.example
+
+# Database backups
+backups/
+
+# Operating system noise
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor and IDE noise
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Logs and temporary files
+*.log
+*.tmp
