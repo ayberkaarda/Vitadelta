@@ -128,6 +128,20 @@ These versions were checked on 2026-11-24 and are the pins to use when the corre
 | `coverage`, `sortedcontainers` | 7.17.5, 2.4.0 | `services/scoring/uv.lock` | transitive (`pytest-cov`, `hypothesis`); no direct pin |
 | Runtime dependencies | unchanged | `services/scoring/pyproject.toml` | no new runtime dependency in Phase 2 |
 
+### Added in Phase 3
+
+| Item | Pin | Where pinned | Notes |
+|---|---|---|---|
+| `spring-boot-starter-validation` | managed by the Spring Boot 4.2.0 BOM | `services/api/build.gradle.kts` | hibernate-validator 9.1.6.Final as managed |
+| `spring-boot-starter-actuator` | managed by the Spring Boot 4.2.0 BOM | `services/api/build.gradle.kts` | spring-boot-actuator 4.2.0, micrometer-core 1.18.0 as managed |
+| `spring-boot-starter-oauth2-resource-server` | managed by the Spring Boot 4.2.0 BOM | `services/api/build.gradle.kts` | spring-security-oauth2-resource-server, -jose and -core 7.2.0; `nimbus-jose-jwt` 10.9.1 comes with Spring Security 7.2.0 (not a Boot BOM property) |
+| `spring-boot-starter-mail` | managed by the Spring Boot 4.2.0 BOM | `services/api/build.gradle.kts` | jakarta.mail-api 2.1.5, Angus Mail 2.0.5 as managed |
+| `spring-boot-starter-thymeleaf` | managed by the Spring Boot 4.2.0 BOM | `services/api/build.gradle.kts` | Thymeleaf and thymeleaf-spring6 3.1.7.RELEASE as managed |
+| `com.github.ben-manes.caffeine:caffeine` | managed by the Spring Boot 4.2.0 BOM | `services/api/build.gradle.kts` | 3.3.1 as managed |
+| `org.bouncycastle:bcprov-jdk18on` | 1.87 | `services/api/build.gradle.kts` | explicit, not BOM-managed; Maven Central latest release, jar dated 2026-11-11 |
+| `com.bucket4j:bucket4j_jdk17-core` | 8.23.0 | `services/api/build.gradle.kts` | explicit, not BOM-managed; Maven Central latest release, jar dated 2026-11-22 |
+| Structured JSON logging | Spring Boot 4.2.0 built-in (`logging.structured.format.console=logstash`) | `services/api/src/main/resources/application.yml` | no dependency added; logback-classic 1.6.6 as managed |
+
 ## Consequences
 
 - Builds are reproducible from the manifests and lock files (`uv.lock`, `package-lock.json`, the Gradle wrapper checksum).
