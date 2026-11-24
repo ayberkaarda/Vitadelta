@@ -96,6 +96,15 @@ vitadelta:
     # queue fails the new import job at once). Waiting imports hold no database connection.
     import-threads: 1
     import-queue-capacity: 4
+  scoring:
+    # Scoring service (section 7.6); retry and circuit breaker: resilience4j.*.instances.scoring.
+    base-url: ${VITADELTA_SCORING_BASE_URL:}
+    connect-timeout: 500ms
+    read-timeout: 2s
+  recommendation:
+    # Ranking cache (section 7.5): full native rankings per canonical query and catalog version.
+    cache-ttl: 10m
+    cache-max-entries: 500
   http:
     # Request body limits of /api/v1/** (query body 64 kB; import JSON and CSV 20 MB).
     max-body: 64KB
@@ -148,6 +157,41 @@ management:
       # SMTP outages are handled by the asynchronous mail dispatch and reported in
       # /api/v1/admin/health; they do not make the service unhealthy.
       enabled: false
+
+resilience4j:
+  # Scoring client resilience (section 7.6, ADR-0003). Retry wraps the circuit breaker, so every
+  # attempt is recorded by the breaker.
+  retry:
+    instances:
+      scoring:
+        # One retry, on connection errors only (never on a response, a 4xx/5xx or a read timeout).
+        max-attempts: 2
+        wait-duration: 100ms
+        retry-exception-predicate: com.vitadelta.api.recommendation.ConnectionErrors
+  circuitbreaker:
+    instances:
+      scoring:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 20
+        minimum-number-of-calls: 20
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 30s
+        # Only unavailability counts as failure: I/O errors (connect, timeouts) and 5xx answers.
+        record-exceptions:
+          - org.springframework.web.client.ResourceAccessException
+          - org.springframework.web.client.HttpServerErrorException
+        ignore-exceptions:
+          - org.springframework.web.client.HttpClientErrorException
+
+springdoc:
+  # The API description is served at /api/v1/openapi.json (no UI); it is compared with
+  # contracts/public-api.openapi.yaml by OpenApiContractTest.
+  api-docs:
+    path: /api/v1/openapi.json
+    version: openapi_3_1
+  use-fqn: true
+  paths-to-match: /api/v1/**
+  writer-with-order-by-keys: true
 
 logging:
   structured:

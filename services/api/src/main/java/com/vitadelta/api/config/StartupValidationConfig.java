@@ -2,6 +2,7 @@ package com.vitadelta.api.config;
 
 import com.vitadelta.api.config.properties.MailSettingsProperties;
 import com.vitadelta.api.config.properties.OperationsProperties;
+import com.vitadelta.api.config.properties.ScoringProperties;
 import com.vitadelta.api.config.properties.SecretsProperties;
 import com.vitadelta.api.config.properties.WebProperties;
 import java.util.ArrayList;
@@ -24,8 +25,8 @@ import org.springframework.context.annotation.Configuration;
  * unreachable database would then hide the message that names the missing variable. Every {@link
  * DataSource} bean therefore depends on the beans of {@link #VALIDATED_FIRST}, so a missing or
  * invalid {@code VITADELTA_JWT_SECRET}, {@code VITADELTA_COOKIE_SECRET}, {@code
- * VITADELTA_WEB_BASE_URL}, {@code VITADELTA_MAIL_FROM} or {@code VITADELTA_PRIVACY_CONTACT} always
- * stops the startup first.
+ * VITADELTA_WEB_BASE_URL}, {@code VITADELTA_MAIL_FROM}, {@code VITADELTA_PRIVACY_CONTACT} or {@code
+ * VITADELTA_SCORING_BASE_URL} always stops the startup first.
  */
 @Configuration(proxyBeanMethods = false)
 public class StartupValidationConfig {
@@ -36,7 +37,8 @@ public class StartupValidationConfig {
           SecretsProperties.class,
           WebProperties.class,
           MailSettingsProperties.class,
-          OperationsProperties.class);
+          OperationsProperties.class,
+          ScoringProperties.class);
 
   @Bean
   static BeanFactoryPostProcessor validateConfigurationBeforeDataSource() {

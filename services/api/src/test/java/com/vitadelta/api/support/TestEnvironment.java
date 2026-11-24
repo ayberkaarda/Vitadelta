@@ -22,6 +22,9 @@ public final class TestEnvironment {
   /** Controller contact of the privacy notice in tests. */
   public static final String PRIVACY_CONTACT = "privacy@vitadelta.test";
 
+  /** Scoring service URL of tests that do not stub the scoring service. */
+  public static final String SCORING_BASE_URL = "http://127.0.0.1:9";
+
   private static final String JWT_SECRET = randomHex(48);
   private static final String COOKIE_SECRET = randomHex(48);
 
@@ -48,6 +51,8 @@ public final class TestEnvironment {
     values.put("VITADELTA_PRIVACY_CONTACT", PRIVACY_CONTACT);
     values.put("VITADELTA_SMTP_HOST", "localhost");
     values.put("VITADELTA_SMTP_PORT", "2525");
+    // Discard port: tests without a scoring stub get a fast connection error.
+    values.put("VITADELTA_SCORING_BASE_URL", SCORING_BASE_URL);
     values.put("management.server.port", "0");
     return values;
   }
