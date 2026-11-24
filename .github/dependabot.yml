@@ -4,6 +4,19 @@ updates:
     directory: /apps/web
     schedule:
       interval: weekly
+    groups:
+      # Angular packages are released together and must move as one set.
+      angular:
+        patterns:
+          - "@angular/*"
+          - "angular-eslint"
+    ignore:
+      # Angular 22 accepts TypeScript >=6.0 <6.1 only; newer TypeScript lines
+      # are taken together with the Angular release that supports them.
+      - dependency-name: typescript
+        update-types:
+          - version-update:semver-major
+          - version-update:semver-minor
   - package-ecosystem: uv
     directory: /services/scoring
     schedule:
