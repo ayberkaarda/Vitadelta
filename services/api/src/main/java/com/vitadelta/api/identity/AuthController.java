@@ -25,8 +25,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * {@code /api/v1/auth/**} (section 8.2). The forgery checks of the cookie-scoped endpoints run in
- * {@link AuthRequestGuard} before the body is read; the per-IP rate limits use the client IP of
- * {@link ClientIpResolver} (trusted-proxy rule).
+ * {@link AuthRequestGuard} (handlers marked {@link CookieScoped}) before the body is read; the
+ * per-IP rate limits use the client IP of {@link ClientIpResolver} (trusted-proxy rule).
  */
 @RestController
 @RequestMapping(AuthController.BASE)
@@ -62,6 +62,7 @@ public class AuthController {
   }
 
   @PostMapping("/register")
+  @CookieScoped
   ResponseEntity<AcceptedMessage> register(
       @Valid @RequestBody RegisterRequest body, HttpServletRequest request) {
     limit(RateLimitPolicy.REGISTER_PER_IP, request);
@@ -88,6 +89,7 @@ public class AuthController {
   }
 
   @PostMapping("/login")
+  @CookieScoped
   ResponseEntity<AuthTokenResponse> login(
       @Valid @RequestBody LoginRequest body, HttpServletRequest request) {
     limit(RateLimitPolicy.LOGIN_PER_IP, request);
@@ -96,6 +98,7 @@ public class AuthController {
   }
 
   @PostMapping("/refresh")
+  @CookieScoped(requestedWith = true)
   ResponseEntity<AuthTokenResponse> refresh(HttpServletRequest request) {
     limit(RateLimitPolicy.REFRESH_PER_IP, request);
     String token =
@@ -108,6 +111,7 @@ public class AuthController {
   }
 
   @PostMapping("/logout")
+  @CookieScoped(requestedWith = true)
   ResponseEntity<Void> logout(HttpServletRequest request) {
     AuthCookies.read(request, AuthCookies.REFRESH).ifPresent(auth::logout);
     return ResponseEntity.noContent()
