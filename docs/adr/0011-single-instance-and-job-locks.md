@@ -21,7 +21,8 @@ Rate limits (Bucket4j), the ranking and market-profile caches and the plan cache
 | `HousekeepingJob` | `identity` and `alerts` | daily at 03:15 UTC |
 | Admin bootstrap | `identity` | once at startup |
 
-- The fixed lock key constants are defined in the API `common` package when the first job lands in Phase 3, and this ADR is updated with the key of every job at that time. Keys are never reused across jobs.
+- The lock keys are the constants of `com.vitadelta.api.common.jobs.JobLockKeys` (high 32 bits `0x56444A42`, "VDJB"): `OUTBOX_PROCESSOR` `0x56444A4200000001`, `FX_REFRESH` `0x56444A4200000002`, `SUBSCRIPTION_EXPIRY` `0x56444A4200000003`, `HOUSEKEEPING_IDENTITY` `0x56444A4200000004`, `HOUSEKEEPING_ALERTS` `0x56444A4200000005`, `ADMIN_BOOTSTRAP` `0x56444A4200000006`. Keys are never reused across jobs.
+- The housekeeping job takes one key per package (identity, alerts). `com.vitadelta.api.common.jobs.JobLock` runs a task under the lock.
 - **Housekeeping** purges in batches of 1000 rows in short transactions: anonymous identities not seen for 180 days; outbox events processed more than 30 days ago (dead letters after 90 days) with their orphaned `alert_delivery` rows; e-mail tokens expired or used more than 7 days ago; refresh tokens expired or revoked more than 30 days ago and grace successors older than the grace window; unverified accounts older than 30 days that never logged in. Each purge logs counts and exposes a metric; retention values are configuration keys.
 - **Horizontal scaling is out of scope** for v1. It would require moving rate limits and caches to shared storage.
 
