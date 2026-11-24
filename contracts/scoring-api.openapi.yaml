@@ -1053,7 +1053,8 @@ components:
             `out_of_range`, `invalid_format`, `unknown_field`, `unknown_nutrient_code`,
             `unit_mismatch`, `duplicate_nutrient`, `duplicate_registry_code`,
             `container_smaller_than_serving`, `ul_amount_exceeds_amount`, `currency_mismatch`,
-            `lambda_requires_custom`, `weights_all_zero`.
+            `lambda_requires_custom`, `weights_all_zero`, `same_product`,
+            `duplicate_product_id`, `value_out_of_range`.
           pattern: '^[a-z][a-z0-9_]{0,63}$'
         message:
           type: string
@@ -1091,6 +1092,7 @@ components:
       value:
         nutrients:
           - {code: MAGNESIUM, category: MINERAL, canonical_unit: mg, presence_floor_per_day: null}
+          - {code: VIT_A, category: VITAMIN, canonical_unit: mcg, presence_floor_per_day: null}
           - {code: VIT_B12, category: VITAMIN, canonical_unit: mcg, presence_floor_per_day: null}
           - {code: VIT_C, category: VITAMIN, canonical_unit: mg, presence_floor_per_day: null}
           - {code: VIT_D, category: VITAMIN, canonical_unit: mcg, presence_floor_per_day: null}
@@ -1221,7 +1223,7 @@ components:
               - *znRow
               - *mgRow
         meta:
-          m_ref: 2.6817473528400697
+          m_ref: null
           market_size: 2
           excluded: {required_nutrients: 0, exceeds_ul: 0}
     Gt1CompareRequest:

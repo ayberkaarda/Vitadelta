@@ -35,6 +35,9 @@ jobs:
           python-version: "3.14"
 
       - name: Run all test suites
+        env:
+          # The scoring performance test scales its 200 ms budget by this factor; shared runners are slower.
+          VITADELTA_PERF_FACTOR: "3"
         run: bash scripts/test-all.sh
 
       - name: Run security scan

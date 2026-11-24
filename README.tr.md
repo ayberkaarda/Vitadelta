@@ -6,7 +6,7 @@ VitaDelta, vitamin ve takviye karşılaştırma hizmetidir. Takviye ürünlerini
 
 > VitaDelta yalnızca karşılaştırmalı bilgi sunar. Tıbbi tavsiye değildir ve bir hekim ya da eczacıyla yapılacak görüşmenin yerini tutmaz.
 
-**Durum: Faz 1, katalog şeması, referans veriler ve seed yükleyici.** Depo; tüm servislerin çalıştırılabilir iskeletlerini, sözleşmeleri, yerel ortamı ve CI iş akışını, ayrıca katalog veritabanı şemasını, referans verileri ve bunları yükleyen bir seed yükleyiciyi içerir. Ürün özellikleri sonraki fazlarda gelecektir.
+**Durum: Faz 2, puanlama motoru (`/score` ve `/compare`, golden ve property testleri, karar kalibrasyonu).** Depo; tüm servislerin çalıştırılabilir iskeletlerini, sözleşmeleri, yerel ortamı ve CI iş akışını, katalog veritabanı şemasını, referans verileri ve bunları yükleyen bir seed yükleyiciyi, ayrıca dahili `/score` ve `/compare` uç noktalarının arkasındaki puanlama motorunu içerir. Puanlama formülleri, yapılandırma ve hata modeli [services/scoring/README.md](services/scoring/README.md) dosyasında; karar kalibrasyonu sonucu [services/scoring/calibration/verdict-calibration.md](services/scoring/calibration/verdict-calibration.md) dosyasında yer alır. Kalan ürün özellikleri sonraki fazlarda gelecektir.
 
 ## Mimariye genel bakış
 

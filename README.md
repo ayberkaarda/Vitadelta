@@ -6,7 +6,7 @@ VitaDelta is a vitamin and supplement comparison service. It compares supplement
 
 > VitaDelta provides comparative information only. It is not medical advice and does not replace a conversation with a physician or pharmacist.
 
-**Status: Phase 1, catalog schema, reference data and seed loader.** The repository contains the runnable shells of every service, the contracts, the local stack and the CI workflow, plus the catalog database schema, the reference data and a loader that seeds them. Product features arrive in later phases.
+**Status: Phase 2, scoring engine (`/score` and `/compare`, golden and property tests, verdict calibration).** The repository contains the runnable shells of every service, the contracts, the local stack and the CI workflow, the catalog database schema, the reference data and a loader that seeds them, and the scoring engine behind the internal `/score` and `/compare` endpoints. The scoring formulas, configuration and error model are described in [services/scoring/README.md](services/scoring/README.md); the verdict calibration result is in [services/scoring/calibration/verdict-calibration.md](services/scoring/calibration/verdict-calibration.md). Remaining product features arrive in later phases.
 
 ## Architecture at a glance
 
