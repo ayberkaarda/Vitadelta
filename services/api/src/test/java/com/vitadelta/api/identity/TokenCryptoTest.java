@@ -44,7 +44,8 @@ class TokenCryptoTest {
     assertThat(cipher.encrypt(token, "row-1")).isNotEqualTo(encrypted);
     assertThat(cipher.decrypt(encrypted, "row-1")).hasValue(token);
     assertThat(cipher.decrypt(encrypted, "row-2")).isEmpty();
-    assertThat(cipher.decrypt("A" + encrypted.substring(1), "row-1")).isEmpty();
+    String tampered = (encrypted.charAt(0) == 'A' ? "B" : "A") + encrypted.substring(1);
+    assertThat(cipher.decrypt(tampered, "row-1")).isEmpty();
     assertThat(cipher.decrypt("AAAA", "row-1")).isEmpty();
     assertThat(cipher.decrypt("not base64 !", "row-1")).isEmpty();
     GraceCipher other =
