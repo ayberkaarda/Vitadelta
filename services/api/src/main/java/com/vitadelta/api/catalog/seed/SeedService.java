@@ -56,6 +56,7 @@ public class SeedService {
           WriteReport r = new WriteReport();
           ReferenceData ref = data.reference();
           writer.upsertNutrients(ref.nutrients(), r);
+          writer.upsertForms(ref.formRows(), r);
           writer.upsertReferenceSets(ref.referenceSets(), r);
           writer.upsertUlSets(ref.ulSets(), r);
           writer.replaceUnitConversions(ref.conversions(), r);

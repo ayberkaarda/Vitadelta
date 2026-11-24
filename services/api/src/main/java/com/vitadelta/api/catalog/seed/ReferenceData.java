@@ -1,6 +1,7 @@
 package com.vitadelta.api.catalog.seed;
 
 import com.vitadelta.api.catalog.ReferenceValues.CountryRow;
+import com.vitadelta.api.catalog.ReferenceValues.FormRow;
 import com.vitadelta.api.catalog.ReferenceValues.NutrientRow;
 import com.vitadelta.api.catalog.ReferenceValues.ReferenceValueRow;
 import com.vitadelta.api.catalog.ReferenceValues.SetRow;
@@ -15,10 +16,12 @@ import java.util.stream.Collectors;
 /**
  * Validated content of {@code data/reference}.
  *
- * @param forms form registry: nutrient code per form code
+ * @param formRows form registry rows (code, nutrient, English name) in file order
+ * @param forms the same form registry as nutrient code per form code
  */
 public record ReferenceData(
     List<NutrientRow> nutrients,
+    List<FormRow> formRows,
     Map<String, String> forms,
     List<ConversionRule> conversions,
     List<SetRow> referenceSets,
@@ -29,6 +32,7 @@ public record ReferenceData(
 
   public ReferenceData {
     nutrients = List.copyOf(nutrients);
+    formRows = List.copyOf(formRows);
     forms = Map.copyOf(forms);
     conversions = List.copyOf(conversions);
     referenceSets = List.copyOf(referenceSets);
