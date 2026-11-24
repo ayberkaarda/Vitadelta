@@ -69,12 +69,14 @@ Per label, in this order (a failing step skips the label with the reason shown):
    belongs to. When every stated form maps to one registry code that code is used; otherwise
    `form_code` is `UNKNOWN` and the form text goes to `form_label`.
 6. `ul_amount_per_serving` is set only when the label states the split:
-   - vitamin A: the preformed part, when the label gives the preformed and beta-carotene amounts
-     as separate rows; `form_code` is the preformed form. Vitamin A that is beta-carotene only gets
+   - vitamin A: the total minus the share stated explicitly as beta-carotene (exempt), as
+     separate rows or nested rows; a preformed subtotal alone does not reduce the UL-relevant
+     amount, because the rest of the total is not accounted for. `form_code` is the preformed form. Vitamin A that is beta-carotene only gets
      `form_code` `BETA_CAROTENE` and no UL amount. Mixed forms without stated amounts keep the UL
      amount empty (the full amount counts as UL-relevant).
-   - folate: the folic acid and methylfolate mcg amounts stated next to the folate total (nested
-     rows or separate rows); `form_code` is the form of that part.
+   - folate: the folic acid and methylfolate amounts stated next to the folate total (nested
+     rows or separate rows), converted to the unit of the total (mcg, mg, g); `form_code` is the
+     form of that part.
 7. Several rows of the same nutrient in the same unit are summed; rows of one nutrient in
    different units are dropped and counted (`CONFLICTING_UNITS`).
 8. Labels with fewer than 5 mapped nutrients are skipped (`TOO_FEW_MAPPED_NUTRIENTS`), and so are
@@ -114,3 +116,8 @@ into `provenance.json`):
 Unit strings or ingredient names that appear in a new snapshot and are not covered stay unmapped;
 `provenance.json` lists every unit string seen and the unmapped ingredient names with their row
 counts, which is the starting point for extending the tables.
+
+## Tests
+
+`uv run --with pytest pytest scripts/dsld/tests` runs offline tests of the UL split rules on
+hand-made test samples in `tests/label-samples.test.json` (invented records, not real labels).
