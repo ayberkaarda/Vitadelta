@@ -101,6 +101,10 @@ services:
       VITADELTA_ANON_VISIBLE_RESULTS: ${VITADELTA_ANON_VISIBLE_RESULTS:-3}
       VITADELTA_BOOTSTRAP_ADMIN_EMAIL: ${VITADELTA_BOOTSTRAP_ADMIN_EMAIL:-}
       VITADELTA_BOOTSTRAP_ADMIN_PASSWORD: ${VITADELTA_BOOTSTRAP_ADMIN_PASSWORD:-}
+      # This stack is the local development environment: the dev profile allows the plain-HTTP
+      # VITADELTA_WEB_BASE_URL and non-Secure cookies. "include" keeps it active when a one-off run
+      # sets SPRING_PROFILES_ACTIVE (scripts/seed.sh runs the seed profile).
+      SPRING_PROFILES_INCLUDE: dev
     volumes:
       # Reference data and fixtures, read by the seed profile (scripts/seed.sh); never written.
       - ../data:/data:ro
