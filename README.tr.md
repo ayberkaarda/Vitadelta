@@ -107,9 +107,21 @@ contracts/           OpenAPI and JSON Schema contracts
 infra/               Docker Compose stack and nginx configuration
 scripts/             dev-up.sh, dev-down.sh, test-all.sh
 .github/             CI workflow and Dependabot configuration
+data/                Reference data, synthetic fixtures and the real label snapshot (from Phase 1)
+scripts/dsld/        Converter for the real label snapshot (from Phase 1)
 ```
 
 Mimari kararlar [docs/adr](docs/adr) altında kayıt altına alınır.
+
+## Veri kaynakları ve uyarılar
+
+- **Sentetik fixture'lar.** Test ve gösterim fixture'ları kurgusal markalar kullanır ve sentetik olarak işaretlenir.
+- **Gerçek ABD etiket anlık görüntüsü.** Faz 1'den itibaren depo, [NIH Dietary Supplement Label Database](https://dsld.od.nih.gov/) (DSLD) kaynağından genel API üzerinden alınmış gerçek ABD multivitamin ve mineral etiket verisinin bir anlık görüntüsünü de içerir. API belirtimi verinin CC0 1.0 olduğunu belirtir; sitenin kullanım koşulları sayfaları okunamadığı için lisans yalnızca API belirtiminden doğrulanmıştır. Bkz. [ADR-0012](docs/adr/0012-real-label-data-source.md).
+- **İsimler yalnızca tanımlama içindir.** Marka ve ürün adları yalnızca ürünleri tanımlamak için kullanılır. VitaDelta markalarla ya da NIH ile bağlantılı değildir ve onlar tarafından onaylanmamıştır.
+- **Canlı veri değil, anlık görüntü.** Etiket verisi, giriş tarihi gösterilen bir anlık görüntüdür; etiketler o tarihten sonra değişmiş olabilir.
+- **Fiyatlar demo değerleridir.** Gerçek ürünlerin fiyatları uydurulmuş demo tekliflerdir ve hiçbir gerçek satıcıyı yansıtmaz.
+- **Görsel ve logo yok.** Etiket görselleri ya da marka logoları kullanılmaz.
+- **Tıbbi tavsiye değildir.** Karşılaştırma bilgilendirme amaçlıdır ve bir hekim ya da eczacının tavsiyesinin yerini tutmaz.
 
 ## Sürekli entegrasyon
 
