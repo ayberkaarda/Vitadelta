@@ -6,7 +6,7 @@ VitaDelta, vitamin ve takviye karşılaştırma hizmetidir. Takviye ürünlerini
 
 > VitaDelta yalnızca karşılaştırmalı bilgi sunar. Tıbbi tavsiye değildir ve bir hekim ya da eczacıyla yapılacak görüşmenin yerini tutmaz.
 
-**Durum: Faz 3, e-posta doğrulamalı hesaplar, oturumlar, planlar (FREE ve PRO), promosyon kodları ve yönetici rolü; temelde Faz 2 puanlama motoru (`/score` ve `/compare`, golden ve property testleri, karar kalibrasyonu) yer alır.** Depo; tüm servislerin çalıştırılabilir iskeletlerini, sözleşmeleri, yerel ortamı ve CI iş akışını, katalog veritabanı şemasını, referans verileri ve bunları yükleyen bir seed yükleyiciyi, ayrıca dahili `/score` ve `/compare` uç noktalarının arkasındaki puanlama motorunu içerir. Puanlama formülleri, yapılandırma ve hata modeli [services/scoring/README.md](services/scoring/README.md) dosyasında; karar kalibrasyonu sonucu [services/scoring/calibration/verdict-calibration.md](services/scoring/calibration/verdict-calibration.md) dosyasında yer alır. API artık kayıt, e-posta doğrulama, yenileme oturumlu giriş, parola sıfırlama, plan yetkileri ve promosyon kodlarını da sağlar. Kalan ürün özellikleri sonraki fazlarda gelecektir.
+**Durum: Faz 4, katalog ve ürün uç noktaları, kayıt olmadan deneme sınırıyla sıralı öneriler, ikili karşılaştırma ve yönetici içe aktarmaları; temelde Faz 3 hesapları, planları ve promosyon kodları ile Faz 2 puanlama motoru (`/score` ve `/compare`, golden ve property testleri, karar kalibrasyonu) yer alır.** Depo; tüm servislerin çalıştırılabilir iskeletlerini, sözleşmeleri, yerel ortamı ve CI iş akışını, katalog veritabanı şemasını, referans verileri ve bunları yükleyen bir seed yükleyiciyi, ayrıca dahili `/score` ve `/compare` uç noktalarının arkasındaki puanlama motorunu içerir. Puanlama formülleri, yapılandırma ve hata modeli [services/scoring/README.md](services/scoring/README.md) dosyasında; karar kalibrasyonu sonucu [services/scoring/calibration/verdict-calibration.md](services/scoring/calibration/verdict-calibration.md) dosyasında yer alır. API artık kayıt, e-posta doğrulama, yenileme oturumlu giriş, parola sıfırlama, plan yetkileri ve promosyon kodlarını da sağlar. Katalog API üzerinden okunabilir (ülkeler, besinler, ürün arama ve ayrıntı), öneri sorguları puanlama servisinin puanladığı sıralı bir liste döndürür ve iki ürün ikili olarak karşılaştırılabilir. Kalan ürün özellikleri sonraki fazlarda gelecektir.
 
 ## Mimariye genel bakış
 
@@ -82,6 +82,24 @@ Veritabanı volume'unu da silmek için `down` komutuna `--volumes` ekleyin.
 ## Geliştirmede hesaplar ve e-posta
 
 API üzerinden kayıt olun (`POST /api/v1/auth/register`); doğrulama ve parola sıfırlama e-postalarını Mailpit yakalar ve http://127.0.0.1:8025 adresinden okunabilir. İlk yönetici, `.env` içindeki `VITADELTA_BOOTSTRAP_ADMIN_EMAIL` ve `VITADELTA_BOOTSTRAP_ADMIN_PASSWORD` değerlerinden oluşturulur; varsayılan kimlik bilgisi yoktur, bu yüzden API'yi başlatmadan önce ikisini de ayarlayın, aksi halde yönetici oluşturulmaz. İlk `scripts/dev-up.sh` çalıştırması tüm gizli anahtarları `.env` içine üretir. Actuator sağlık ve metrik uç noktaları, api konteynerinin içinde yayınlanmayan ve proxy'lenmeyen dahili bir portta sunulur; loglar yapılandırılmış JSON'dur ve kimlik bilgileri ile e-posta adresleri maskelenir.
+
+## API'yi deneme
+
+`scripts/dev-up.sh` ve `scripts/seed.sh` çalıştırıldıktan sonra API, nginx üzerinden http://localhost:8080 adresinde erişilebilir:
+
+```bash
+curl -s "http://localhost:8080/api/v1/countries"
+curl -s "http://localhost:8080/api/v1/products?country=TR&q=gold"
+curl -s -X POST "http://localhost:8080/api/v1/recommendations/query" \
+  -H "Content-Type: application/json" \
+  -d '{"country": "TR"}'
+curl -s -X POST "http://localhost:8080/api/v1/recommendations/compare" \
+  -H "Content-Type: application/json" \
+  -d '{"country": "TR", "baselineProductId": "<id from the product search>", "candidateProductId": "<another id from the product search>"}'
+curl -s "http://localhost:8080/api/v1/openapi.json"
+```
+
+Hesabı olmayan ziyaretçi üç ücretsiz öneri sorgusu yapabilir ve her sorgunun ilk üç sonucunu görür; dördüncü sorgu `quota_exceeded` ile yanıtlanır. Aynı anonim oturumu istekler arasında korumak için sorgu çağrısında `-c cookies.txt -b cookies.txt` kullanın. Çalışan API'nin OpenAPI belgesi `/api/v1/openapi.json` adresinden sunulur. Yöneticiler ürünleri (JSON) ve teklifleri (CSV) `/api/v1/admin/imports/*` üzerinden içe aktarır (ADMIN rolü); biçimler `contracts/schemas/` altında tanımlıdır. Kur modülü gelene kadar başka bir gösterim para birimiyle istenen fiyatlar kendi para biriminde gösterilir.
 
 ## Testleri çalıştırma
 
