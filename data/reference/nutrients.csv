@@ -1,0 +1,39 @@
+code,name_en,category,canonical_unit,presence_floor_per_day,sort_order
+VIT_A,Vitamin A,VITAMIN,mcg,,10
+VIT_C,Vitamin C,VITAMIN,mg,,20
+VIT_D,Vitamin D,VITAMIN,mcg,,30
+VIT_E,Vitamin E,VITAMIN,mg,,40
+VIT_K,Vitamin K,VITAMIN,mcg,,50
+VIT_B1,Thiamin (vitamin B1),VITAMIN,mg,,60
+VIT_B2,Riboflavin (vitamin B2),VITAMIN,mg,,70
+VIT_B3,Niacin (vitamin B3),VITAMIN,mg,,80
+VIT_B5,Pantothenic acid (vitamin B5),VITAMIN,mg,,90
+VIT_B6,Vitamin B6,VITAMIN,mg,,100
+VIT_B7,Biotin (vitamin B7),VITAMIN,mcg,,110
+VIT_B9,Folate / folic acid (vitamin B9),VITAMIN,mcg,,120
+VIT_B12,Vitamin B12,VITAMIN,mcg,,130
+CHOLINE,Choline,VITAMIN,mg,,140
+CALCIUM,Calcium,MINERAL,mg,,150
+MAGNESIUM,Magnesium,MINERAL,mg,,160
+ZINC,Zinc,MINERAL,mg,,170
+IRON,Iron,MINERAL,mg,,180
+SELENIUM,Selenium,MINERAL,mcg,,190
+COPPER,Copper,MINERAL,mg,,200
+MANGANESE,Manganese,MINERAL,mg,,210
+CHROMIUM,Chromium,MINERAL,mcg,,220
+MOLYBDENUM,Molybdenum,MINERAL,mcg,,230
+IODINE,Iodine,MINERAL,mcg,,240
+POTASSIUM,Potassium,MINERAL,mg,,250
+PHOSPHORUS,Phosphorus,MINERAL,mg,,260
+CHLORIDE,Chloride,MINERAL,mg,,270
+FLUORIDE,Fluoride,MINERAL,mg,,280
+COQ10,Coenzyme Q10,COENZYME,mg,,290
+ALPHA_LIPOIC_ACID,Alpha-lipoic acid,COENZYME,mg,,300
+PQQ,Pyrroloquinoline quinone (PQQ),COENZYME,mg,,310
+NADH,NADH,COENZYME,mg,,320
+LUTEIN,Lutein,OTHER,mg,,330
+ZEAXANTHIN,Zeaxanthin,OTHER,mg,,340
+LYCOPENE,Lycopene,OTHER,mg,,350
+OMEGA3_EPA,Omega-3 EPA (eicosapentaenoic acid),OTHER,mg,,360
+OMEGA3_DHA,Omega-3 DHA (docosahexaenoic acid),OTHER,mg,,370
+INOSITOL,Inositol,OTHER,mg,,380
