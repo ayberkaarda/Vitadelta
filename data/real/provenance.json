@@ -1,0 +1,2380 @@
+{
+  "prices": {
+    "currency": "USD",
+    "rule": "Demo prices, not real prices. h = first 8 hex digits of sha256(product code) as an integer; days = units_per_container / (units_per_serving * servings_per_day); Demo Store price = 4.00 + 0.08 * days + 0.25 * mapped nutrients + (h mod 200) / 100 USD, rounded half up to cents, always in stock; Demo Market is listed when h mod 3 != 0, at the Demo Store price times (1 + ((h div 256) mod 15) / 100), rounded half up to cents, out of stock when (h div 65536) mod 7 == 0; checked_at is midnight UTC of the day the label was retrieved.",
+    "synthetic": true
+  },
+  "products": [
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-239077",
+      "entry_date": "2020-11-21",
+      "label_id": "239077",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [
+        "VIT_K: 2 rows in mcg summed to 100"
+      ],
+      "product_version_code": "V1 378-450U",
+      "retrieved_at": "2026-11-24T11:58:32Z",
+      "rows": {
+        "mapped": 6,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 0,
+        "unmapped": 2
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/239077"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-243802",
+      "entry_date": "2021-02-25",
+      "label_id": "243802",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "Item No. VS-2329 2211514 GU 80",
+      "retrieved_at": "2026-11-24T11:56:40Z",
+      "rows": {
+        "mapped": 14,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 1,
+        "unmapped": 4
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/243802"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-243938",
+      "entry_date": "2021-02-25",
+      "label_id": "243938",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "Not Present",
+      "retrieved_at": "2026-11-24T11:56:31Z",
+      "rows": {
+        "mapped": 11,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 1,
+        "unmapped": 5
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/243938"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-246890",
+      "entry_date": "2021-04-22",
+      "label_id": "246890",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "Not Present",
+      "retrieved_at": "2026-11-24T11:55:06Z",
+      "rows": {
+        "mapped": 9,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 0,
+        "unmapped": 0
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/246890"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-249925",
+      "entry_date": "2021-11-19",
+      "label_id": "249925",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "A-Label No. 20100200-000",
+      "retrieved_at": "2026-11-24T11:56:58Z",
+      "rows": {
+        "mapped": 11,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 0,
+        "unmapped": 5
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/249925"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-250092",
+      "entry_date": "2021-05-22",
+      "label_id": "250092",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "PAA122960",
+      "retrieved_at": "2026-11-24T11:56:28Z",
+      "rows": {
+        "mapped": 7,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 0,
+        "unmapped": 5
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/250092"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-256493",
+      "entry_date": "2021-11-19",
+      "label_id": "256493",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "6554-52326-v02-90",
+      "retrieved_at": "2026-11-24T11:56:19Z",
+      "rows": {
+        "mapped": 11,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 1,
+        "unmapped": 5
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/256493"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-256963",
+      "entry_date": "2021-11-19",
+      "label_id": "256963",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "PAA115584",
+      "retrieved_at": "2026-11-24T11:58:20Z",
+      "rows": {
+        "mapped": 17,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 0,
+        "unmapped": 4
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/256963"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-257812",
+      "entry_date": "2022-04-11",
+      "label_id": "257812",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "Item No. 5 REF 1018",
+      "retrieved_at": "2026-11-24T11:55:19Z",
+      "rows": {
+        "mapped": 23,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 1,
+        "unmapped": 0
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/257812"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-258612",
+      "entry_date": "2022-01-22",
+      "label_id": "258612",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "91607-70067-0320N",
+      "retrieved_at": "2026-11-24T11:57:56Z",
+      "rows": {
+        "mapped": 15,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 1,
+        "unmapped": 5
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/258612"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-261054",
+      "entry_date": "2022-02-23",
+      "label_id": "261054",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "FB731 REF 1118",
+      "retrieved_at": "2026-11-24T11:55:25Z",
+      "rows": {
+        "mapped": 21,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 1,
+        "unmapped": 0
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/261054"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-264285",
+      "entry_date": "2021-12-18",
+      "label_id": "264285",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "Not Present",
+      "retrieved_at": "2026-11-24T11:56:49Z",
+      "rows": {
+        "mapped": 11,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 0,
+        "unmapped": 3
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/264285"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-265209",
+      "entry_date": "2022-05-19",
+      "label_id": "265209",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [
+        "VIT_K: 2 rows in mcg summed to 120"
+      ],
+      "product_version_code": "F1370B Rev: 7 09/20",
+      "retrieved_at": "2026-11-24T11:53:24Z",
+      "rows": {
+        "mapped": 22,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 1,
+        "unmapped": 0
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/265209"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-267366",
+      "entry_date": "2022-04-11",
+      "label_id": "267366",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "#30 Rev #01",
+      "retrieved_at": "2026-11-24T11:54:33Z",
+      "rows": {
+        "mapped": 10,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 0,
+        "unmapped": 0
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/267366"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-271607",
+      "entry_date": "2023-04-21",
+      "label_id": "271607",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "List No. 4046 L600 Cat. A499 5A007",
+      "retrieved_at": "2026-11-24T12:01:40Z",
+      "rows": {
+        "mapped": 22,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 1,
+        "unmapped": 3
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/271607"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-272964",
+      "entry_date": "2022-07-21",
+      "label_id": "272964",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "655913",
+      "retrieved_at": "2026-11-24T11:53:18Z",
+      "rows": {
+        "mapped": 21,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 1,
+        "unmapped": 0
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/272964"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-275401",
+      "entry_date": "2022-10-24",
+      "label_id": "275401",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [
+        "VIT_D: repeated identical row (40 mcg) used once"
+      ],
+      "product_version_code": "LREV0221wmvg cgn1199",
+      "retrieved_at": "2026-11-24T11:57:11Z",
+      "rows": {
+        "mapped": 12,
+        "skipped": 1,
+        "skipped_by_reason": {
+          "DUPLICATE_ROW": 1
+        },
+        "split_detail": 1,
+        "unmapped": 4
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/275401"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-275871",
+      "entry_date": "2023-03-22",
+      "label_id": "275871",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "NFH-1167U V0373-R1",
+      "retrieved_at": "2026-11-24T11:55:36Z",
+      "rows": {
+        "mapped": 8,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 0,
+        "unmapped": 0
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/275871"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-276703",
+      "entry_date": "2022-09-22",
+      "label_id": "276703",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "Not Present",
+      "retrieved_at": "2026-11-24T12:05:07Z",
+      "rows": {
+        "mapped": 23,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 0,
+        "unmapped": 0
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/276703"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-277170",
+      "entry_date": "2022-11-22",
+      "label_id": "277170",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "6554-52326-V03--90",
+      "retrieved_at": "2026-11-24T11:56:37Z",
+      "rows": {
+        "mapped": 11,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 1,
+        "unmapped": 5
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/277170"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-278550",
+      "entry_date": "2022-12-13",
+      "label_id": "278550",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "#693430 V-34519",
+      "retrieved_at": "2026-11-24T11:53:37Z",
+      "rows": {
+        "mapped": 26,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 1,
+        "unmapped": 4
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/278550"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-280352",
+      "entry_date": "2022-12-13",
+      "label_id": "280352",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "List No. 4047 L600 Cat. A064 5A007",
+      "retrieved_at": "2026-11-24T12:01:49Z",
+      "rows": {
+        "mapped": 22,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 1,
+        "unmapped": 3
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/280352"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-284056",
+      "entry_date": "2023-02-21",
+      "label_id": "284056",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "35568A",
+      "retrieved_at": "2026-11-24T11:54:04Z",
+      "rows": {
+        "mapped": 13,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 0,
+        "unmapped": 0
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/284056"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-285542",
+      "entry_date": "2023-05-24",
+      "label_id": "285542",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "Not Present",
+      "retrieved_at": "2026-11-24T11:55:39Z",
+      "rows": {
+        "mapped": 22,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 0,
+        "unmapped": 0
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/285542"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-285667",
+      "entry_date": "2023-02-21",
+      "label_id": "285667",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "PAA160466",
+      "retrieved_at": "2026-11-24T11:53:40Z",
+      "rows": {
+        "mapped": 27,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 1,
+        "unmapped": 0
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/285667"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-288656",
+      "entry_date": "2023-08-24",
+      "label_id": "288656",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "G136",
+      "retrieved_at": "2026-11-24T11:55:31Z",
+      "rows": {
+        "mapped": 8,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 0,
+        "unmapped": 0
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/288656"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-292597",
+      "entry_date": "2023-06-22",
+      "label_id": "292597",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "Rev 009",
+      "retrieved_at": "2026-11-24T11:54:27Z",
+      "rows": {
+        "mapped": 19,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 0,
+        "unmapped": 0
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/292597"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-295328",
+      "entry_date": "2023-05-24",
+      "label_id": "295328",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "092122",
+      "retrieved_at": "2026-11-24T11:55:45Z",
+      "rows": {
+        "mapped": 6,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 0,
+        "unmapped": 0
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/295328"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-295962",
+      "entry_date": "2023-09-25",
+      "label_id": "295962",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "SN0642 REV J111-A",
+      "retrieved_at": "2026-11-24T11:53:52Z",
+      "rows": {
+        "mapped": 13,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 0,
+        "unmapped": 3
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/295962"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-296630",
+      "entry_date": "2023-09-25",
+      "label_id": "296630",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "PID 2716891 501549-0820N",
+      "retrieved_at": "2026-11-24T11:53:27Z",
+      "rows": {
+        "mapped": 21,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 1,
+        "unmapped": 0
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/296630"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-298909",
+      "entry_date": "2023-11-22",
+      "label_id": "298909",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "ITEM# 93a REF 0321",
+      "retrieved_at": "2026-11-24T11:54:07Z",
+      "rows": {
+        "mapped": 16,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 1,
+        "unmapped": 0
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/298909"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-299445",
+      "entry_date": "2023-11-22",
+      "label_id": "299445",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "ITEM: 074ND",
+      "retrieved_at": "2026-11-24T11:53:09Z",
+      "rows": {
+        "mapped": 26,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 0,
+        "unmapped": 5
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/299445"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-299659",
+      "entry_date": "2023-11-22",
+      "label_id": "299659",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "LREV1221mmvg cgn1198",
+      "retrieved_at": "2026-11-24T11:57:05Z",
+      "rows": {
+        "mapped": 14,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 1,
+        "unmapped": 5
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/299659"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-301834",
+      "entry_date": "2024-01-24",
+      "label_id": "301834",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "Not Present",
+      "retrieved_at": "2026-11-24T11:56:55Z",
+      "rows": {
+        "mapped": 9,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 1,
+        "unmapped": 5
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/301834"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-302525",
+      "entry_date": "2024-12-21",
+      "label_id": "302525",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "SRN 010",
+      "retrieved_at": "2026-11-24T11:53:34Z",
+      "rows": {
+        "mapped": 20,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 0,
+        "unmapped": 0
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/302525"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-303107",
+      "entry_date": "2024-02-22",
+      "label_id": "303107",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "Product Code 3431 3431-HK 111907 (1)",
+      "retrieved_at": "2026-11-24T11:57:08Z",
+      "rows": {
+        "mapped": 12,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 1,
+        "unmapped": 13
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/303107"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-303179",
+      "entry_date": "2023-12-14",
+      "label_id": "303179",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "rev. 07/2021",
+      "retrieved_at": "2026-11-24T11:58:35Z",
+      "rows": {
+        "mapped": 10,
+        "skipped": 4,
+        "skipped_by_reason": {
+          "NO_AMOUNT": 4
+        },
+        "split_detail": 0,
+        "unmapped": 11
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/303179"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-304074",
+      "entry_date": "2024-01-24",
+      "label_id": "304074",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "NQ166B Item #20287",
+      "retrieved_at": "2026-11-24T11:53:30Z",
+      "rows": {
+        "mapped": 23,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 1,
+        "unmapped": 7
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/304074"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-304812",
+      "entry_date": "2024-03-22",
+      "label_id": "304812",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "4132-6c",
+      "retrieved_at": "2026-11-24T11:53:12Z",
+      "rows": {
+        "mapped": 20,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 1,
+        "unmapped": 0
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/304812"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-304914",
+      "entry_date": "2024-01-24",
+      "label_id": "304914",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "EPA2M21-1",
+      "retrieved_at": "2026-11-24T11:54:24Z",
+      "rows": {
+        "mapped": 18,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 1,
+        "unmapped": 0
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/304914"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-305123",
+      "entry_date": "2024-06-20",
+      "label_id": "305123",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [
+        "VIT_B6: 2 rows in mg summed to 12.5"
+      ],
+      "product_version_code": "REV. 121",
+      "retrieved_at": "2026-11-24T11:54:51Z",
+      "rows": {
+        "mapped": 21,
+        "skipped": 2,
+        "skipped_by_reason": {
+          "NO_AMOUNT": 1,
+          "UNIT_UNSUPPORTED": 1
+        },
+        "split_detail": 2,
+        "unmapped": 2
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/305123"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-306110",
+      "entry_date": "2024-01-24",
+      "label_id": "306110",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "Not Present",
+      "retrieved_at": "2026-11-24T11:55:22Z",
+      "rows": {
+        "mapped": 21,
+        "skipped": 1,
+        "skipped_by_reason": {
+          "UNIT_UNSUPPORTED": 1
+        },
+        "split_detail": 0,
+        "unmapped": 0
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/306110"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-306878",
+      "entry_date": "2024-03-22",
+      "label_id": "306878",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [
+        "VIT_K: 2 rows in mcg summed to 1000"
+      ],
+      "product_version_code": "Not Present",
+      "retrieved_at": "2026-11-24T11:54:01Z",
+      "rows": {
+        "mapped": 13,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 1,
+        "unmapped": 4
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/306878"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-309010",
+      "entry_date": "2024-05-23",
+      "label_id": "309010",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [
+        "VIT_K: 2 rows in mcg summed to 120"
+      ],
+      "product_version_code": "F1391B Rev: 4 09/19",
+      "retrieved_at": "2026-11-24T11:53:21Z",
+      "rows": {
+        "mapped": 23,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 1,
+        "unmapped": 0
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/309010"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-310409",
+      "entry_date": "2024-06-20",
+      "label_id": "310409",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "Stock No. 750 I79 NVC# 54629-075002",
+      "retrieved_at": "2026-11-24T11:52:59Z",
+      "rows": {
+        "mapped": 19,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 1,
+        "unmapped": 0
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/310409"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-311725",
+      "entry_date": "2024-06-20",
+      "label_id": "311725",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "405607 NTC.10.22",
+      "retrieved_at": "2026-11-24T11:57:37Z",
+      "rows": {
+        "mapped": 15,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 0,
+        "unmapped": 5
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/311725"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-314757",
+      "entry_date": "2024-08-22",
+      "label_id": "314757",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "ITEM#: N13198",
+      "retrieved_at": "2026-11-24T11:56:22Z",
+      "rows": {
+        "mapped": 12,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 1,
+        "unmapped": 8
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/314757"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-315145",
+      "entry_date": "2024-07-25",
+      "label_id": "315145",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "Rev. #02",
+      "retrieved_at": "2026-11-24T11:54:42Z",
+      "rows": {
+        "mapped": 10,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 0,
+        "unmapped": 0
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/315145"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-315267",
+      "entry_date": "2024-09-25",
+      "label_id": "315267",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "Rev.07DV",
+      "retrieved_at": "2026-11-24T12:01:46Z",
+      "rows": {
+        "mapped": 23,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 1,
+        "unmapped": 5
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/315267"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-317364",
+      "entry_date": "2024-08-22",
+      "label_id": "317364",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "Item No. 1503-180 REF 0622",
+      "retrieved_at": "2026-11-24T11:54:10Z",
+      "rows": {
+        "mapped": 25,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 1,
+        "unmapped": 4
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/317364"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-317578",
+      "entry_date": "2024-09-25",
+      "label_id": "317578",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "C00011501",
+      "retrieved_at": "2026-11-24T11:56:13Z",
+      "rows": {
+        "mapped": 12,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 1,
+        "unmapped": 4
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/317578"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-317769",
+      "entry_date": "2024-09-25",
+      "label_id": "317769",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "0455-029 220623",
+      "retrieved_at": "2026-11-24T12:01:53Z",
+      "rows": {
+        "mapped": 15,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 0,
+        "unmapped": 2
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/317769"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-317903",
+      "entry_date": "2024-09-25",
+      "label_id": "317903",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "Not Present",
+      "retrieved_at": "2026-11-24T11:52:44Z",
+      "rows": {
+        "mapped": 22,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 1,
+        "unmapped": 5
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/317903"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-318409",
+      "entry_date": "2024-09-25",
+      "label_id": "318409",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "W1022/03_F01L010622",
+      "retrieved_at": "2026-11-24T11:56:43Z",
+      "rows": {
+        "mapped": 11,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 0,
+        "unmapped": 5
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/318409"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-318728",
+      "entry_date": "2024-09-25",
+      "label_id": "318728",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "Not Present",
+      "retrieved_at": "2026-11-24T11:56:46Z",
+      "rows": {
+        "mapped": 12,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 1,
+        "unmapped": 5
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/318728"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-319571",
+      "entry_date": "2024-11-22",
+      "label_id": "319571",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "V1R1",
+      "retrieved_at": "2026-11-24T11:55:28Z",
+      "rows": {
+        "mapped": 7,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 0,
+        "unmapped": 0
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/319571"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-321276",
+      "entry_date": "2025-01-23",
+      "label_id": "321276",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [
+        "VIT_K: 2 rows in mcg summed to 51"
+      ],
+      "product_version_code": "V-18",
+      "retrieved_at": "2026-11-24T11:54:36Z",
+      "rows": {
+        "mapped": 9,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 0,
+        "unmapped": 1
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/321276"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-321614",
+      "entry_date": "2025-02-23",
+      "label_id": "321614",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "142839/519960/SAM652083",
+      "retrieved_at": "2026-11-24T11:53:46Z",
+      "rows": {
+        "mapped": 21,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 1,
+        "unmapped": 0
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/321614"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-321951",
+      "entry_date": "2025-02-23",
+      "label_id": "321951",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "11322BU240 PROD # 104003",
+      "retrieved_at": "2026-11-24T11:54:45Z",
+      "rows": {
+        "mapped": 9,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 0,
+        "unmapped": 1
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/321951"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-322055",
+      "entry_date": "2024-12-21",
+      "label_id": "322055",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "Not Present",
+      "retrieved_at": "2026-11-24T12:01:56Z",
+      "rows": {
+        "mapped": 10,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 0,
+        "unmapped": 8
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/322055"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-323319",
+      "entry_date": "2025-02-23",
+      "label_id": "323319",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "USC90T 1536624C1",
+      "retrieved_at": "2026-11-24T11:52:38Z",
+      "rows": {
+        "mapped": 21,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 1,
+        "unmapped": 5
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/323319"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-325697",
+      "entry_date": "2025-01-23",
+      "label_id": "325697",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "130070522 1536582B1",
+      "retrieved_at": "2026-11-24T11:55:13Z",
+      "rows": {
+        "mapped": 20,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 1,
+        "unmapped": 0
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/325697"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-326063",
+      "entry_date": "2025-04-24",
+      "label_id": "326063",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "2064R04 01",
+      "retrieved_at": "2026-11-24T11:58:05Z",
+      "rows": {
+        "mapped": 21,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 1,
+        "unmapped": 3
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/326063"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-326307",
+      "entry_date": "2025-04-24",
+      "label_id": "326307",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "501290-JB-0221",
+      "retrieved_at": "2026-11-24T11:56:25Z",
+      "rows": {
+        "mapped": 11,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 1,
+        "unmapped": 5
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/326307"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-326338",
+      "entry_date": "2025-07-24",
+      "label_id": "326338",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "501562-0420N",
+      "retrieved_at": "2026-11-24T11:52:53Z",
+      "rows": {
+        "mapped": 26,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 1,
+        "unmapped": 4
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/326338"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-327095",
+      "entry_date": "2025-05-21",
+      "label_id": "327095",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "1103-LB10",
+      "retrieved_at": "2026-11-24T11:55:00Z",
+      "rows": {
+        "mapped": 22,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 0,
+        "unmapped": 2
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/327095"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-328298",
+      "entry_date": "2025-05-21",
+      "label_id": "328298",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "L02416C",
+      "retrieved_at": "2026-11-24T11:55:34Z",
+      "rows": {
+        "mapped": 6,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 0,
+        "unmapped": 2
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/328298"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-328486",
+      "entry_date": "2025-01-23",
+      "label_id": "328486",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "300375.01",
+      "retrieved_at": "2026-11-24T11:56:10Z",
+      "rows": {
+        "mapped": 13,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 1,
+        "unmapped": 7
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/328486"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-328775",
+      "entry_date": "2025-07-24",
+      "label_id": "328775",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "1181201-2",
+      "retrieved_at": "2026-11-24T11:53:02Z",
+      "rows": {
+        "mapped": 10,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 1,
+        "unmapped": 5
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/328775"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-328813",
+      "entry_date": "2025-05-21",
+      "label_id": "328813",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "CODE 496521 KYG-333",
+      "retrieved_at": "2026-11-24T12:02:20Z",
+      "rows": {
+        "mapped": 7,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 0,
+        "unmapped": 0
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/328813"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-331337",
+      "entry_date": "2025-05-21",
+      "label_id": "331337",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "#977 Rev.08DV",
+      "retrieved_at": "2026-11-24T12:01:43Z",
+      "rows": {
+        "mapped": 23,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 1,
+        "unmapped": 5
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/331337"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-331348",
+      "entry_date": "2025-03-25",
+      "label_id": "331348",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "BF.CAPSIRON90.REV02",
+      "retrieved_at": "2026-11-24T11:56:00Z",
+      "rows": {
+        "mapped": 21,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 1,
+        "unmapped": 0
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/331348"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-331616",
+      "entry_date": "2025-05-21",
+      "label_id": "331616",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "607309-12M",
+      "retrieved_at": "2026-11-24T11:55:03Z",
+      "rows": {
+        "mapped": 11,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 0,
+        "unmapped": 0
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/331616"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-331688",
+      "entry_date": "2025-09-25",
+      "label_id": "331688",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "VFSL-28013-01 72022299",
+      "retrieved_at": "2026-11-24T11:56:07Z",
+      "rows": {
+        "mapped": 12,
+        "skipped": 1,
+        "skipped_by_reason": {
+          "UNIT_UNSUPPORTED": 1
+        },
+        "split_detail": 1,
+        "unmapped": 6
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/331688"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-332202",
+      "entry_date": "2025-07-24",
+      "label_id": "332202",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "REV 0624CB",
+      "retrieved_at": "2026-11-24T11:52:47Z",
+      "rows": {
+        "mapped": 16,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 0,
+        "unmapped": 0
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/332202"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-333880",
+      "entry_date": "2025-06-25",
+      "label_id": "333880",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "Not Present",
+      "retrieved_at": "2026-11-24T11:55:57Z",
+      "rows": {
+        "mapped": 22,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 1,
+        "unmapped": 0
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/333880"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-334663",
+      "entry_date": "2025-07-24",
+      "label_id": "334663",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "NQ294A Item #20241",
+      "retrieved_at": "2026-11-24T11:57:25Z",
+      "rows": {
+        "mapped": 9,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 1,
+        "unmapped": 0
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/334663"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-334765",
+      "entry_date": "2025-07-24",
+      "label_id": "334765",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "Not Present",
+      "retrieved_at": "2026-11-24T11:53:55Z",
+      "rows": {
+        "mapped": 22,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 0,
+        "unmapped": 2
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/334765"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-336927",
+      "entry_date": "2025-09-25",
+      "label_id": "336927",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "Product # AB7907",
+      "retrieved_at": "2026-11-24T11:55:42Z",
+      "rows": {
+        "mapped": 6,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 0,
+        "unmapped": 1
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/336927"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-337413",
+      "entry_date": "2025-09-25",
+      "label_id": "337413",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "C8428",
+      "retrieved_at": "2026-11-24T11:56:52Z",
+      "rows": {
+        "mapped": 12,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 1,
+        "unmapped": 4
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/337413"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-337448",
+      "entry_date": "2025-08-22",
+      "label_id": "337448",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "Version 001",
+      "retrieved_at": "2026-11-24T11:52:35Z",
+      "rows": {
+        "mapped": 21,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 1,
+        "unmapped": 0
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/337448"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-338071",
+      "entry_date": "2025-09-25",
+      "label_id": "338071",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [
+        "VIT_K: 2 rows in mcg summed to 325"
+      ],
+      "product_version_code": "M1911801",
+      "retrieved_at": "2026-11-24T11:54:54Z",
+      "rows": {
+        "mapped": 22,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 0,
+        "unmapped": 0
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/338071"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-338205",
+      "entry_date": "2025-09-25",
+      "label_id": "338205",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "L54903C5",
+      "retrieved_at": "2026-11-24T11:53:15Z",
+      "rows": {
+        "mapped": 22,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 0,
+        "unmapped": 2
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/338205"
+    },
+    {
+      "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+      "code": "DSLD-340037",
+      "entry_date": "2025-09-25",
+      "label_id": "340037",
+      "licence": "CC0 1.0 Universal (CC0 1.0)",
+      "licence_read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "notes": [],
+      "product_version_code": "SKU 0353-0",
+      "retrieved_at": "2026-11-24T11:54:39Z",
+      "rows": {
+        "mapped": 12,
+        "skipped": 0,
+        "skipped_by_reason": {},
+        "split_detail": 0,
+        "unmapped": 0
+      },
+      "source_url": "https://api.ods.od.nih.gov/dsld/v9/label/340037"
+    }
+  ],
+  "retrieval": {
+    "first": "2026-11-24T11:52:35Z",
+    "last": "2026-11-24T12:05:07Z"
+  },
+  "searches": [
+    {
+      "candidate_quota": 15,
+      "dosage_form": "SOFTGEL",
+      "hits_returned": 37,
+      "retrieved_at": "2026-11-24T11:52:21Z",
+      "total_hits": 37,
+      "url": "https://api.ods.od.nih.gov/dsld/v9/search-filter?q=%2A&status=1&product_type=a1315&target_group=p0250&supplement_form=e0161&sort_by=entryDate&sort_order=desc&from=0&size=200"
+    },
+    {
+      "candidate_quota": 12,
+      "dosage_form": "LIQUID",
+      "hits_returned": 71,
+      "retrieved_at": "2026-11-24T11:52:29Z",
+      "total_hits": 71,
+      "url": "https://api.ods.od.nih.gov/dsld/v9/search-filter?q=%2A&status=1&product_type=a1315&target_group=p0250&supplement_form=e0165&sort_by=entryDate&sort_order=desc&from=0&size=200"
+    },
+    {
+      "candidate_quota": 20,
+      "dosage_form": "POWDER",
+      "hits_returned": 200,
+      "retrieved_at": "2026-11-24T11:52:25Z",
+      "total_hits": 297,
+      "url": "https://api.ods.od.nih.gov/dsld/v9/search-filter?q=%2A&status=1&product_type=a1315&target_group=p0250&supplement_form=e0162&sort_by=entryDate&sort_order=desc&from=0&size=200"
+    },
+    {
+      "candidate_quota": 25,
+      "dosage_form": "GUMMY",
+      "hits_returned": 200,
+      "retrieved_at": "2026-11-24T11:52:18Z",
+      "total_hits": 312,
+      "url": "https://api.ods.od.nih.gov/dsld/v9/search-filter?q=%2A&status=1&product_type=a1315&target_group=p0250&supplement_form=e0176&sort_by=entryDate&sort_order=desc&from=0&size=200"
+    },
+    {
+      "candidate_quota": 30,
+      "dosage_form": "CAPSULE",
+      "hits_returned": 200,
+      "retrieved_at": "2026-11-24T11:52:13Z",
+      "total_hits": 265,
+      "url": "https://api.ods.od.nih.gov/dsld/v9/search-filter?q=%2A&status=1&product_type=a1315&target_group=p0250&supplement_form=e0159&sort_by=entryDate&sort_order=desc&from=0&size=200"
+    },
+    {
+      "candidate_quota": 40,
+      "dosage_form": "TABLET",
+      "hits_returned": 200,
+      "retrieved_at": "2026-11-24T11:52:09Z",
+      "total_hits": 728,
+      "url": "https://api.ods.od.nih.gov/dsld/v9/search-filter?q=%2A&status=1&product_type=a1315&target_group=p0250&supplement_form=e0155&sort_by=entryDate&sort_order=desc&from=0&size=200"
+    }
+  ],
+  "skipped_labels": [
+    {
+      "brand": "AOR Advanced Orthomolecular Research Ultra",
+      "detail": "Vitamin C: amount stated per 10 units, serving is 5",
+      "label_id": "214809",
+      "name": "Ortho Bone Vegan",
+      "reason": "AMOUNT_BASIS_DIFFERS"
+    },
+    {
+      "brand": "Designs for Health",
+      "detail": "net contents 240 Tablet(s), 30 servings of 4",
+      "label_id": "276174",
+      "name": "OsteoForce",
+      "reason": "CONTAINER_COUNT_INCONSISTENT"
+    },
+    {
+      "brand": "NeoLife Shake",
+      "detail": "net contents 1 Packet(s), 2 servings of 1",
+      "label_id": "306270",
+      "name": "NeoLife Shake Chocolate",
+      "reason": "CONTAINER_COUNT_INCONSISTENT"
+    },
+    {
+      "brand": "Finest Nutrition",
+      "detail": "daily servings not stated",
+      "label_id": "65432",
+      "name": "Women's Multi Pearls",
+      "reason": "DAILY_SERVINGS_MISSING"
+    },
+    {
+      "brand": "1st Phorm",
+      "detail": "daily servings not stated",
+      "label_id": "242851",
+      "name": "Ignition",
+      "reason": "DAILY_SERVINGS_MISSING"
+    },
+    {
+      "brand": "Reliv",
+      "detail": "daily servings not stated",
+      "label_id": "255788",
+      "name": "Innergize! Natural Lemon Flavor",
+      "reason": "DAILY_SERVINGS_MISSING"
+    },
+    {
+      "brand": "H2 Pharma",
+      "detail": "daily servings not stated",
+      "label_id": "264335",
+      "name": "Vitamins A, C, D and Fluoride 0.25 mg",
+      "reason": "DAILY_SERVINGS_MISSING"
+    },
+    {
+      "brand": "Voost",
+      "detail": "daily servings not stated",
+      "label_id": "278102",
+      "name": "Voost Women's Multi Orange Guava",
+      "reason": "DAILY_SERVINGS_MISSING"
+    },
+    {
+      "brand": "AOR Advanced Orthomolecular Research Premium",
+      "detail": "daily servings 1 to 7",
+      "label_id": "214851",
+      "name": "Ortho Minerals",
+      "reason": "DAILY_SERVINGS_RANGE"
+    },
+    {
+      "brand": "Axe & Sledge Supplements",
+      "detail": "daily servings 1 to 2",
+      "label_id": "255196",
+      "name": "Multi Vitamin",
+      "reason": "DAILY_SERVINGS_RANGE"
+    },
+    {
+      "brand": "NutriCology",
+      "detail": "daily servings 1 to 3",
+      "label_id": "258650",
+      "name": "MultiMin",
+      "reason": "DAILY_SERVINGS_RANGE"
+    },
+    {
+      "brand": "LifeCentric Health",
+      "detail": "daily servings 1 to 4",
+      "label_id": "304574",
+      "name": "Iron Gummies Grape",
+      "reason": "DAILY_SERVINGS_RANGE"
+    },
+    {
+      "brand": "GSL Technology",
+      "detail": "daily servings 1 to 2",
+      "label_id": "317070",
+      "name": "Stress B-Complex with Zinc and Vitamin C",
+      "reason": "DAILY_SERVINGS_RANGE"
+    },
+    {
+      "brand": "Pauling Labs",
+      "detail": "serving quantity 9.41 Gram(s)",
+      "label_id": "54914",
+      "name": "Ener-C Cranberry",
+      "reason": "SERVING_SIZE_NOT_INTEGER"
+    },
+    {
+      "brand": "American Health",
+      "detail": "serving quantity 6.5 Gram(s)",
+      "label_id": "75775",
+      "name": "Kidstiks Tropical Punch",
+      "reason": "SERVING_SIZE_NOT_INTEGER"
+    },
+    {
+      "brand": "Ultima",
+      "detail": "serving quantity 3.4 Gram(s)",
+      "label_id": "183064",
+      "name": "Ultima Replenisher Orange",
+      "reason": "SERVING_SIZE_NOT_INTEGER"
+    },
+    {
+      "brand": "Higher Nature",
+      "detail": "serving quantity 3.5 Gram(s)",
+      "label_id": "245931",
+      "name": "Wind Down",
+      "reason": "SERVING_SIZE_NOT_INTEGER"
+    },
+    {
+      "brand": "MRI Performance",
+      "detail": "serving quantity 4.9 Gram(s)",
+      "label_id": "285379",
+      "name": "Immuni-V Sour Apple Effervescent",
+      "reason": "SERVING_SIZE_NOT_INTEGER"
+    },
+    {
+      "brand": "Herbalife Nutrition",
+      "detail": "serving quantity 3.4 Gram(s)",
+      "label_id": "309645",
+      "name": "New Mom",
+      "reason": "SERVING_SIZE_NOT_INTEGER"
+    },
+    {
+      "brand": "Isotonix",
+      "detail": "serving quantity 3.3 Gram(s)",
+      "label_id": "313407",
+      "name": "Multivitamin with Iron",
+      "reason": "SERVING_SIZE_NOT_INTEGER"
+    },
+    {
+      "brand": "Emergen-C",
+      "detail": "serving quantity 9.1 Gram(s)",
+      "label_id": "316276",
+      "name": "1,000 mg Vitamin C Super Orange",
+      "reason": "SERVING_SIZE_NOT_INTEGER"
+    },
+    {
+      "brand": "Kirkman",
+      "detail": "serving quantity 2.5 Gram(s)",
+      "label_id": "317773",
+      "name": "Super Nu-Thera Plus 25 mg P-5-P Powder Lemon Flavor",
+      "reason": "SERVING_SIZE_NOT_INTEGER"
+    },
+    {
+      "brand": "XS",
+      "detail": "serving quantity 22.5 Gram(s)",
+      "label_id": "328237",
+      "name": "Cocowater Pineapple Coconut",
+      "reason": "SERVING_SIZE_NOT_INTEGER"
+    },
+    {
+      "brand": "Shaklee",
+      "detail": "serving quantity 4.7 Gram(s)",
+      "label_id": "334654",
+      "name": "Essential MultiV Drink Raspberry Lemonade",
+      "reason": "SERVING_SIZE_NOT_INTEGER"
+    },
+    {
+      "brand": "Jigsaw Health",
+      "detail": "serving quantity 3.7 Gram(s)",
+      "label_id": "335044",
+      "name": "Electrolyte Supreme Fruit Punch",
+      "reason": "SERVING_SIZE_NOT_INTEGER"
+    },
+    {
+      "brand": "CytoSport",
+      "detail": "2 serving sizes stated",
+      "label_id": "14584",
+      "name": "Muscle Milk Collegiate Vanilla Creme Shake",
+      "reason": "SERVING_SIZE_NOT_SINGLE"
+    },
+    {
+      "brand": "Abbott",
+      "detail": "2 serving sizes stated",
+      "label_id": "211374",
+      "name": "Optimin",
+      "reason": "SERVING_SIZE_NOT_SINGLE"
+    },
+    {
+      "brand": "Nutrex Research",
+      "detail": "serving quantity 38 to 76",
+      "label_id": "47911",
+      "name": "Muscle Infusion Vanilla",
+      "reason": "SERVING_SIZE_RANGE"
+    },
+    {
+      "brand": "elon",
+      "detail": "serving quantity 2 to 3",
+      "label_id": "248449",
+      "name": "Hair Vitamins Natural Cherry Flavor",
+      "reason": "SERVING_SIZE_RANGE"
+    },
+    {
+      "brand": "Cypress",
+      "detail": "serving quantity 1.5 to 2",
+      "label_id": "279127",
+      "name": "Trinate",
+      "reason": "SERVING_SIZE_RANGE"
+    },
+    {
+      "brand": "Bucked Up Essentials",
+      "detail": "serving quantity 2.5 to 7.5",
+      "label_id": "282490",
+      "name": "Multivitamin Gummies Mixed Berry",
+      "reason": "SERVING_SIZE_RANGE"
+    },
+    {
+      "brand": "CATALO",
+      "detail": "serving quantity 1 to 2",
+      "label_id": "303153",
+      "name": "Women's Calcium",
+      "reason": "SERVING_SIZE_RANGE"
+    },
+    {
+      "brand": "MET-Rx",
+      "detail": "serving unit 'Can(s)'",
+      "label_id": "40114",
+      "name": "Pure Protein Shake Vanilla Cream",
+      "reason": "SERVING_UNIT_UNSUPPORTED"
+    },
+    {
+      "brand": "Trace Minerals Research",
+      "detail": "serving unit 'Tbsp'",
+      "label_id": "56978",
+      "name": "Cal/Mag/Zinc Pina Colada Flavor",
+      "reason": "SERVING_UNIT_UNSUPPORTED"
+    },
+    {
+      "brand": "Labrada Nutrition",
+      "detail": "1 mapped nutrients",
+      "label_id": "41092",
+      "name": "Lean Body Vanilla Ice Cream Flavor",
+      "reason": "TOO_FEW_MAPPED_NUTRIENTS"
+    },
+    {
+      "brand": "New Chapter",
+      "detail": "4 mapped nutrients",
+      "label_id": "294137",
+      "name": "Bone Strength Take Care Slim Tabs",
+      "reason": "TOO_FEW_MAPPED_NUTRIENTS"
+    },
+    {
+      "brand": "NaturesPlus",
+      "detail": "4 mapped nutrients",
+      "label_id": "298289",
+      "name": "Cal/Mag/Vit D3 with Vitamin K2",
+      "reason": "TOO_FEW_MAPPED_NUTRIENTS"
+    },
+    {
+      "brand": "Good State Plasma",
+      "detail": "3 mapped nutrients",
+      "label_id": "329164",
+      "name": "Nitric Oxide Plasma Water Watermelon",
+      "reason": "TOO_FEW_MAPPED_NUTRIENTS"
+    },
+    {
+      "brand": "BioCare",
+      "detail": "4 mapped nutrients",
+      "label_id": "336068",
+      "name": "P-5-P Complex",
+      "reason": "TOO_FEW_MAPPED_NUTRIENTS"
+    },
+    {
+      "brand": "Rugby",
+      "detail": "VIT_A 5000 IU, forms: Beta-Carotene",
+      "label_id": "28365",
+      "name": "Antioxidant Formula",
+      "reason": "UNSUPPORTED_IU_FORM"
+    },
+    {
+      "brand": "Allergy Research Group",
+      "detail": "VIT_A 2500 IU, forms: Mixed Carotenoids",
+      "label_id": "184081",
+      "name": "Metabolic Co-Factor",
+      "reason": "UNSUPPORTED_IU_FORM"
+    },
+    {
+      "brand": "Botanic Choice",
+      "detail": "VIT_A 2333 IU, forms: Beta-Carotene, Vitamin A Acetate",
+      "label_id": "200058",
+      "name": "START! Multi-Vitamin for Women",
+      "reason": "UNSUPPORTED_IU_FORM"
+    },
+    {
+      "brand": "Spring Valley",
+      "detail": "VIT_A 10000 IU, forms: Beta-Carotene",
+      "label_id": "210283",
+      "name": "Antioxidant Formula",
+      "reason": "UNSUPPORTED_IU_FORM"
+    },
+    {
+      "brand": "CVS Health",
+      "detail": "VIT_A 2500 IU, forms: none",
+      "label_id": "239601",
+      "name": "Women's Daily Gummies Complete Multivitamin",
+      "reason": "UNSUPPORTED_IU_FORM"
+    },
+    {
+      "brand": "Eye Candy",
+      "detail": "VIT_A 433 IU, forms: Beta-Carotene",
+      "label_id": "249632",
+      "name": "Once Daily Raspberry Splash Flavor",
+      "reason": "UNSUPPORTED_IU_FORM"
+    },
+    {
+      "brand": "Centrum",
+      "detail": "VIT_A 2500 IU, forms: none",
+      "label_id": "257183",
+      "name": "Centrum MultiGummies Multi+ Beauty",
+      "reason": "UNSUPPORTED_IU_FORM"
+    },
+    {
+      "brand": "Family Wellness",
+      "detail": "VIT_A 3500 IU, forms: Beta-Carotene, Retinyl Acetate",
+      "label_id": "271211",
+      "name": "Complete Multi",
+      "reason": "UNSUPPORTED_IU_FORM"
+    },
+    {
+      "brand": "Anutra",
+      "detail": "VIT_A 5000 IU, forms: Beta-Carotene",
+      "label_id": "275143",
+      "name": "Adult Super Vitamin",
+      "reason": "UNSUPPORTED_IU_FORM"
+    },
+    {
+      "brand": "Melaleuca",
+      "detail": "VIT_A 3000 IU, forms: Beta-Carotene",
+      "label_id": "277006",
+      "name": "Vitality Multivitamin & Mineral Women",
+      "reason": "UNSUPPORTED_IU_FORM"
+    },
+    {
+      "brand": "Justified Laboratories",
+      "detail": "VIT_A 1500 IU, forms: Beta-Carotene",
+      "label_id": "315892",
+      "name": "Dentitox",
+      "reason": "UNSUPPORTED_IU_FORM"
+    },
+    {
+      "brand": "Esmond Natural",
+      "detail": "VIT_A 6000 IU, forms: none",
+      "label_id": "315914",
+      "name": "Selenium Complex Tablet",
+      "reason": "UNSUPPORTED_IU_FORM"
+    }
+  ],
+  "source": {
+    "api_base": "https://api.ods.od.nih.gov/dsld/v9/",
+    "api_mirror": "https://dsldapi.od.nih.gov/v9/",
+    "licence": {
+      "api_specification_version": "9.4.0",
+      "read_at": "2026-11-24T11:52:05Z",
+      "read_from": "https://api.ods.od.nih.gov/dsld/v9/",
+      "statement": "CC0 1.0 Universal (CC0 1.0)",
+      "url": "https://creativecommons.org/publicdomain/zero/1.0/"
+    },
+    "name": "Dietary Supplement Label Database (DSLD), Office of Dietary Supplements, National Institutes of Health"
+  },
+  "summary": {
+    "candidates": 135,
+    "distinct_brands": 75,
+    "dosage_forms": {
+      "CAPSULE": 23,
+      "GUMMY": 19,
+      "LIQUID": 5,
+      "POWDER": 3,
+      "SOFTGEL": 5,
+      "TABLET": 29
+    },
+    "labels_read": 135,
+    "offers_written": 144,
+    "products_written": 84,
+    "skipped_by_reason": {
+      "AMOUNT_BASIS_DIFFERS": 1,
+      "CONTAINER_COUNT_INCONSISTENT": 2,
+      "DAILY_SERVINGS_MISSING": 5,
+      "DAILY_SERVINGS_RANGE": 5,
+      "SERVING_SIZE_NOT_INTEGER": 12,
+      "SERVING_SIZE_NOT_SINGLE": 2,
+      "SERVING_SIZE_RANGE": 5,
+      "SERVING_UNIT_UNSUPPORTED": 2,
+      "TOO_FEW_MAPPED_NUTRIENTS": 5,
+      "UNSUPPORTED_IU_FORM": 12
+    }
+  },
+  "unit_strings": [
+    {
+      "dsld_unit": "mg",
+      "mapped_to": "mg",
+      "nutrients": "!VIT_A",
+      "rows": 916
+    },
+    {
+      "dsld_unit": "mcg",
+      "mapped_to": "mcg",
+      "nutrients": "*",
+      "rows": 612
+    },
+    {
+      "dsld_unit": "Gram(s)",
+      "mapped_to": "g",
+      "nutrients": "!VIT_A",
+      "rows": 130
+    },
+    {
+      "dsld_unit": "mcg DFE",
+      "mapped_to": "mcg",
+      "nutrients": "VIT_B9",
+      "rows": 59
+    },
+    {
+      "dsld_unit": "IU",
+      "mapped_to": "IU",
+      "nutrients": "VIT_A|VIT_D|VIT_E",
+      "rows": 44
+    },
+    {
+      "dsld_unit": "Calorie(s)",
+      "mapped_to": null,
+      "nutrients": null,
+      "rows": 38
+    },
+    {
+      "dsld_unit": "NP",
+      "mapped_to": null,
+      "nutrients": null,
+      "rows": 29
+    },
+    {
+      "dsld_unit": "mcg RAE",
+      "mapped_to": "mcg",
+      "nutrients": "VIT_A",
+      "rows": 19
+    },
+    {
+      "dsld_unit": "mg NE",
+      "mapped_to": "mg",
+      "nutrients": "VIT_B3",
+      "rows": 17
+    },
+    {
+      "dsld_unit": "Calories",
+      "mapped_to": null,
+      "nutrients": null,
+      "rows": 3
+    },
+    {
+      "dsld_unit": "{Calories}",
+      "mapped_to": null,
+      "nutrients": null,
+      "rows": 2
+    },
+    {
+      "dsld_unit": "Kcal",
+      "mapped_to": null,
+      "nutrients": null,
+      "rows": 1
+    },
+    {
+      "dsld_unit": "UI",
+      "mapped_to": null,
+      "nutrients": null,
+      "rows": 1
+    },
+    {
+      "dsld_unit": "grams",
+      "mapped_to": "g",
+      "nutrients": "!VIT_A",
+      "rows": 1
+    }
+  ],
+  "unmapped_ingredients": [
+    {
+      "name": "Calories",
+      "rows": 39
+    },
+    {
+      "name": "Total Carbohydrates",
+      "rows": 38
+    },
+    {
+      "name": "Sodium",
+      "rows": 27
+    },
+    {
+      "name": "Total Sugars",
+      "rows": 25
+    },
+    {
+      "name": "Added Sugars",
+      "rows": 22
+    },
+    {
+      "name": "Boron",
+      "rows": 19
+    },
+    {
+      "name": "Total Fat",
+      "rows": 11
+    },
+    {
+      "name": "Protein",
+      "rows": 10
+    },
+    {
+      "name": "Vanadium",
+      "rows": 10
+    },
+    {
+      "name": "Silicon",
+      "rows": 8
+    },
+    {
+      "name": "Sugar",
+      "rows": 7
+    },
+    {
+      "name": "Nickel",
+      "rows": 5
+    },
+    {
+      "name": "Tin",
+      "rows": 5
+    },
+    {
+      "name": "Calories from Fat",
+      "rows": 3
+    },
+    {
+      "name": "Cholesterol",
+      "rows": 3
+    },
+    {
+      "name": "Dietary Fiber",
+      "rows": 3
+    },
+    {
+      "name": "Saturated Fat",
+      "rows": 3
+    },
+    {
+      "name": "Silica",
+      "rows": 3
+    },
+    {
+      "name": "Total Carbohydrate",
+      "rows": 3
+    },
+    {
+      "name": "Trans Fat",
+      "rows": 3
+    },
+    {
+      "name": "added Sugars",
+      "rows": 3
+    },
+    {
+      "name": "Strontium",
+      "rows": 2
+    },
+    {
+      "name": "Sugars",
+      "rows": 2
+    },
+    {
+      "name": "(6S)-5-Methyltetrahydrofolate Acid, Glucosamine Salt",
+      "rows": 1
+    },
+    {
+      "name": "Carbohydrates",
+      "rows": 1
+    },
+    {
+      "name": "Energy",
+      "rows": 1
+    },
+    {
+      "name": "Silicon Rice Chelate",
+      "rows": 1
+    },
+    {
+      "name": "Sugar Alcohol",
+      "rows": 1
+    },
+    {
+      "name": "Total Calories",
+      "rows": 1
+    },
+    {
+      "name": "Total Protein",
+      "rows": 1
+    },
+    {
+      "name": "Vanadium Sulfate",
+      "rows": 1
+    }
+  ]
+}
