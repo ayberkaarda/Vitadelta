@@ -49,12 +49,15 @@ tasks.withType<JavaCompile>().configureEach {
     options.compilerArgs.addAll(listOf("-parameters", "-Xlint:all", "-Werror"))
 }
 
-// Root of the repository's data directory, read by the seed and fixture integrity tests.
+// Root of the repository's data directory, read by the seed and fixture integrity tests and, as
+// vitadelta.seed.data-dir, by every application context (reference/weak_passwords.txt is loaded
+// at startup).
 val dataDirectory = layout.projectDirectory.dir("../../data")
 
 tasks.withType<Test>().configureEach {
     useJUnitPlatform()
     systemProperty("vitadelta.test.data-dir", dataDirectory.asFile.absolutePath)
+    systemProperty("vitadelta.seed.data-dir", dataDirectory.asFile.absolutePath)
     inputs.dir(dataDirectory).withPropertyName("dataDirectory").optional()
     finalizedBy(tasks.named("jacocoTestReport"))
 }
