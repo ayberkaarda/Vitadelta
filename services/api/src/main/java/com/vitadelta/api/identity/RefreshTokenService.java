@@ -109,11 +109,33 @@ public class RefreshTokenService {
         rs.getString("grace_successor_enc"));
   }
 
-  /** Issues the first token of a new family (login). Runs in the caller's transaction. */
+  /**
+   * Issues the first token of a new family (login). Runs in the caller's transaction, which must
+   * hold the user-row lock ({@link UserRepository#findByIdForUpdate}).
+   */
   public String issueNewFamily(UUID userId, String userAgent) {
+    Instant now = clock.instant();
+    clearExpiredGraceSuccessors(userId, now);
     String token = SecureTokens.newToken();
-    insert(UUID.randomUUID(), userId, UUID.randomUUID(), token, userAgent, clock.instant());
+    insert(UUID.randomUUID(), userId, UUID.randomUUID(), token, userAgent, now);
     return token;
+  }
+
+  /** Clears the encrypted successors of the user whose grace window has ended. */
+  private void clearExpiredGraceSuccessors(UUID userId, Instant now) {
+    jdbc.sql(
+            "UPDATE refresh_token SET grace_successor_enc = NULL WHERE user_id = ?"
+                + " AND grace_successor_enc IS NOT NULL AND revoked_at <= ?")
+        .params(userId, ts(now.minus(GRACE_WINDOW)))
+        .update();
+  }
+
+  /** The owner of a token, read without a lock (the caller locks the user row next). */
+  private Optional<UUID> ownerOf(String hash) {
+    return jdbc.sql("SELECT user_id FROM refresh_token WHERE token_hash = ?")
+        .param(hash)
+        .query(UUID.class)
+        .optional();
   }
 
   private void insert(
@@ -142,9 +164,12 @@ public class RefreshTokenService {
   }
 
   /**
-   * Rotates the presented token in its own transaction. The token row is locked, so concurrent
-   * refreshes with the same token are serialized: the first rotates, the others receive the same
-   * successor within the grace window. A detected reuse commits the family revocation.
+   * Rotates the presented token in its own transaction. Rotation and every revocation (logout,
+   * reuse detection, disable, password reset) first lock the owner's {@code app_user} row and only
+   * then read or change tokens, so a revocation can never miss a successor of a concurrent,
+   * uncommitted rotation. Concurrent refreshes with the same token are serialized: the first
+   * rotates, the others receive the same successor within the grace window. A detected reuse
+   * commits the family revocation.
    */
   public Rotation rotate(String presented, String userAgent) {
     if (!SecureTokens.isWellFormed(presented)) {
@@ -159,6 +184,14 @@ public class RefreshTokenService {
   }
 
   private Rotation rotateLocked(String hash, String userAgent) {
+    Optional<UUID> owner = ownerOf(hash);
+    if (owner.isEmpty()) {
+      return new Rejected(Reason.UNKNOWN);
+    }
+    Optional<UserAccount> user = users.findByIdForUpdate(owner.get());
+    if (user.isEmpty()) {
+      return new Rejected(Reason.UNKNOWN);
+    }
     Optional<TokenRow> found =
         jdbc.sql(
                 "SELECT id, user_id, family_id, expires_at, revoked_at, replaced_by,"
@@ -170,10 +203,6 @@ public class RefreshTokenService {
       return new Rejected(Reason.UNKNOWN);
     }
     TokenRow token = found.get();
-    Optional<UserAccount> user = users.findById(token.userId());
-    if (user.isEmpty()) {
-      return new Rejected(Reason.UNKNOWN);
-    }
     if (user.get().status() == UserStatus.DISABLED) {
       return new Rejected(Reason.DISABLED);
     }
@@ -182,6 +211,7 @@ public class RefreshTokenService {
       if (!token.expiresAt().isAfter(now)) {
         return new Rejected(Reason.EXPIRED);
       }
+      clearExpiredGraceSuccessors(token.userId(), now);
       String successor = SecureTokens.newToken();
       UUID successorId = UUID.randomUUID();
       insert(successorId, token.userId(), token.familyId(), successor, userAgent, now);
@@ -242,6 +272,10 @@ public class RefreshTokenService {
     String hash = SecureTokens.sha256Hex(presented);
     Boolean revoked =
         transactions.execute(status -> {
+          Optional<UUID> owner = ownerOf(hash);
+          if (owner.isEmpty() || users.findByIdForUpdate(owner.get()).isEmpty()) {
+            return false;
+          }
           Optional<UUID> family =
               jdbc.sql("SELECT family_id FROM refresh_token WHERE token_hash = ?")
                   .param(hash)
@@ -254,11 +288,13 @@ public class RefreshTokenService {
   }
 
   /**
-   * Revokes every family of the user (disable, password reset). Runs in the caller's transaction.
+   * Revokes every family of the user (disable, password reset). Runs in the caller's transaction;
+   * takes the user-row lock first (a no-op when the caller already holds it).
    *
    * @return number of tokens changed
    */
   public int revokeAllForUser(UUID userId) {
+    users.findByIdForUpdate(userId);
     return jdbc.sql(
             "UPDATE refresh_token SET revoked_at = coalesce(revoked_at, ?),"
                 + " grace_successor_enc = NULL"
