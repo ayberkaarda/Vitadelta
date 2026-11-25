@@ -39,6 +39,7 @@ public class AccountService {
   private final AccountUsageProvider usage;
   private final DisplayCurrencyPolicy currencies;
   private final PasswordHasher hasher;
+  private final LoginThrottle throttle;
   private final ApplicationEventPublisher events;
   private final Clock clock;
   private final TransactionTemplate transactions;
@@ -48,6 +49,7 @@ public class AccountService {
       AccountUsageProvider usage,
       DisplayCurrencyPolicy currencies,
       PasswordHasher hasher,
+      LoginThrottle throttle,
       ApplicationEventPublisher events,
       Clock clock,
       PlatformTransactionManager transactionManager) {
@@ -55,6 +57,7 @@ public class AccountService {
     this.usage = usage;
     this.currencies = currencies;
     this.hasher = hasher;
+    this.throttle = throttle;
     this.events = events;
     this.clock = clock;
     this.transactions = new TransactionTemplate(transactionManager);
@@ -165,27 +168,43 @@ public class AccountService {
   }
 
   /**
-   * Re-checks the password against the current hash under the user-row lock and hard-deletes the
-   * account with the cascade of section 5.9. {@link UserDeletingEvent} is published inside the
-   * deletion transaction.
+   * Verifies the password (outside any transaction, throttled per account), then locks the user
+   * row, confirms the stored hash is unchanged and hard-deletes the account with the cascade of
+   * section 5.9. {@link UserDeletingEvent} is published inside the deletion transaction.
    */
   public void delete(UUID userId, String password) {
-    user(userId);
-    boolean deleted =
-        Boolean.TRUE.equals(
-            transactions.execute(status -> {
-              Optional<UserAccount> locked = users.findByIdForUpdate(userId);
-              if (locked.isEmpty()) {
-                return false;
-              }
-              if (!hasher.matches(password, locked.get().passwordHash())) {
-                throw AuthService.invalidCredentials();
-              }
-              events.publishEvent(new UserDeletingEvent(userId));
-              return users.delete(userId);
-            }));
-    if (!deleted) {
-      throw CurrentUser.unauthorized();
+    UserAccount current = user(userId);
+    // Attempts share the login throttle of the account: failures lock deletion and login alike,
+    // and the expensive password check only runs for admitted attempts.
+    LoginThrottle.Attempt attempt = throttle.begin(Emails.normalize(current.email()));
+    try {
+      // The memory-hard hash runs outside the transaction: no pooled connection or row lock is
+      // held while it computes.
+      if (!hasher.matches(password, current.passwordHash())) {
+        attempt.failed();
+        throw AuthService.invalidCredentials();
+      }
+      boolean deleted =
+          Boolean.TRUE.equals(
+              transactions.execute(status -> {
+                Optional<UserAccount> locked = users.findByIdForUpdate(userId);
+                if (locked.isEmpty()) {
+                  return false;
+                }
+                if (!locked.get().passwordHash().equals(current.passwordHash())) {
+                  // The password changed after it was verified.
+                  attempt.failed();
+                  throw AuthService.invalidCredentials();
+                }
+                events.publishEvent(new UserDeletingEvent(userId));
+                return users.delete(userId);
+              }));
+      if (!deleted) {
+        throw CurrentUser.unauthorized();
+      }
+      attempt.succeeded();
+    } finally {
+      attempt.release();
     }
     LOG.info("Account deleted (userId={})", userId);
   }
