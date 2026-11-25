@@ -192,6 +192,10 @@ npm run e2e:adversarial
 
 The end-to-end figures of the final run are in the Phase 7 report; the scoring figures come from the Phase 2 report. CI runs the test suites and the security scan on every push; the end-to-end job runs for pull requests and the default branch and is informational.
 
+## License
+
+The source code is licensed under the GNU Affero General Public License v3.0 (see [LICENSE](LICENSE)). Reference data under `data/real/` comes from the NIH Dietary Supplement Label Database and keeps its own terms, described in ADR-0012; the demo prices and fixtures are synthetic.
+
 ## Documentation
 
 - [Architecture](docs/architecture.md) · [Runbook](docs/runbook.md) · [Contracts](contracts/)
