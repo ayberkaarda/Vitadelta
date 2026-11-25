@@ -298,7 +298,8 @@ class StripeApiTest {
         "/v1/subscriptions/sub_B",
         200,
         subscriptionJson("sub_B", "trialing", null, end, "null"));
-    assertThat(api.retrieveSubscription("sub_B").currentPeriodPaid()).isTrue();
+    // Without a latest invoice nothing proves a payment, also for a trial.
+    assertThat(api.retrieveSubscription("sub_B").currentPeriodPaid()).isFalse();
 
     answer(
         "GET",

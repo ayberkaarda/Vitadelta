@@ -50,12 +50,12 @@ public record StripeSubscription(
   }
 
   /**
-   * Whether the current period is paid for: a granting status, and the latest invoice is paid (or
-   * there is none). A renewal whose invoice is still open or failed grants nothing until Stripe
-   * reports it paid.
+   * Whether the current period is paid for: a granting status and an expanded latest invoice that
+   * is {@code paid}. Without that invoice nothing proves a payment, so nothing is granted (a trial
+   * is granted through its paid zero-amount invoice). A renewal whose invoice is still open or
+   * failed grants nothing until Stripe reports it paid.
    */
   public boolean currentPeriodPaid() {
-    return GRANTING.contains(status)
-        && (latestInvoiceStatus == null || latestInvoiceStatus.equals("paid"));
+    return GRANTING.contains(status) && "paid".equals(latestInvoiceStatus);
   }
 }
