@@ -58,9 +58,10 @@ export async function useLanguage(page: Page, lang: 'en' | 'tr'): Promise<void> 
     .locator('option:not([disabled])');
   await expect(countries.first()).toBeAttached();
   await expect(async () => {
-    if ((await button.getAttribute('aria-pressed')) !== 'true') {
-      await button.click();
-    }
+    // Always click: a language that is only the initial default (browser language, later the
+    // country's default locale) is not a switch and can still be replaced; a click is sticky.
+    await button.click();
+    await expect(button).toHaveAttribute('aria-pressed', 'true', { timeout: 2_000 });
     await expect(page.locator('html')).toHaveAttribute('lang', lang, { timeout: 2_000 });
   }).toPass({ timeout: 15_000 });
 }
