@@ -157,10 +157,13 @@ tasks.named("check") {
 }
 
 // OWASP Dependency-Check (project specification section 15.3), run by scripts/security-scan.sh
-// only when NVD_API_KEY is set; fails at CVSS >= 7. NVD_DATA_DIR keeps the NVD feed between runs.
+// and by the security job of the CI workflow, only when NVD_API_KEY is set; fails at CVSS >= 7.
+// NVD_DATA_DIR keeps the NVD feed between runs. Documented false positives go into
+// config/dependency-check-suppressions.xml.
 // Not part of `check`: the analysis needs the NVD feed and runs on its own.
 dependencyCheck {
     failBuildOnCVSS = 7.0f
+    suppressionFile = "config/dependency-check-suppressions.xml"
     scanConfigurations = listOf("runtimeClasspath")
     nvd { apiKey = providers.environmentVariable("NVD_API_KEY").orNull }
     providers.environmentVariable("NVD_DATA_DIR").orNull?.let { data { directory = it } }
