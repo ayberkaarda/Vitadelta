@@ -539,10 +539,13 @@ class ImportApiTest extends CatalogApiTest {
             .returnResult(String.class);
     assertProblem(json, 413, "validation_failed");
     assertProblem(postOffers(large, token), 413, "validation_failed");
-    // Just under the cap is accepted (and fails as a job: the document is empty JSON).
-    byte[] fits = new byte[19 * 1024 * 1024];
-    java.util.Arrays.fill(fits, (byte) ' ');
-    JsonNode job = await(postProducts(new String(fits, StandardCharsets.UTF_8), token), token);
+  }
+
+  @Test
+  void aBodyJustUnderTheCapIsAcceptedAndFailsAsAJob() {
+    String token = admin();
+    // One 19 MB string (one byte per character); the document is empty JSON, so the job fails.
+    JsonNode job = await(postProducts(" ".repeat(19 * 1024 * 1024), token), token);
     assertThat(job.get("status").asString()).isEqualTo("FAILED");
   }
 

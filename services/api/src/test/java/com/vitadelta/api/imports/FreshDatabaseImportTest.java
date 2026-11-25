@@ -42,7 +42,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * On a new database (migrations V1, V2, V5 only, no seed), the reference data is loaded and then
+ * On a new database (the delivered migrations only, no seed), the reference data is loaded and then
  * the committed products and offers files are imported through the admin endpoints: every import
  * succeeds and bumps the catalog version exactly once; importing the same files again changes no
  * row and does not bump.
@@ -61,15 +61,25 @@ class FreshDatabaseImportTest extends PostgresIntegrationTest {
       statement.execute("CREATE DATABASE " + name);
     }
     String url = POSTGRES.getJdbcUrl().replace("/vitadelta", "/" + name);
-    String[] properties =
+    // Command-line arguments outrank application.yml (default properties would not: server.port
+    // 8080 and management.server.port 8081 from application.yml would win and collide with a
+    // running stack).
+    String[] arguments =
         Stream.concat(
                 Arrays.stream(applicationProperties())
                     .filter(p -> !p.startsWith("VITADELTA_DB_URL=")),
                 Stream.of(
                     "VITADELTA_DB_URL=" + url, "server.port=0", "VITADELTA_JOBS_ENABLED=false"))
+            .map(p -> "--" + p)
             .toArray(String[]::new);
     try (ConfigurableApplicationContext context =
-        new SpringApplicationBuilder(VitadeltaApiApplication.class).properties(properties).run()) {
+        new SpringApplicationBuilder(VitadeltaApiApplication.class).run(arguments)) {
+      int serverPort = ((WebServerApplicationContext) context).getWebServer().getPort();
+      assertThat(serverPort).as("random server port").isNotEqualTo(8080);
+      assertThat(context.getEnvironment().getProperty("local.management.port", Integer.class))
+          .as("random management port")
+          .isNotNull()
+          .isNotEqualTo(8081);
       JdbcClient jdbc = context.getBean(JdbcClient.class);
       assertThat(jdbc.sql("SELECT count(*) FROM product").query(Integer.class).single()).isZero();
       // Reference data only, written the way the seed writes it; products come from the imports.
