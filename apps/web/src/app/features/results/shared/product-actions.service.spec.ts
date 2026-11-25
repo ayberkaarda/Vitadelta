@@ -54,6 +54,37 @@ describe('ProductActionsService', () => {
     expect(api['updateAlert']).toHaveBeenCalledTimes(1);
   });
 
+  it('activates a subscription that POST answered as existing and inactive', async () => {
+    const service = TestBed.inject(ProductActionsService);
+    const inactive = goldAlert({ active: false, thresholdPercent: 10 });
+    api['createAlert'].mockReturnValue(of(inactive));
+    api['updateAlert'].mockReturnValue(of({ ...inactive, active: true, thresholdPercent: 7.5 }));
+    const state = service.create(GOLD_A_ID, 'TR', true, []);
+
+    expect(await service.createAlert(state, 'PRICE_DROP', 7.5)).toBe(true);
+    expect(api['updateAlert']).toHaveBeenCalledWith(inactive.id, {
+      active: true,
+      thresholdPercent: 7.5,
+    });
+    expect(state.priceAlert()?.thresholdPercent).toBe(7.5);
+    expect(state.activeAlerts()).toHaveLength(1);
+  });
+
+  it('reports failure when the inactive subscription cannot be activated', async () => {
+    const service = TestBed.inject(ProductActionsService);
+    const inactive = goldAlert({ active: false });
+    api['createAlert'].mockReturnValue(of(inactive));
+    api['updateAlert'].mockReturnValue(
+      throwError(() => new ApiProblem({ kind: 'problem', status: 500, code: 'internal_error' })),
+    );
+    const state = service.create(GOLD_A_ID, 'TR', true, []);
+
+    expect(await service.createAlert(state, 'PRICE_DROP', null)).toBe(false);
+    expect(api['updateAlert']).toHaveBeenCalledWith(inactive.id, { active: true });
+    expect(state.activeAlerts()).toEqual([]);
+    expect(state.problemAction()).toBe('alert');
+  });
+
   it('rolls a failed alert creation back and keeps the saved flag', async () => {
     const service = TestBed.inject(ProductActionsService);
     api['createAlert'].mockReturnValue(

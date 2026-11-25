@@ -1,6 +1,8 @@
 import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { Component } from '@angular/core';
 import { provideRouter } from '@angular/router';
+import { RouterTestingHarness } from '@angular/router/testing';
 import { of, throwError } from 'rxjs';
 
 import adminEn from '../../../../public/i18n/admin/en.json';
@@ -22,7 +24,7 @@ import { AdminImportsPageComponent } from './admin-imports-page.component';
 import { AdminLayoutComponent } from './admin-layout.component';
 import { AdminPromoCodesPageComponent } from './admin-promo-codes-page.component';
 import { AdminUsersPageComponent } from './admin-users-page.component';
-import { IMPORT_POLL_INTERVAL_MS } from './import-jobs.store';
+import { IMPORT_POLL_INTERVAL_MS, ImportJobsStore } from './import-jobs.store';
 
 async function settle(fixture: ComponentFixture<unknown>, rounds = 3): Promise<void> {
   for (let round = 0; round < rounds; round++) {
@@ -32,7 +34,12 @@ async function settle(fixture: ComponentFixture<unknown>, rounds = 3): Promise<v
   await fixture.whenStable();
 }
 
-function configure(api: Record<string, unknown>, userId = 'admin-id') {
+function configure(
+  api: Record<string, unknown>,
+  userId = 'admin-id',
+  generation = signal(1),
+  admin = signal(true),
+) {
   TestBed.configureTestingModule({
     imports: [translocoTesting({ scopes: { admin: { en: adminEn, tr: adminTr } } })],
     providers: [
@@ -42,7 +49,11 @@ function configure(api: Record<string, unknown>, userId = 'admin-id') {
       { provide: IMPORT_POLL_INTERVAL_MS, useValue: 0 },
       {
         provide: SessionStore,
-        useValue: { user: signal(fixtureUser({ id: userId, role: 'ADMIN' })) },
+        useValue: {
+          user: signal(fixtureUser({ id: userId, role: 'ADMIN' })),
+          generation,
+          isAdmin: admin,
+        },
       },
     ],
   });
@@ -115,11 +126,89 @@ describe('AdminImportsPageComponent', () => {
     expect(cells[0]).toEqual([
       '17',
       'currency_mismatch',
-      'currency_mismatch: EUR offer for country TR (row 17)',
+      'currency',
+      'The currency is not the currency of the country.',
     ]);
-    expect(cells[1][1]).toBe('invalid_offer_url');
+    expect(cells[1]).toEqual([
+      '88',
+      'invalid_offer_url',
+      'url',
+      'The offer URL is not an absolute http or https address.',
+    ]);
+    expect(panel?.textContent).not.toContain('EUR offer for country');
+    expect(panel?.textContent).not.toContain('onerror');
     expect(panel?.querySelector('img')).toBeNull();
     expect(panel?.textContent).toContain(adminEn.imports.rows_note_csv);
+  });
+
+  it('translates allow-listed error codes and never renders the server message', async () => {
+    const failed: ImportJobDetail = {
+      ...RUNNING,
+      id: 'job-9',
+      kind: 'PRODUCTS_JSON',
+      status: 'FAILED',
+      finishedAt: '2026-11-25T09:51:30Z',
+      summary: { products: 4, inserted: 0, updated: 0, unchanged: 0, deleted: 0, changedPairs: 0 },
+      errors: [
+        {
+          rowNumber: 3,
+          code: 'schema_violation',
+          message:
+            'schema_violation: expected number, got string (products[2].nutrients[0].amount_per_serving)',
+        },
+        { rowNumber: 5, code: 'mystery_code', message: 'mystery_code: internal detail 42 (row 5)' },
+        { rowNumber: 1, message: 'Something odd happened at /srv/app (row 1)' },
+      ],
+    };
+    const importProducts = vi.fn(() => of({ ...RUNNING, id: 'job-9', kind: 'PRODUCTS_JSON' }));
+    configure({ importProducts, importOffers: vi.fn(), getImportJob: vi.fn(() => of(failed)) });
+    const fixture = TestBed.createComponent(AdminImportsPageComponent);
+    await settle(fixture);
+    const host = fixture.nativeElement as HTMLElement;
+    const file = new File(['{}'], 'products.json', { type: 'application/json' });
+    choose(host, 'import-products', file);
+    await settle(fixture, 6);
+
+    const panel = host.querySelector('[data-job-errors]');
+    const cells = Array.from(panel?.querySelectorAll('tbody tr') ?? []).map((tr) =>
+      Array.from(tr.querySelectorAll('td')).map((td) => td.textContent?.trim()),
+    );
+    expect(cells).toEqual([
+      [
+        '3',
+        'schema_violation',
+        'products[2].nutrients[0].amount_per_serving',
+        'The product does not match the import schema.',
+      ],
+      ['5', 'mystery_code', '—', 'This entry could not be imported.'],
+      ['1', '—', '—', 'This entry could not be imported.'],
+    ]);
+    const shown = panel?.textContent ?? '';
+    expect(shown).not.toContain('expected number');
+    expect(shown).not.toContain('internal detail');
+    expect(shown).not.toContain('/srv/app');
+  });
+
+  it('forgets the jobs and stops polling when the session changes', async () => {
+    const generation = signal(1);
+    const getImportJob = vi.fn(() => of({ ...RUNNING, errors: [] }));
+    configure(
+      { importOffers: vi.fn(() => of(RUNNING)), importProducts: vi.fn(), getImportJob },
+      'admin-id',
+      generation,
+    );
+    const store = TestBed.inject(ImportJobsStore);
+    await store.upload('OFFERS_CSV', new File(['x'], 'offers.csv', { type: 'text/csv' }));
+    expect(store.jobs()).toHaveLength(1);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    expect(getImportJob).toHaveBeenCalled();
+
+    generation.set(2);
+    expect(store.jobs()).toEqual([]);
+    const calls = getImportJob.mock.calls.length;
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(getImportJob).toHaveBeenCalledTimes(calls);
+    expect(store.jobs()).toEqual([]);
   });
 
   it('polls a products import until it succeeds and shows the summary', async () => {
@@ -453,5 +542,40 @@ describe('AdminLayoutComponent', () => {
     await settle(fixture);
     expect(host.querySelector('[data-fx-result]')?.textContent).toContain('failed for TRY');
     expect(host.querySelectorAll('.subnav a')).toHaveLength(3);
+  });
+
+  it('re-creates the routed admin page for a new session and removes it without the role', async () => {
+    let created = 0;
+    @Component({ selector: 'vd-probe', template: '' })
+    class ProbeComponent {
+      constructor() {
+        created += 1;
+      }
+    }
+    const generation = signal(1);
+    const admin = signal(true);
+    configure({ refreshFxRates: vi.fn() }, 'admin-id', generation, admin);
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([
+          {
+            path: 'admin',
+            component: AdminLayoutComponent,
+            children: [{ path: '', component: ProbeComponent }],
+          },
+        ]),
+      ],
+    });
+    const harness = await RouterTestingHarness.create('/admin');
+    await harness.fixture.whenStable();
+    expect(created).toBe(1);
+
+    generation.set(2);
+    await harness.fixture.whenStable();
+    expect(created).toBe(2);
+
+    admin.set(false);
+    await harness.fixture.whenStable();
+    expect(harness.routeNativeElement?.querySelector('vd-probe')).toBeNull();
   });
 });

@@ -3,7 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { Router, provideRouter, withComponentInputBinding } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { provideTranslocoScope } from '@jsverse/transloco';
-import { Observable, of, throwError } from 'rxjs';
+import { Observable, Subject, of, throwError } from 'rxjs';
 
 import resultsEn from '../../../../public/i18n/results/en.json';
 import resultsTr from '../../../../public/i18n/results/tr.json';
@@ -19,6 +19,7 @@ import { ResultsPageComponent } from './results-page.component';
 import { FIELD_ERRORS_STATE } from './shared/navigation-state';
 import {
   FIXTURE_DEFAULTS,
+  FIXTURE_NUTRIENTS,
   FIXTURE_PLANS,
   GOLD_A_ID,
   GOLD_B_ID,
@@ -48,6 +49,7 @@ describe('ResultsPageComponent', () => {
     status: ReturnType<typeof signal<string>>;
     isAuthenticated: ReturnType<typeof signal<boolean>>;
     whenReady: () => Promise<void>;
+    generation: ReturnType<typeof signal<number>>;
     applyPrincipal: ReturnType<typeof vi.fn>;
     applyQuotaProblem: ReturnType<typeof vi.fn>;
     reloadMe: ReturnType<typeof vi.fn>;
@@ -63,6 +65,7 @@ describe('ResultsPageComponent', () => {
     api = {
       queryRecommendations: query,
       getDefaultWeights: vi.fn(() => of(FIXTURE_DEFAULTS)),
+      listNutrients: vi.fn(() => of(FIXTURE_NUTRIENTS)),
       listPlans: vi.fn(() => of(FIXTURE_PLANS)),
       saveProduct: vi.fn(),
       removeSavedProduct: vi.fn(),
@@ -74,6 +77,7 @@ describe('ResultsPageComponent', () => {
       status: signal(signedIn ? 'authenticated' : 'anonymous'),
       isAuthenticated: signal(signedIn),
       whenReady: () => Promise.resolve(),
+      generation: signal(1),
       applyPrincipal: vi.fn(),
       applyQuotaProblem: vi.fn(),
       reloadMe: vi.fn(() => Promise.resolve()),
@@ -104,6 +108,8 @@ describe('ResultsPageComponent', () => {
             intlLocale: signal('en-US'),
             countryCode: signal('TR'),
             countries: signal(FIXTURE_COUNTRIES),
+            loadCountries: vi.fn(async () => undefined),
+            setCountry: vi.fn(),
           },
         },
       ],
@@ -504,5 +510,46 @@ describe('ResultsPageComponent', () => {
     expect(navigate).toHaveBeenCalledWith(['/results'], {
       queryParams: { country: 'TR', page: '2' },
     });
+  });
+
+  it('drops the previous account rows and runs the query again when the session changes', async () => {
+    let calls = 0;
+    const pending = new Subject<RecommendationQueryResponse>();
+    setup(() => (++calls === 1 ? of(userResponse()) : pending.asObservable()), true);
+    const harness = await open();
+    expect(rows(host(harness)).length).toBeGreaterThan(0);
+
+    session.generation.set(2);
+    await settle(harness);
+    expect(query).toHaveBeenCalledTimes(2);
+    expect(rows(host(harness))).toHaveLength(0);
+    pending.next(anonymousResponse());
+    pending.complete();
+    await settle(harness);
+    expect(rows(host(harness)).length).toBeGreaterThan(0);
+  });
+
+  it('drops URL values outside the registries and contract bounds before any request', async () => {
+    setup(() => of(anonymousResponse()));
+    const harness = await open(
+      '/results?country=ZZ&mode=CUSTOM&lambda=-1&w=VITAMIN:99,MINERAL:1.5&o=UNKNOWN:4,ZINC:2' +
+        '&req=VIT_D:25,VIT_C,BORON&page=1e100&size=500',
+    );
+    expect(query.mock.calls.map(([body]) => body.country)).not.toContain('ZZ');
+    expect(query).toHaveBeenCalledTimes(1);
+    expect(query.mock.calls[0][0]).toEqual({
+      country: 'TR',
+      stockFilter: 'IN_STOCK_ONLY',
+      ranking: { mode: 'CUSTOM' },
+      weights: { categories: { MINERAL: 1.5 }, overrides: { ZINC: 2 } },
+      requiredNutrients: [{ code: 'VIT_C' }],
+      excludeExceedingUl: false,
+      page: 1,
+      pageSize: 20,
+    });
+    await settle(harness);
+    expect(TestBed.inject(Router).url).toBe(
+      '/results?mode=CUSTOM&w=MINERAL:1.5&o=ZINC:2&req=VIT_C',
+    );
   });
 });

@@ -55,6 +55,8 @@ export class AdminUsersPageComponent {
   protected readonly format = inject(Formatter);
   private searchTimer: ReturnType<typeof setTimeout> | null = null;
 
+  private loadSequence = 0;
+
   protected readonly state = signal<LoadState>({ kind: 'loading' });
   protected readonly query = signal('');
   protected readonly page = signal(1);
@@ -88,7 +90,9 @@ export class AdminUsersPageComponent {
     void this.load(1);
   }
 
+  /** Loads a page; an answer of a superseded load (older search or page) is ignored. */
   protected async load(page: number): Promise<void> {
+    const sequence = ++this.loadSequence;
     this.page.set(page);
     this.action.set(null);
     this.state.set({ kind: 'loading' });
@@ -97,9 +101,13 @@ export class AdminUsersPageComponent {
       const result = await firstValueFrom(
         this.api.listUsers({ page, pageSize: USERS_PAGE_SIZE, ...(q ? { q } : {}) }),
       );
-      this.state.set({ kind: 'ready', page: result });
+      if (sequence === this.loadSequence) {
+        this.state.set({ kind: 'ready', page: result });
+      }
     } catch (error: unknown) {
-      this.state.set({ kind: 'error', problem: ApiProblem.from(error) });
+      if (sequence === this.loadSequence) {
+        this.state.set({ kind: 'error', problem: ApiProblem.from(error) });
+      }
     }
   }
 

@@ -63,6 +63,8 @@ export class UpgradePageComponent {
   protected readonly session = inject(SessionStore);
   protected readonly format = inject(Formatter);
 
+  private loadSequence = 0;
+
   protected readonly state = signal<LoadState>({ kind: 'loading' });
   protected readonly loginParams = { returnUrl: '/upgrade' };
 
@@ -82,16 +84,23 @@ export class UpgradePageComponent {
     void this.load(this.currency.requestCurrency());
   }
 
+  /** Loads the plans; an answer for a superseded display currency is ignored. */
   private async load(displayCurrency: string | undefined): Promise<void> {
+    const sequence = ++this.loadSequence;
     this.state.set({ kind: 'loading' });
     try {
       const list = await firstValueFrom(
         this.api.listPlans(displayCurrency ? { displayCurrency } : {}),
       );
+      if (sequence !== this.loadSequence) {
+        return;
+      }
       this.currency.recordMeta(list.meta);
       this.state.set({ kind: 'ready', list });
     } catch (error: unknown) {
-      this.state.set({ kind: 'error', problem: ApiProblem.from(error) });
+      if (sequence === this.loadSequence) {
+        this.state.set({ kind: 'error', problem: ApiProblem.from(error) });
+      }
     }
   }
 

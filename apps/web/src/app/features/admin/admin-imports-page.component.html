@@ -224,7 +224,8 @@
                 <tr>
                   <th scope="col" class="r">{{ 'admin.imports.col.row' | transloco }}</th>
                   <th scope="col">{{ 'admin.imports.col.code' | transloco }}</th>
-                  <th scope="col">{{ 'admin.imports.col.message' | transloco }}</th>
+                  <th scope="col">{{ 'admin.imports.col.field' | transloco }}</th>
+                  <th scope="col">{{ 'admin.imports.col.problem' | transloco }}</th>
                 </tr>
               </thead>
               <tbody>
@@ -232,9 +233,12 @@
                   <tr>
                     <td class="r">{{ format.integer(error.rowNumber) }}</td>
                     <td>
-                      <span class="mono">{{ errorCode(error) }}</span>
+                      <span class="mono">{{ error.code ?? '—' }}</span>
                     </td>
-                    <td class="message">{{ error.message }}</td>
+                    <td>
+                      <span class="mono">{{ error.field ?? '—' }}</span>
+                    </td>
+                    <td class="message">{{ error.key | transloco }}</td>
                   </tr>
                 }
               </tbody>

@@ -46,6 +46,12 @@ export class ProductActionState {
 
 const PENDING_ID = 'pending';
 
+/** Fields of an alert subscription changed with `PATCH /me/alerts/{id}`. */
+export interface AlertChange {
+  readonly active?: boolean;
+  readonly thresholdPercent?: number;
+}
+
 /** Save / alert / resend flows shared by the results rows, the breakdown drawer and the detail page. */
 @Injectable({ providedIn: 'root' })
 export class ProductActionsService {
@@ -122,18 +128,8 @@ export class ProductActionsService {
     }
     const existing = state.alerts().find((alert) => alert.trigger === trigger);
     if (existing) {
-      const change: { active?: boolean; thresholdPercent?: number } = {};
-      if (!existing.active) {
-        change.active = true;
-      }
-      if (
-        trigger === 'PRICE_DROP' &&
-        thresholdPercent !== null &&
-        thresholdPercent !== existing.thresholdPercent
-      ) {
-        change.thresholdPercent = thresholdPercent;
-      }
-      return Object.keys(change).length === 0 ? true : this.patchAlert(state, existing, change);
+      const change = activationChange(existing, thresholdPercent);
+      return change ? this.patchAlert(state, existing, change) : true;
     }
 
     const before = state.alerts();
@@ -142,8 +138,9 @@ export class ProductActionsService {
     state.alerts.set(
       sortAlerts([...before, pendingAlert(state, trigger, thresholdPercent, this.nowIso())]),
     );
+    let created: AlertSubscription | null = null;
     try {
-      const created = await firstValueFrom(
+      created = await firstValueFrom(
         this.api.createAlert({
           productId: state.productId,
           countryCode: state.country,
@@ -151,14 +148,21 @@ export class ProductActionsService {
           ...(trigger === 'PRICE_DROP' && thresholdPercent !== null ? { thresholdPercent } : {}),
         }),
       );
-      state.alerts.set(sortAlerts([...before, created]));
+      // POST answers an existing subscription unchanged, active or not: activate it (with the
+      // requested threshold) before reporting success.
+      const change = activationChange(created, thresholdPercent);
+      const result = change
+        ? await firstValueFrom(this.api.updateAlert(created.id, change))
+        : created;
+      state.alerts.set(sortAlerts([...before.filter((alert) => alert.id !== result.id), result]));
       // Creating an alert saves the product implicitly (server rule).
       state.saved.set(true);
       void this.session.reloadMe();
       return true;
     } catch (error: unknown) {
-      state.alerts.set(before);
-      state.saved.set(savedBefore);
+      // A subscription the server already has stays known (inactive), so a retry patches it.
+      state.alerts.set(created ? sortAlerts([...before, created]) : before);
+      state.saved.set(created ? true : savedBefore);
       this.fail(state, 'alert', error);
       return false;
     } finally {
@@ -186,7 +190,7 @@ export class ProductActionsService {
   private async patchAlert(
     state: ProductActionState,
     alert: AlertSubscription,
-    change: { active?: boolean; thresholdPercent?: number },
+    change: AlertChange,
   ): Promise<boolean> {
     const before = state.alerts();
     this.start(state, 'alert');
@@ -237,6 +241,28 @@ const TRIGGER_ORDER: Readonly<Record<AlertTrigger, number>> = {
   BACK_IN_STOCK: 1,
   PRICE_CHANGE: 2,
 };
+
+/**
+ * The `PATCH` that turns the subscription returned by `POST /me/alerts` into the requested one:
+ * active, and for PRICE_DROP with the requested threshold; `null` when it already is.
+ */
+export function activationChange(
+  alert: AlertSubscription,
+  thresholdPercent: number | null,
+): AlertChange | null {
+  const change: { active?: boolean; thresholdPercent?: number } = {};
+  if (!alert.active) {
+    change.active = true;
+  }
+  if (
+    alert.trigger === 'PRICE_DROP' &&
+    thresholdPercent !== null &&
+    thresholdPercent !== alert.thresholdPercent
+  ) {
+    change.thresholdPercent = thresholdPercent;
+  }
+  return Object.keys(change).length === 0 ? null : change;
+}
 
 function sortAlerts(alerts: readonly AlertSubscription[]): AlertSubscription[] {
   return [...alerts].sort((a, b) => TRIGGER_ORDER[a.trigger] - TRIGGER_ORDER[b.trigger]);

@@ -6,6 +6,7 @@ import { firstValueFrom } from 'rxjs';
 import { ApiClient } from '../../core/api/api-client';
 import { ApiProblem } from '../../core/api/api-problem';
 import { FxRefreshResult } from '../../core/api/api-types';
+import { SessionStore } from '../../core/auth/session.store';
 import { IconComponent } from '../../shared/icon/icon.component';
 import { NoticeComponent } from '../../shared/notice/notice.component';
 import { ProblemNoticeComponent } from '../../shared/notice/problem-notice.component';
@@ -13,7 +14,8 @@ import { ProblemNoticeComponent } from '../../shared/notice/problem-notice.compo
 /**
  * Frame of `/admin/**` (project specification §8.9; design hand-off §4.10): heading, the
  * "Refresh exchange rates" action (`POST /admin/fx/refresh`) and the sub-navigation. Access is
- * decided by `adminGuard` from `/me` and re-checked by the API on every call.
+ * decided by `adminGuard` from `/me` and re-checked by the API on every call. The routed page
+ * is created anew for every session generation and removed without the role.
  */
 @Component({
   selector: 'vd-admin-layout',
@@ -70,7 +72,12 @@ import { ProblemNoticeComponent } from '../../shared/notice/problem-notice.compo
           'admin.nav.users' | transloco
         }}</a>
       </nav>
-      <router-outlet />
+      @if (session.isAdmin()) {
+        <!-- One outlet per session generation: a new account gets freshly loaded pages. -->
+        @for (generation of [session.generation()]; track generation) {
+          <router-outlet />
+        }
+      }
     </div>
   `,
   styles: `
@@ -82,6 +89,7 @@ import { ProblemNoticeComponent } from '../../shared/notice/problem-notice.compo
 })
 export class AdminLayoutComponent {
   private readonly api = inject(ApiClient);
+  protected readonly session = inject(SessionStore);
 
   protected readonly refreshing = signal(false);
   protected readonly fxResult = signal<FxRefreshResult | null>(null);

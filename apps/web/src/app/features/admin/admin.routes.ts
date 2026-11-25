@@ -5,6 +5,7 @@ export default featureRoutes('admin', [
   {
     path: '',
     canActivate: [adminGuard],
+    runGuardsAndResolvers: 'always',
     loadComponent: () => import('./admin-layout.component').then((m) => m.AdminLayoutComponent),
     children: [
       { path: '', pathMatch: 'full', redirectTo: 'imports' },

@@ -8,7 +8,7 @@ import {
   untracked,
 } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, Params, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, ParamMap, Params, Router, RouterLink } from '@angular/router';
 import { TranslocoPipe } from '@jsverse/transloco';
 import { firstValueFrom } from 'rxjs';
 
@@ -24,7 +24,12 @@ import { loginQueryParams } from '../../core/auth/return-url';
 import { SessionStore } from '../../core/auth/session.store';
 import { Formatter } from '../../core/format/formatter';
 import { CurrencyStore } from '../../core/state/currency.store';
-import { QUERY_PARAM, QueryStore } from '../../core/state/query.store';
+import {
+  QUERY_PARAM,
+  QueryStore,
+  isNormalized,
+  serializeQuery,
+} from '../../core/state/query.store';
 import { RegionStore } from '../../core/state/region.store';
 import { DisclaimerComponent } from '../../shared/disclaimer/disclaimer.component';
 import { IconComponent } from '../../shared/icon/icon.component';
@@ -95,6 +100,7 @@ export class ResultsPageComponent {
   private readonly ready = signal(false);
   private lastKey: string | null = null;
   private lastRequest: RecommendationQueryRequest | null = null;
+  private lastGeneration: number | null = null;
   private sequence = 0;
 
   protected readonly status = signal<Status>('loading');
@@ -180,29 +186,92 @@ export class ResultsPageComponent {
   });
 
   constructor() {
-    void this.session.whenReady().then(() => this.ready.set(true));
     void this.reference.loadDefaults();
+    void this.prepare();
 
     effect(() => {
       const params = this.params();
       const ready = this.ready();
       const displayCurrency = this.currency.requestCurrency();
+      const generation = this.session.generation();
       this.region.countryCode();
-      const request = untracked(() => {
-        this.store.restore(params);
-        return ready ? this.store.toRequest(displayCurrency) : null;
-      });
-      if (request) {
-        untracked(() => void this.run(request));
+      if (!ready) {
+        return;
       }
+      untracked(() => this.apply(params, displayCurrency, generation));
     });
   }
 
-  /** Runs the request again (retry after an error). */
+  /** Runs the request again (retry after an error), or loads the registries again. */
   protected retry(): void {
     if (this.lastRequest) {
       void this.run(this.lastRequest, true);
+    } else {
+      void this.prepare();
     }
+  }
+
+  /**
+   * Waits for the session restore and the registries the URL is validated against: the
+   * country list (required) and the nutrient registry (codes are only pattern-checked when it
+   * cannot be loaded; the server validates them again).
+   */
+  private async prepare(): Promise<void> {
+    this.status.set('loading');
+    this.problem.set(null);
+    this.ready.set(false);
+    await Promise.all([
+      this.session.whenReady(),
+      this.region.loadCountries(),
+      this.reference.loadNutrients(),
+    ]);
+    this.ready.set(true);
+  }
+
+  /**
+   * Restores the query from the URL (dropping invalid parts), normalises the URL when something
+   * was dropped and sends the request. A new session generation drops the previous account's
+   * rows (saved and alert state) and runs the query again.
+   */
+  private apply(params: ParamMap, displayCurrency: string | undefined, generation: number): void {
+    if (this.region.countries().length === 0) {
+      this.lastRequest = null;
+      this.response.set(null);
+      this.problem.set(new ApiProblem({ kind: 'network', status: 0, code: null }));
+      this.status.set('error');
+      return;
+    }
+    const nutrients = this.reference.nutrients().map((nutrient) => nutrient.code);
+    const state = this.store.restore(params, nutrients);
+    if (!isNormalized(params, state)) {
+      const kept = Object.fromEntries(
+        params.keys
+          .filter((key) => !(Object.values(QUERY_PARAM) as string[]).includes(key))
+          .map((key) => [key, params.get(key)]),
+      );
+      void this.router.navigate([], {
+        relativeTo: this.route,
+        queryParams: { ...kept, ...serializeQuery(state) },
+        replaceUrl: true,
+      });
+      return;
+    }
+    const request = this.store.toRequest(displayCurrency);
+    if (!request) {
+      return;
+    }
+    if (generation !== this.lastGeneration) {
+      const first = this.lastGeneration === null;
+      this.lastGeneration = generation;
+      if (!first) {
+        this.response.set(null);
+        this.selection.set([]);
+        this.selectionNote.set(null);
+        void this.run(request, true);
+        return;
+      }
+    }
+    void this.run(request);
   }
 
   protected goToPage(page: number): void {

@@ -8,6 +8,7 @@ import { IconComponent } from '../../shared/icon/icon.component';
 import { NoticeComponent } from '../../shared/notice/notice.component';
 import { ProblemNoticeComponent } from '../../shared/notice/problem-notice.component';
 import { EmptyStateComponent } from '../../shared/state/empty-state.component';
+import { ImportErrorView, describeImportError } from './import-errors';
 import {
   IMPORT_SIZE_HINT_BYTES,
   ImportJobsStore,
@@ -41,7 +42,8 @@ interface UploadSlot {
 /**
  * `/admin/imports` (project specification §8.9, §9.1; design hand-off §4.10): upload a products
  * JSON document or an offers CSV, follow the job until it succeeds or fails, and read the row
- * errors (codes and plain-text messages, never HTML).
+ * errors: row number, code, field and a translated text per allow-listed code. The server's
+ * message prose is never rendered.
  */
 @Component({
   selector: 'vd-admin-imports-page',
@@ -160,16 +162,8 @@ export class AdminImportsPageComponent {
     }));
   }
 
-  protected errorsOf(job: ImportJob | ImportJobDetail) {
-    return hasDetail(job) ? job.errors : [];
-  }
-
-  /** Error code: the explicit field, else the prefix of the message (`code: detail`). */
-  protected errorCode(error: { code?: string; message: string }): string {
-    if (error.code) {
-      return error.code;
-    }
-    const prefix = /^([a-z_]+):/.exec(error.message);
-    return prefix ? prefix[1] : '';
+  /** Row errors as allow-listed table cells (translated text, never the server's message). */
+  protected errorsOf(job: ImportJob | ImportJobDetail): readonly ImportErrorView[] {
+    return hasDetail(job) ? job.errors.map((error) => describeImportError(error, job.kind)) : [];
   }
 }
