@@ -18,6 +18,8 @@ import java.math.BigDecimal;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.web.client.ResourceAccessException;
 
 /** Probe and engine-parameter cache of {@link ScoringHealth} with a stubbed client and ticker. */
@@ -112,6 +114,53 @@ class ScoringHealthTest {
     assertThat(health.probe()).isTrue();
     when(api.getHealth(any())).thenReturn(null);
     assertThat(health.probe()).isTrue();
+  }
+
+  @ParameterizedTest
+  @CsvSource({
+    "-1, 1.5, 1.0, 1.5",
+    "0, 1.5, 1.0, 1.5",
+    "0.35, 0.5, 1.0, 1.5",
+    "0.35, 0.999999, 1.0, 1.5",
+    "0.35, 1.5, 0, 1.5",
+    "0.35, 1.5, -1, 1.5",
+    "0.35, 1.5, 1.0, 0",
+    "0.35, 1.5, 1.0, -3",
+    "0.35, 1.5, 1.6, 1.5"
+  })
+  void parametersOutsideTheDocumentedRangesAreNeverPublished(
+      String beta, String ceiling, String worth, String marginal) {
+    when(api.getHealth(any()))
+        .thenReturn(answer("0.35", "1.5", "1.0", "1.5"))
+        .thenReturn(answer(beta, ceiling, worth, marginal));
+    assertThat(health.probe()).isTrue();
+    assertThat(health.current()).isPresent();
+    assertThat(health.probe()).as("the service still answers").isTrue();
+    assertThat(health.current()).as("neither the new nor the older values").isEmpty();
+  }
+
+  @Test
+  void theDocumentedBoundariesThemselvesArePublished() {
+    when(api.getHealth(any())).thenReturn(answer("0.000001", "1", "0.5", "0.5"));
+    assertThat(health.probe()).isTrue();
+    assertThat(health.current())
+        .contains(
+            new EngineParameters(
+                new BigDecimal("0.000001"),
+                BigDecimal.ONE,
+                new BigDecimal("0.5"),
+                new BigDecimal("0.5")));
+  }
+
+  @Test
+  void anIncompleteAnswerAfterAValidOneClearsThePublishedParameters() {
+    when(api.getHealth(any()))
+        .thenReturn(answer("0.35", "1.5", "1.0", "1.5"))
+        .thenReturn(answer(null, "1.5", "1.0", "1.5"));
+    assertThat(health.probe()).isTrue();
+    assertThat(health.current()).isPresent();
+    assertThat(health.probe()).isTrue();
+    assertThat(health.current()).isEmpty();
   }
 
   @Test

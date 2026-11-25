@@ -40,11 +40,13 @@ class OutboxProcessorIntegrationTest extends AlertsIntegrationTest {
   @Autowired private JobRunRegistry runs;
   @Autowired private MeterRegistry meters;
 
-  /** Writes {@code count} OFFERS_CHANGED events for a pair nobody watches. */
+  /**
+   * Writes {@code count} OFFERS_CHANGED events, each for its own pair that nobody watches (events
+   * of one pair are claimed one at a time, see {@code OutboxOrderingIntegrationTest}).
+   */
   private void quietEvents(int count) {
-    UUID product = productId("ZN40");
     for (int i = 0; i < count; i++) {
-      offersChanged(product, "TR", state("240.00", true), state("230.00", true));
+      offersChanged(UUID.randomUUID(), "TR", state("240.00", true), state("230.00", true));
     }
   }
 

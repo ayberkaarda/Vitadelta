@@ -434,15 +434,25 @@ public abstract class AlertsIntegrationTest extends PostgresIntegrationTest {
         "https://fixture-pharmacy.example/tr/p/test");
   }
 
-  /** Writes one {@code OFFERS_CHANGED} event through the emitter, as an import would. */
+  /**
+   * Writes one {@code OFFERS_CHANGED} event through the emitter, as an import would: the catalog
+   * version is bumped first and the event carries the version the transaction commits with.
+   */
   protected void offersChanged(
       UUID productId, String country, EffectivePrice.State before, EffectivePrice.State after) {
     transactions.executeWithoutResult(tx ->
         emitter.offersChanged(
             List.of(new OfferPairChange(productId, "TEST", country, before, after)),
-            jdbc.sql("SELECT version FROM catalog_version WHERE id = 1")
+            jdbc.sql(
+                    "UPDATE catalog_version SET version = version + 1, bumped_at = now()"
+                        + " WHERE id = 1 RETURNING version")
                 .query(Long.class)
                 .single()));
+  }
+
+  /** The committed catalog version. */
+  protected long committedCatalogVersion() {
+    return jdbc.sql("SELECT version FROM catalog_version WHERE id = 1").query(Long.class).single();
   }
 
   /** Runs the processor until no event is due (at most 10 batches). */
