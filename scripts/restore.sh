@@ -23,7 +23,13 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
 PROJECT="vitadelta-restore"
-COMPOSE_FILE="infra/docker-compose.restore.yml"
+RESTORE_COMPOSE_FILE="infra/docker-compose.restore.yml"
+LIVE_COMPOSE_FILE="infra/docker-compose.yml"
+
+# Compose settings inherited from the caller's environment never apply here: every compose command
+# below names the restore project and file explicitly, and these variables are cleared so that
+# neither a project name, a file list, profiles nor env files of the live stack can leak in.
+unset COMPOSE_PROJECT_NAME COMPOSE_FILE COMPOSE_PROFILES COMPOSE_ENV_FILES COMPOSE_PATH_SEPARATOR
 
 log() { printf '[restore] %s\n' "$*"; }
 fail() { printf '[restore] ERROR: %s\n' "$*" >&2; exit 1; }
@@ -47,8 +53,38 @@ done
 
 command -v docker > /dev/null 2>&1 || fail "'docker' is required but was not found on PATH"
 
+compose() { docker compose --project-name "$PROJECT" --file "$RESTORE_COMPOSE_FILE" "$@"; }
+
+random_hex() { od -An -N "$1" -tx1 /dev/urandom | tr -d ' \n'; }
+
+# Fresh per-run values, exported to the compose commands only (the compose file requires them,
+# also for "down").
+export RESTORE_DB_USERNAME="vitadelta"
+RESTORE_DB_PASSWORD="$(random_hex 24)"
+RESTORE_JWT_SECRET="$(random_hex 48)"
+RESTORE_COOKIE_SECRET="$(random_hex 48)"
+export RESTORE_DB_PASSWORD RESTORE_JWT_SECRET RESTORE_COOKIE_SECRET
+
+# Refuses to continue unless compose resolves exactly the restore project, that project is not the
+# live one (the name in infra/docker-compose.yml), and no container of that project was created
+# from the live compose file.
+guard_isolation() {
+  local resolved live
+  resolved="$(compose config --no-interpolate 2> /dev/null | sed -n 's/^name: //p' | tr -d '\r"')"
+  live="$(sed -n 's/^name: //p' "$LIVE_COMPOSE_FILE" | tr -d '\r"')"
+  [ -n "$resolved" ] || fail "could not resolve the compose project of $RESTORE_COMPOSE_FILE"
+  [ "$resolved" = "$PROJECT" ] || fail "compose resolved project '$resolved' instead of '$PROJECT'; refusing to run"
+  [ "$resolved" != "$live" ] || fail "the restore project equals the live project '$live'; refusing to run"
+  if docker ps -a --filter "label=com.docker.compose.project=$resolved" \
+    --format '{{.Label "com.docker.compose.project.config_files"}}' | grep -Eq 'docker-compose\.yml$'; then
+    fail "project '$resolved' has containers created from $LIVE_COMPOSE_FILE; refusing to touch it"
+  fi
+  log "isolation verified: compose project '$resolved', live project '$live' is not touched"
+}
+guard_isolation
+
 if [ "$down" = true ]; then
-  docker compose --project-name "$PROJECT" down --volumes --remove-orphans
+  compose down --volumes --remove-orphans
   log "restore stack and its volume removed"
   exit 0
 fi
@@ -59,22 +95,12 @@ command -v age > /dev/null 2>&1 || fail "'age' is required but was not found on 
 [ -f "$identity" ] || fail "identity file not found: $identity"
 [ "$(head -c 21 "$dump")" = "age-encryption.org/v1" ] || fail "$dump is not an age-encrypted file"
 
-random_hex() { od -An -N "$1" -tx1 /dev/urandom | tr -d ' \n'; }
-
-# Fresh per-run values, exported to the compose commands only.
-export RESTORE_DB_USERNAME="vitadelta"
-RESTORE_DB_PASSWORD="$(random_hex 24)"
-RESTORE_JWT_SECRET="$(random_hex 48)"
-RESTORE_COOKIE_SECRET="$(random_hex 48)"
-export RESTORE_DB_PASSWORD RESTORE_JWT_SECRET RESTORE_COOKIE_SECRET
-
-compose() { docker compose -f "$COMPOSE_FILE" "$@"; }
 psql_restore() {
   compose exec -T postgres psql -X -q -v ON_ERROR_STOP=1 -U "$RESTORE_DB_USERNAME" -d vitadelta "$@"
 }
 
 log "removing any previous restore stack"
-docker compose --project-name "$PROJECT" down --volumes --remove-orphans > /dev/null 2>&1 || true
+compose down --volumes --remove-orphans > /dev/null 2>&1 || true
 
 log "starting a fresh, isolated database"
 compose up -d --wait --wait-timeout 120 postgres
@@ -157,5 +183,5 @@ if [ "$failures" -ne 0 ]; then
   fail "$failures smoke check(s) failed; the restore stack is left running ($0 --down removes it)"
 fi
 log "restore verified; the isolated stack keeps running for inspection"
-log "inspect: docker compose --project-name $PROJECT exec api curl -s http://127.0.0.1:8080/api/v1/health"
+log "inspect: docker compose --project-name $PROJECT --file $RESTORE_COMPOSE_FILE exec api curl -s http://127.0.0.1:8080/api/v1/health"
 log "remove:  $0 --down"
