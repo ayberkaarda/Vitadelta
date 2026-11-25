@@ -30,8 +30,8 @@ Date: 2026-11-25. Branch: `feat/phase-6-web`.
 |---|---|
 | `npm run api:check` | generated types match the contract |
 | `npm run lint` | passes (eslint, prettier, type checks of both end-to-end suites, 70 templates without literal text) |
-| `npm test` | 62 files, 659 tests, line coverage 95.3 % (gate 70 %) |
-| `npm run build` | passes; initial bundle about 101 kB transferred (budget 380 kB), every feature lazy, no source maps |
+| `npm test` | 62 files, 668 tests, line coverage 95.3 % (gate 70 %) |
+| `npm run build` | passes; initial bundle 117 kB gzipped (budget 380 kB, enforced by the build), every feature lazy, no source maps |
 | `bash infra/nginx/check-routing.sh` | 25 checks pass |
 | `npm run e2e` on a fresh stack | 26 passed, repeated on fresh stacks |
 | `npm run e2e:adversarial` on a fresh stack | 51 passed, repeated on fresh stacks |
