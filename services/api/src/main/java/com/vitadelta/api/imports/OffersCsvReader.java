@@ -2,8 +2,10 @@ package com.vitadelta.api.imports;
 
 import com.vitadelta.api.catalog.OfferValues;
 import com.vitadelta.api.common.csv.CsvFormatException;
+import com.vitadelta.api.common.csv.CsvLimitException;
 import com.vitadelta.api.common.csv.CsvParser;
 import com.vitadelta.api.common.csv.CsvRecord;
+import com.vitadelta.api.config.properties.ImportLimitsProperties;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -31,8 +33,12 @@ public final class OffersCsvReader {
           "url",
           "checked_at");
 
-  /** Validated offers, or the problems that prevent the file from being applied. */
-  public record Result(List<OfferValues> offers, List<ImportProblem> problems) {
+  /**
+   * Validated offers, or the problems that prevent the file from being applied.
+   *
+   * @param rows data records read (header excluded); 0 when the file could not be parsed
+   */
+  public record Result(List<OfferValues> offers, List<ImportProblem> problems, int rows) {
 
     public Result {
       offers = List.copyOf(offers);
@@ -47,38 +53,88 @@ public final class OffersCsvReader {
   private OffersCsvReader() {}
 
   /**
-   * Reads raw file bytes; invalid UTF-8 fails the whole file with {@code invalid_encoding}.
+   * Reads raw file bytes with the default {@link ImportLimitsProperties}; invalid UTF-8 fails the
+   * whole file with {@code invalid_encoding}.
    *
    * @param productExists whether a product with the given code exists
    * @param now import time; {@code checked_at} later than this is rejected
    */
   public static Result read(
       byte[] content, Predicate<String> productExists, CatalogRegistry registry, Instant now) {
+    return read(content, productExists, registry, now, ImportLimitsProperties.DEFAULTS);
+  }
+
+  /** Reads raw file bytes within {@code limits}. */
+  public static Result read(
+      byte[] content,
+      Predicate<String> productExists,
+      CatalogRegistry registry,
+      Instant now,
+      ImportLimitsProperties limits) {
     Optional<String> text = Utf8.decode(content);
     if (text.isEmpty()) {
       return failure(ImportProblem.atRow(1, "invalid_encoding", "file is not valid UTF-8"));
     }
-    return read(text.get(), productExists, registry, now);
+    return read(text.get(), productExists, registry, now, limits);
   }
 
-  /** Reads already decoded text. */
+  /** Reads already decoded text with the default limits. */
   public static Result read(
       String text, Predicate<String> productExists, CatalogRegistry registry, Instant now) {
+    return read(text, productExists, registry, now, ImportLimitsProperties.DEFAULTS);
+  }
+
+  /**
+   * Reads already decoded text within {@code limits}: more than {@code maxOfferRows} data rows fail
+   * the file with {@code too_many_records} before any row is validated; a field longer than {@code
+   * maxFieldLength} is the row error {@code field_too_long}; validation stops after {@code
+   * maxErrors} errors (see {@link ImportProblems}).
+   */
+  public static Result read(
+      String text,
+      Predicate<String> productExists,
+      CatalogRegistry registry,
+      Instant now,
+      ImportLimitsProperties limits) {
     List<CsvRecord> records;
     try {
-      records = CsvParser.parse(text);
-    } catch (CsvFormatException e) {
-      return failure(ImportProblem.atRow(1, "invalid_csv", e.getMessage()));
-    }
-    if (records.isEmpty() || !records.getFirst().fields().equals(HEADER)) {
+      records = CsvParser.parse(text, limits.maxOfferRows() + 1, limits.maxFieldLength());
+    } catch (CsvLimitException e) {
       return failure(
-          ImportProblem.atRow(1, "invalid_header", "header must be " + String.join(",", HEADER)));
+          ImportProblem.atRow(
+              1,
+              "too_many_records",
+              "the file has more than " + limits.maxOfferRows() + " data rows"));
+    } catch (CsvFormatException e) {
+      return failure(
+          ImportProblem.atRow(
+              1, "invalid_csv", "the file is not valid CSV (line " + e.line() + ")"));
     }
-    List<ImportProblem> problems = new ArrayList<>();
+    int rows = Math.max(0, records.size() - 1);
+    if (records.isEmpty() || !records.getFirst().fields().equals(HEADER)) {
+      return new Result(
+          List.of(),
+          List.of(
+              ImportProblem.atRow(
+                  1, "invalid_header", "header must be " + String.join(",", HEADER))),
+          rows);
+    }
+    ImportProblems problems = new ImportProblems(limits.maxErrors());
     List<OfferValues> offers = new ArrayList<>();
     Set<String> keys = new HashSet<>();
     for (CsvRecord record : records.subList(1, records.size())) {
+      if (problems.overflowed()) {
+        break;
+      }
       int row = record.number();
+      if (tooLong(record, limits.maxFieldLength())) {
+        problems.add(
+            ImportProblem.atRow(
+                row,
+                "field_too_long",
+                "a field is longer than " + limits.maxFieldLength() + " characters"));
+        continue;
+      }
       if (record.size() != HEADER.size()) {
         problems.add(
             ImportProblem.atRow(
@@ -87,13 +143,13 @@ public final class OffersCsvReader {
                 "expected " + HEADER.size() + " fields, found " + record.size()));
         continue;
       }
-      int before = problems.size();
+      int before = problems.count();
       for (int i = 0; i < HEADER.size(); i++) {
         if (record.get(i).isEmpty()) {
           problems.add(ImportProblem.atRow(row, "missing_value", HEADER.get(i) + " is empty"));
         }
       }
-      if (problems.size() > before) {
+      if (problems.count() > before) {
         continue;
       }
       Optional<OfferValues> offer = validateRow(record, productExists, registry, now, problems);
@@ -115,7 +171,9 @@ public final class OffersCsvReader {
         }
       }
     }
-    return problems.isEmpty() ? new Result(offers, List.of()) : new Result(List.of(), problems);
+    return problems.isEmpty()
+        ? new Result(offers, List.of(), rows)
+        : new Result(List.of(), problems.toList(), rows);
   }
 
   private static Optional<OfferValues> validateRow(
@@ -123,9 +181,9 @@ public final class OffersCsvReader {
       Predicate<String> productExists,
       CatalogRegistry registry,
       Instant now,
-      List<ImportProblem> problems) {
+      ImportProblems problems) {
     int row = record.number();
-    int before = problems.size();
+    int before = problems.count();
     String productCode = record.get(0);
     String countryCode = record.get(1);
     String retailer = record.get(2);
@@ -178,7 +236,7 @@ public final class OffersCsvReader {
     } else if (checkedAt.get().isAfter(now)) {
       problems.add(ImportProblem.atRow(row, "checked_at_in_future", "checked_at is in the future"));
     }
-    if (problems.size() > before) {
+    if (problems.count() > before) {
       return Optional.empty();
     }
     return Optional.of(
@@ -194,6 +252,15 @@ public final class OffersCsvReader {
   }
 
   private static Result failure(ImportProblem problem) {
-    return new Result(List.of(), List.of(problem));
+    return new Result(List.of(), List.of(problem), 0);
+  }
+
+  private static boolean tooLong(CsvRecord record, int maxFieldLength) {
+    for (String field : record.fields()) {
+      if (field.length() > maxFieldLength) {
+        return true;
+      }
+    }
+    return false;
   }
 }

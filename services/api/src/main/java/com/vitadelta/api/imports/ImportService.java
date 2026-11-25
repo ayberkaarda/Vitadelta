@@ -13,10 +13,9 @@ import com.vitadelta.api.catalog.price.EffectivePrice;
 import com.vitadelta.api.catalog.price.EffectivePriceResolver;
 import com.vitadelta.api.catalog.price.OfferSnapshot;
 import com.vitadelta.api.catalog.price.StockFilter;
-import com.vitadelta.api.common.csv.CsvFormatException;
-import com.vitadelta.api.common.csv.CsvParser;
 import com.vitadelta.api.common.jobs.JobLock;
 import com.vitadelta.api.common.jobs.JobLockKeys;
+import com.vitadelta.api.config.properties.ImportLimitsProperties;
 import com.vitadelta.api.imports.OfferChangeListener.OfferPairChange;
 import jakarta.annotation.PreDestroy;
 import java.time.Clock;
@@ -39,9 +38,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
-import tools.jackson.core.JacksonException;
-import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.json.JsonMapper;
 
 /**
  * The admin import pipeline (sections 5.3, 8.9 and 9.1).
@@ -69,7 +65,6 @@ import tools.jackson.databind.json.JsonMapper;
 public class ImportService {
 
   private static final Logger LOG = LoggerFactory.getLogger(ImportService.class);
-  private static final JsonMapper JSON = JsonMapper.builder().build();
 
   /** How long a worker waits for the import lock held by another session. */
   static final Duration LOCK_WAIT = Duration.ofSeconds(60);
@@ -87,6 +82,7 @@ public class ImportService {
   private final JobLock jobLock;
   private final ThreadPoolExecutor executor;
   private final Clock clock;
+  private final ImportLimitsProperties limits;
 
   public ImportService(
       ImportJobStore store,
@@ -99,7 +95,9 @@ public class ImportService {
       OfferChangeListener listener,
       JobLock jobLock,
       @Qualifier(ImportSeamConfig.IMPORT_EXECUTOR) ThreadPoolExecutor executor,
-      Clock clock) {
+      Clock clock,
+      ImportLimitsProperties limits) {
+    this.limits = limits;
     this.store = store;
     this.registry = registry;
     this.writeTransaction = writeTransaction;
@@ -191,9 +189,10 @@ public class ImportService {
     Instant now = clock.instant();
     StoredRegistry.Snapshot snapshot = registry.load();
     OffersCsvReader.Result result =
-        OffersCsvReader.read(content, snapshot.productCodes()::contains, snapshot.registry(), now);
+        OffersCsvReader.read(
+            content, snapshot.productCodes()::contains, snapshot.registry(), now, limits);
     if (!result.valid()) {
-      store.fail(jobId, result.problems(), failedSummary("rows", csvDataRows(content)));
+      store.fail(jobId, result.problems(), failedSummary("rows", result.rows()));
       return new Outcome(false, 0, 0);
     }
     return apply(jobId, List.of(), result.offers(), "rows", result.offers().size(), now);
@@ -203,9 +202,9 @@ public class ImportService {
     Instant now = clock.instant();
     StoredRegistry.Snapshot snapshot = registry.load();
     ProductsDocumentReader.Result result =
-        ProductsDocumentReader.read(content, snapshot.registry(), now);
+        ProductsDocumentReader.read(content, snapshot.registry(), now, limits);
     if (!result.valid()) {
-      store.fail(jobId, result.problems(), failedSummary("products", documentProducts(content)));
+      store.fail(jobId, result.problems(), failedSummary("products", result.entries()));
       return new Outcome(false, 0, 0);
     }
     List<OfferValues> productOffers =
@@ -331,33 +330,6 @@ public class ImportService {
     summary.put("deleted", 0);
     summary.put("changedPairs", 0);
     return summary;
-  }
-
-  /** Data records of a CSV file (header excluded); 0 when the file cannot be parsed. */
-  static int csvDataRows(byte[] content) {
-    Optional<String> text = Utf8.decode(content);
-    if (text.isEmpty()) {
-      return 0;
-    }
-    try {
-      return Math.max(0, CsvParser.parse(text.get()).size() - 1);
-    } catch (CsvFormatException e) {
-      return 0;
-    }
-  }
-
-  /** Entries of the document's {@code products} array; 0 when it cannot be read. */
-  static int documentProducts(byte[] content) {
-    Optional<String> text = Utf8.decode(content);
-    if (text.isEmpty()) {
-      return 0;
-    }
-    try {
-      JsonNode products = JSON.readTree(text.get()).get("products");
-      return products != null && products.isArray() ? products.size() : 0;
-    } catch (JacksonException e) {
-      return 0;
-    }
   }
 
   /** Stops accepting imports; running imports get a grace period, then are interrupted. */

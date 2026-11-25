@@ -8,6 +8,7 @@ import com.vitadelta.api.catalog.OfferValues;
 import com.vitadelta.api.catalog.ProductDetails;
 import com.vitadelta.api.catalog.ProductImport;
 import com.vitadelta.api.catalog.ProductNutrientValues;
+import com.vitadelta.api.config.properties.ImportLimitsProperties;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -20,7 +21,11 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
 import tools.jackson.core.JacksonException;
+import tools.jackson.core.StreamReadConstraints;
 import tools.jackson.core.StreamReadFeature;
+import tools.jackson.core.TokenStreamLocation;
+import tools.jackson.core.exc.StreamConstraintsException;
+import tools.jackson.core.json.JsonFactory;
 import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
@@ -32,11 +37,13 @@ import tools.jackson.databind.json.JsonMapper;
  */
 public final class ProductsDocumentReader {
 
-  private static final JsonMapper MAPPER =
-      JsonMapper.builder()
-          .enable(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS)
-          .enable(StreamReadFeature.STRICT_DUPLICATE_DETECTION)
-          .build();
+  /** Deepest nesting of arrays and objects a document may have (the schema needs 5 levels). */
+  static final int MAX_NESTING_DEPTH = 64;
+
+  private static final int DEFAULT_MAPPER_FIELD_LENGTH =
+      ImportLimitsProperties.DEFAULTS.maxFieldLength();
+
+  private static final JsonMapper DEFAULT_MAPPER = buildMapper(DEFAULT_MAPPER_FIELD_LENGTH);
 
   private static final Set<String> DOCUMENT_FIELDS = Set.of("schema_version", "products");
   private static final Set<String> PRODUCT_FIELDS =
@@ -89,8 +96,13 @@ public final class ProductsDocumentReader {
   private static final Pattern GTIN = Pattern.compile("^(?:[0-9]{8}|[0-9]{12,14})$");
   private static final BigDecimal MAX_SERVINGS_PER_DAY = new BigDecimal("99.99");
 
-  /** Validated products, or the problems that prevent the document from being applied. */
-  public record Result(List<ProductImport> products, List<ImportProblem> problems) {
+  /**
+   * Validated products, or the problems that prevent the document from being applied.
+   *
+   * @param entries entries of the document's {@code products} array; 0 when the document could not
+   *     be read
+   */
+  public record Result(List<ProductImport> products, List<ImportProblem> problems, int entries) {
 
     public Result {
       products = List.copyOf(products);
@@ -104,26 +116,57 @@ public final class ProductsDocumentReader {
 
   private ProductsDocumentReader() {}
 
-  /** Reads raw document bytes; invalid UTF-8 or JSON fails the whole document. */
+  /** Reads raw document bytes with the default limits; invalid UTF-8 or JSON fails it whole. */
   public static Result read(byte[] content, CatalogRegistry registry, Instant now) {
+    return read(content, registry, now, ImportLimitsProperties.DEFAULTS);
+  }
+
+  /** Reads raw document bytes within {@code limits}. */
+  public static Result read(
+      byte[] content, CatalogRegistry registry, Instant now, ImportLimitsProperties limits) {
     Optional<String> text = Utf8.decode(content);
     if (text.isEmpty()) {
       return failure("$", "invalid_encoding", "document is not valid UTF-8");
     }
-    return read(text.get(), registry, now);
+    return read(text.get(), registry, now, limits);
   }
 
-  /** Reads already decoded text. */
+  /** Reads already decoded text with the default limits. */
   public static Result read(String text, CatalogRegistry registry, Instant now) {
+    return read(text, registry, now, ImportLimitsProperties.DEFAULTS);
+  }
+
+  /**
+   * Reads already decoded text within {@code limits}: a string longer than {@code maxFieldLength}
+   * or a nesting deeper than {@value #MAX_NESTING_DEPTH} fails the document as {@code
+   * invalid_json}; more than {@code maxProducts} products fail it with {@code too_many_records}
+   * before any product is validated; validation stops after {@code maxErrors} errors (see {@link
+   * ImportProblems}). Parser failures are reported with a fixed message and their line and column
+   * only, never with the parser's message or a fragment of the input.
+   */
+  public static Result read(
+      String text, CatalogRegistry registry, Instant now, ImportLimitsProperties limits) {
     JsonNode root;
     try {
-      root = MAPPER.readTree(text);
+      root = mapper(limits).readTree(text);
     } catch (JacksonException e) {
-      return failure("$", "invalid_json", e.getOriginalMessage());
+      return failure("$", "invalid_json", invalidJson(e));
     }
-    Context ctx = new Context(registry, now);
+    Context ctx = new Context(registry, now, limits.maxErrors());
     if (root == null || !root.isObject()) {
       return failure("$", "schema_violation", "document must be a JSON object");
+    }
+    JsonNode entries = root.get("products");
+    int count = entries != null && entries.isArray() ? entries.size() : 0;
+    if (count > limits.maxProducts()) {
+      return new Result(
+          List.of(),
+          List.of(
+              new ImportProblem(
+                  "$",
+                  "too_many_records",
+                  "the document has more than " + limits.maxProducts() + " products")),
+          count);
     }
     ctx.checkFields(root, "$", DOCUMENT_FIELDS, List.of("schema_version", "products"));
     JsonNode version = root.get("schema_version");
@@ -139,7 +182,7 @@ public final class ProductsDocumentReader {
         ctx.problem("products", "schema_violation", "products must be a non-empty array");
       } else {
         Set<String> codes = new HashSet<>();
-        for (int i = 0; i < products.size(); i++) {
+        for (int i = 0; i < products.size() && !ctx.problems.overflowed(); i++) {
           String path = "products[" + i + "]";
           ctx.product(products.get(i), path)
               .ifPresent(p -> {
@@ -156,12 +199,46 @@ public final class ProductsDocumentReader {
       }
     }
     return ctx.problems.isEmpty()
-        ? new Result(result, List.of())
-        : new Result(List.of(), ctx.problems);
+        ? new Result(result, List.of(), count)
+        : new Result(List.of(), ctx.problems.toList(), count);
   }
 
   private static Result failure(String location, String code, String message) {
-    return new Result(List.of(), List.of(new ImportProblem(location, code, message)));
+    return new Result(List.of(), List.of(new ImportProblem(location, code, message)), 0);
+  }
+
+  /** The fixed {@code invalid_json} message with the parser's line and column. */
+  static String invalidJson(JacksonException e) {
+    String reason =
+        e instanceof StreamConstraintsException
+            ? "the document exceeds a parser limit (nesting depth or string length)"
+            : "the document is not valid JSON";
+    TokenStreamLocation location = e.getLocation();
+    if (location == null || location.getLineNr() < 1) {
+      return reason;
+    }
+    return reason + " (line " + location.getLineNr() + ", column " + location.getColumnNr() + ")";
+  }
+
+  private static JsonMapper mapper(ImportLimitsProperties limits) {
+    return limits.maxFieldLength() == DEFAULT_MAPPER_FIELD_LENGTH
+        ? DEFAULT_MAPPER
+        : buildMapper(limits.maxFieldLength());
+  }
+
+  private static JsonMapper buildMapper(int maxStringLength) {
+    JsonFactory factory =
+        JsonFactory.builder()
+            .streamReadConstraints(
+                StreamReadConstraints.builder()
+                    .maxStringLength(maxStringLength)
+                    .maxNestingDepth(MAX_NESTING_DEPTH)
+                    .build())
+            .build();
+    return JsonMapper.builder(factory)
+        .enable(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS)
+        .enable(StreamReadFeature.STRICT_DUPLICATE_DETECTION)
+        .build();
   }
 
   /** Validation state of one document. */
@@ -169,11 +246,12 @@ public final class ProductsDocumentReader {
 
     private final CatalogRegistry registry;
     private final Instant now;
-    private final List<ImportProblem> problems = new ArrayList<>();
+    private final ImportProblems problems;
 
-    Context(CatalogRegistry registry, Instant now) {
+    Context(CatalogRegistry registry, Instant now, int maxErrors) {
       this.registry = registry;
       this.now = now;
+      this.problems = new ImportProblems(maxErrors);
     }
 
     void problem(String location, String code, String message) {
@@ -208,7 +286,7 @@ public final class ProductsDocumentReader {
     }
 
     Optional<ProductImport> product(JsonNode node, String path) {
-      int before = problems.size();
+      int before = problems.count();
       if (!checkFields(node, path, PRODUCT_FIELDS, PRODUCT_REQUIRED)) {
         return Optional.empty();
       }
@@ -256,7 +334,7 @@ public final class ProductsDocumentReader {
       List<ProductNutrientValues> nutrients = nutrients(node.get("nutrients"), path);
       List<AvailabilityValues> availability = availability(node.get("availability"), path);
       List<OfferValues> offers = offers(node.get("offers"), path, code);
-      if (problems.size() > before) {
+      if (problems.count() > before) {
         return Optional.empty();
       }
       return Optional.of(
@@ -292,7 +370,7 @@ public final class ProductsDocumentReader {
       for (int i = 0; i < array.size(); i++) {
         String path = productPath + ".nutrients[" + i + "]";
         JsonNode node = array.get(i);
-        int before = problems.size();
+        int before = problems.count();
         if (!checkFields(
             node, path, NUTRIENT_FIELDS, List.of("nutrient_code", "amount_per_serving", "unit"))) {
           continue;
@@ -309,7 +387,7 @@ public final class ProductsDocumentReader {
           problem(path + ".form_code", "schema_violation", "invalid form code");
         }
         String formLabel = string(node, path, "form_label", 0, 200, true);
-        if (problems.size() > before) {
+        if (problems.count() > before) {
           continue;
         }
         if (!seen.add(nutrientCode)) {
@@ -344,7 +422,7 @@ public final class ProductsDocumentReader {
       for (int i = 0; i < array.size(); i++) {
         String path = productPath + ".availability[" + i + "]";
         JsonNode node = array.get(i);
-        int before = problems.size();
+        int before = problems.count();
         if (!checkFields(node, path, AVAILABILITY_FIELDS, List.of("country_code", "status"))) {
           continue;
         }
@@ -352,7 +430,7 @@ public final class ProductsDocumentReader {
         Optional<AvailabilityStatus> status =
             enumValue(node, path, "status", AvailabilityStatus.class);
         String note = string(node, path, "note", 0, 500, true);
-        if (problems.size() > before) {
+        if (problems.count() > before) {
           continue;
         }
         if (!seen.add(country)) {
@@ -380,7 +458,7 @@ public final class ProductsDocumentReader {
       for (int i = 0; i < array.size(); i++) {
         String path = productPath + ".offers[" + i + "]";
         JsonNode node = array.get(i);
-        int before = problems.size();
+        int before = problems.count();
         if (!checkFields(node, path, OFFER_FIELDS, List.copyOf(OFFER_FIELDS))) {
           continue;
         }
@@ -418,7 +496,7 @@ public final class ProductsDocumentReader {
             problem(path + ".checked_at", "checked_at_in_future", "checked_at is in the future");
           }
         }
-        if (problems.size() > before) {
+        if (problems.count() > before) {
           continue;
         }
         if (!seen.add(country + "\u0000" + retailer)) {
