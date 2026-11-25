@@ -4,6 +4,7 @@ import com.vitadelta.api.identity.IdentityApi.DeleteAccountRequest;
 import com.vitadelta.api.identity.IdentityApi.Me;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -11,6 +12,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import tools.jackson.databind.JsonNode;
 
@@ -38,6 +40,7 @@ public class AccountController {
   }
 
   @DeleteMapping
+  @ResponseStatus(HttpStatus.NO_CONTENT)
   ResponseEntity<Void> delete(
       Authentication authentication, @Valid @RequestBody DeleteAccountRequest body) {
     accounts.delete(CurrentUser.require(authentication), body.password());
