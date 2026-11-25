@@ -29,5 +29,26 @@ regexes = [
   '''^eyJraWQiOiI0ZjFhMmIzYzRkNWU2ZjcwIiwiYWxnIjoiSFMyNTYifQ\.eyJzdWIiOiI5ZjFjMmQzZSJ9\.c2lnbmF0dXJl$''',
   '''^eyJraWQiOiJhYmMiLCJhbGciOiJIUzI1NiJ9\.eyJzdWIiOiIxMjMiLCJyb2xlIjoiVVNFUiJ9\.c2lnbmF0dXJlLXZhbHVl$''',
   '''^eyJraWQiOiJrMSIsImFsZyI6IkhTMjU2In0\.eyJzdWIiOiJ1c2VyLTEiLCJyb2xlIjoiVVNFUiJ9\.$''',
+  # Unsigned token ({"alg":"none"}, {"sub":"x"}, empty signature) sent as a refresh cookie by the
+  # adversarial suite to check that it is rejected; it is accepted by nothing.
+  '''^eyJhbGciOiJub25lIn0\.eyJzdWIiOiJ4In0\.$''',
+  # Fixed passwords and placeholder strings of the unit, integration and browser test suites and of
+  # the README example, used against throwaway test databases only. gitleaks' own rules do not
+  # report them; the pattern fallback of scripts/security-scan.sh does, and suppresses exactly these.
+  '''^correct-horse-battery$''',
+  '''^correct-horse-battery-staple$''',
+  '''^another-correct-horse-battery$''',
+  '''^plum-orbit-lantern-quartz$''',
+  '''^violet-harbor-compass-7$''',
+  '''^attacker-chosen-passphrase-9$''',
+  '''^Juniper-Compass-Meadow-58$''',
+  '''^copper-meadow-violin-$''',
+  '''^another-password$''',
+  '''^a-new-long-password$''',
+  '''^register-password$''',
+  '''^token-of-account-b$''',
+  '''^rotated-elsewhere$''',
+  '''^sEcReTvalue1234567890$''',
+  '''^Longunbrokentoken$''',
   # END synthetic values
 ]
