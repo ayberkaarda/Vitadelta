@@ -366,6 +366,29 @@ check_dependency_check() {
     note "NVD_API_KEY is set but the org.owasp.dependencycheck plugin is not applied in services/api"
     return 1
   fi
+  # A key pasted with stray whitespace or a line break is rejected by the NVD; strip it, then ask the
+  # NVD once whether it accepts the key (status code only, the key is never printed), so a bad key
+  # is reported as such instead of as a generic update failure of the plugin.
+  NVD_API_KEY="$(printf '%s' "$NVD_API_KEY" | tr -d '[:space:]')"
+  export NVD_API_KEY
+  local status=000 attempt
+  for attempt in 1 2 3; do
+    status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 -H "apiKey: $NVD_API_KEY" \
+      'https://services.nvd.nist.gov/rest/json/cves/2.0?resultsPerPage=1' || true)"
+    case "$status" in
+      200 | 401 | 403 | 404) break ;;
+    esac
+    sleep $((attempt * 10))
+  done
+  case "$status" in
+    200) ;;
+    401 | 403 | 404)
+      printf 'The NVD answered HTTP %s to the API key: it is invalid, not yet activated or revoked\n' "$status"
+      note "the NVD rejected NVD_API_KEY (HTTP $status)"
+      return 1
+      ;;
+    *) printf 'The NVD probe answered HTTP %s; the analysis may fail to update the feed\n' "$status" ;;
+  esac
   (cd services/api && sh ./gradlew --no-daemon --console=plain dependencyCheckAnalyze) || {
     note "dependencies with CVSS >= 7, or the analysis failed (see above)"
     return 1
