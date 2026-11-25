@@ -4,14 +4,19 @@
 #
 # Exposure rules (project specification section 15.2):
 # - web (nginx) is the single public entry point and the only service published on all interfaces.
-# - api and scoring have no published ports; scoring is reachable only from api.
-# - postgres and mailpit are published on 127.0.0.1 only.
+# - api, scoring and postgres have no published ports; scoring is reachable only from api, and
+#   PostgreSQL only from the compose networks (SQL runs through "docker compose exec postgres psql").
+# - mailpit publishes only its web UI and HTTP API on 127.0.0.1:8025; its SMTP port is reachable
+#   from the compose network only (the API sends to mailpit:1025).
+#
+# External images are pinned by tag and digest (docs/adr/0005-version-pins.md); Dependabot
+# proposes updates of both.
 
 name: vitadelta
 
 services:
   postgres:
-    image: postgres:18.7-alpine
+    image: postgres:18.7-alpine@sha256:0115267ab5a509022df9319c77be365cef335adb71556c75f60f5360ee247e71
     restart: unless-stopped
     environment:
       POSTGRES_DB: vitadelta
@@ -21,9 +26,6 @@ services:
       # The PostgreSQL 18 image keeps PGDATA under /var/lib/postgresql/18/docker,
       # so the volume is mounted on the parent directory.
       - postgres-data:/var/lib/postgresql
-    ports:
-      # Host port 54320 avoids clashing with a PostgreSQL installed on the host.
-      - "127.0.0.1:54320:5432"
     networks:
       - data
     healthcheck:
@@ -34,10 +36,10 @@ services:
       start_period: 10s
 
   mailpit:
-    image: axllent/mailpit:v1.34.0
+    image: axllent/mailpit:v1.34.0@sha256:23a2ef85bc50853ab3093645d1d64679afd8887e89da5e48a88940c172591a4e
     restart: unless-stopped
     ports:
-      - "127.0.0.1:1025:1025"
+      # Web UI and HTTP API only (the end-to-end suites read verification mails through it).
       - "127.0.0.1:8025:8025"
     networks:
       - data
@@ -158,7 +160,7 @@ networks:
     ipam:
       config:
         - subnet: 172.30.80.0/24
-  # api <-> postgres and mailpit. Not internal because both publish loopback ports.
+  # api <-> postgres and mailpit. Not internal because mailpit publishes its loopback UI port.
   data: {}
   # api <-> scoring only; no route to the outside.
   scoring:
