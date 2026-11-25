@@ -27,6 +27,7 @@ const PLANS_TRY: PlanList = {
       alertSubscriptionsLimit: 3,
       notificationsPerMonthLimit: 30,
       price: null,
+      checkoutAvailable: false,
     },
     {
       code: 'PRO',
@@ -41,6 +42,7 @@ const PLANS_TRY: PlanList = {
         nativeCurrency: 'TRY',
         billingPeriod: 'MONTHLY',
       },
+      checkoutAvailable: false,
     },
   ],
 };
