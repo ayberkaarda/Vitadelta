@@ -19,6 +19,7 @@ test('admin imports a products JSON in the UI and the product is ranked', async 
   await page.locator('[data-slot="PRODUCTS_JSON"] input[type="file"]').setInputFiles(PRODUCTS_JSON);
   const job = main(page).getByRole('row').filter({ hasText: 'products.import.synthetic.json' });
   await expect(job).toContainText('Succeeded', { timeout: 30_000 });
+  await expectAccessible(page, 'admin imports page (products JSON imported)');
 
   await open(page, '/admin/users');
   await expect(main(page).getByRole('heading', { name: 'Users', exact: true })).toBeVisible();
@@ -27,4 +28,5 @@ test('admin imports a products JSON in the UI and the product is ranked', async 
   await open(page, '/results?country=US&mode=PRICE');
   await expect(resultRows(page).first()).toContainText(IMPORTED.name);
   await expect(resultRows(page).first()).toContainText(IMPORTED.code);
+  await expectAccessible(page, 'results page (US, after the import)');
 });

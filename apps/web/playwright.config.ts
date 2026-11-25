@@ -44,5 +44,17 @@ export default defineConfig({
       testMatch: '**/*.adversarial.ts',
       use: { ...devices['Desktop Chrome'] },
     },
+    {
+      // README screenshots (`npm run e2e:screenshots`); never part of the suites above.
+      name: 'screenshots',
+      testMatch: 'screenshots.ts',
+      retries: 0,
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1280, height: 800 },
+        deviceScaleFactor: 1,
+        colorScheme: 'light',
+      },
+    },
   ],
 });

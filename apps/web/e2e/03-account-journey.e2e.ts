@@ -66,12 +66,28 @@ test.describe.serial('account journey', () => {
     await adminContext.close();
   });
 
-  test('registers from the locked results and verifies through the e-mail link', async () => {
+  test('uses the three free queries, is blocked on the fourth, registers and verifies', async () => {
     await open(page, '/');
     await chooseMarket(page, 'TR');
+    const chip = header(page).getByRole('status');
+    for (let query = 1; query <= 3; query += 1) {
+      if (query > 1) {
+        await main(page).getByRole('link', { name: 'Edit query' }).click();
+      }
+      await rankProducts(page);
+      await expect(resultRows(page)).toHaveCount(3);
+      await expect(main(page).getByRole('list', { name: 'Locked results' })).toBeVisible();
+    }
+    await expect(chip).toHaveText('No free queries left · Sign up');
+
+    await main(page).getByRole('link', { name: 'Edit query' }).click();
     await rankProducts(page);
-    await expect(resultRows(page)).toHaveCount(3);
-    await main(page).getByRole('link', { name: 'Create free account' }).click();
+    await expect(
+      main(page).getByRole('heading', { name: 'You have used your 3 free queries' }),
+    ).toBeVisible();
+    await expect(resultRows(page)).toHaveCount(0);
+    await expectAccessible(page, 'quota exhausted (before registering)');
+    await main(page).getByRole('link', { name: 'Create free account' }).first().click();
 
     await expect(page).toHaveURL(/\/auth\/register/);
     await expectAccessible(page, 'register page');
@@ -102,7 +118,16 @@ test.describe.serial('account journey', () => {
     await expect(header(page).getByRole('link', { name: 'Log in' })).toHaveCount(0);
   });
 
-  test('sees the full result list, paged', async () => {
+  test('sees every row of the query that was blocked before, then the full list paged', async () => {
+    await open(page, '/');
+    await chooseMarket(page, 'TR');
+    await rankProducts(page);
+    await expect(resultsHeading(page)).toHaveText(/(\d+) products ranked/);
+    const ranked = Number(/(\d+)/.exec(await resultsHeading(page).innerText())?.[1]);
+    expect(ranked).toBeGreaterThan(3);
+    await expect(resultRows(page)).not.toHaveCount(3);
+    await expect(main(page).getByRole('list', { name: 'Locked results' })).toHaveCount(0);
+
     await open(page, '/results?country=TR&size=5');
     await expect(resultsHeading(page)).toHaveText(/(\d+) products ranked/);
     const total = Number(/(\d+)/.exec(await resultsHeading(page).innerText())?.[1]);
@@ -154,6 +179,8 @@ test.describe.serial('account journey', () => {
     await expect(costCell.getByRole('button')).toHaveAccessibleDescription(
       /Native amount TRY\s[\d.,]+\s1 TRY = [\d.,]+ USD, ECB rate of /,
     );
+
+    await expectAccessible(page, 'results page (USD)');
 
     await header(page).getByRole('combobox', { name: 'Show in' }).selectOption('TRY');
     await expect(costCell).toContainText('TRY');
@@ -273,6 +300,7 @@ test.describe.serial('account journey', () => {
     ).toBeVisible();
     await expect(main(page).getByText('Order switched', { exact: true })).toHaveCount(0);
     await expect(main(page).getByRole('heading', { level: 1 })).toContainText(GOLD_B.name);
+    await expectAccessible(page, 'compare page (after the price drop)');
   });
 
   test('redeems the promo code and saves the sixth product on PRO', async () => {

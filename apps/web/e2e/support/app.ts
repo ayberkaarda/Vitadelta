@@ -5,6 +5,8 @@ import { e2eEnv } from './env';
 /** Synthetic fixture products of the TR market used by the flows (data/fixtures). */
 export const GOLD_A = { code: 'GOLD-A', name: 'Gold Standard Daily A' } as const;
 export const GOLD_B = { code: 'GOLD-B', name: 'Gold Standard Daily B' } as const;
+/** Zinc 40 mg a day: above the EFSA upper limit of 25 mg (the one fixture allowed to exceed it). */
+export const ZN40 = { code: 'ZN40', name: 'Zinc 40 High Strength' } as const;
 
 export const PASSWORD = 'Saffron-Lantern-Harbor-42';
 

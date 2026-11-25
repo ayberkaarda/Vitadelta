@@ -1,16 +1,23 @@
 import AxeBuilder from '@axe-core/playwright';
 import { type Page, test as base, expect } from '@playwright/test';
 
+/** `POST /api/v1/auth/refresh`, with or without a query string. */
+const REFRESH_PATH = /\/api\/v1\/auth\/refresh(?:\?|$)/;
+
 /**
  * Console and network problems seen by one page. Every visited page must be free of console
  * errors, uncaught exceptions and Content Security Policy violations.
  *
  * Chromium logs "Failed to load resource: … status of 4xx" for every API answer with an error
- * status, including the ones the app expects and renders (the anonymous `POST /auth/refresh`
- * 401 on start-up, `403 quota_exceeded`, `403 entitlement_exceeded`, `401 invalid_credentials`).
- * Such a message is accepted only when it belongs to an `/api/` response with status below 500
- * and a `application/problem+json` body, i.e. a documented server decision; everything else
- * (a missing asset, a 5xx, a blocked script) fails the test.
+ * status, including the ones the app expects and renders (`403 quota_exceeded`,
+ * `403 entitlement_exceeded`, `401 invalid_credentials`). Such a message is accepted only when
+ * it belongs to an `/api/` response with status below 500 and a `application/problem+json`
+ * body, i.e. a documented server decision; everything else (a missing asset, a 5xx, a blocked
+ * script) fails the test.
+ *
+ * `POST /auth/refresh` is never among the accepted errors: a visitor without a session gets
+ * `204 No Content`, so an error answer there (the former anonymous 401 on start-up included)
+ * fails the test.
  */
 export class PageMonitor {
   readonly problems: string[] = [];
@@ -21,6 +28,10 @@ export class PageMonitor {
     page.on('response', (response) => {
       const url = response.url();
       const type = response.headers()['content-type'] ?? '';
+      if (REFRESH_PATH.test(url) && response.status() >= 400) {
+        this.problems.push(`HTTP ${response.status()} ${response.request().method()} ${url}`);
+        return;
+      }
       if (
         url.includes('/api/') &&
         response.status() >= 400 &&
