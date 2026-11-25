@@ -80,11 +80,11 @@ import tools.jackson.databind.json.JsonMapper;
  * Mailpit container receiving the alert e-mails over real SMTP, a movable clock, the seeded fixture
  * catalog and scheduling switched off (the tests run the outbox processor directly).
  *
- * <p>Other cached application contexts of the test JVM run their own scheduled outbox processor on
- * the same database. Each test therefore holds the processor's advisory lock on a dedicated
- * connection: every scheduled run elsewhere is skipped, and only the test processes events. The
- * outbox is emptied before and after every test; users of {@link #DOMAIN} are removed with the
- * cascade of section 5.9.
+ * <p>No test context runs scheduled jobs (see {@code PostgresIntegrationTest}). As a second guard,
+ * each test holds the processor's advisory lock on a dedicated connection, so a scheduled run of
+ * any other process on the same database is skipped and only the test processes events. The outbox
+ * is emptied before and after every test; users of {@link #DOMAIN} are removed with the cascade of
+ * section 5.9.
  */
 @SpringBootTest(
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
