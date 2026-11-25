@@ -3,6 +3,8 @@ package com.vitadelta.api.billing;
 import static com.vitadelta.api.entitlement.SqlTime.instant;
 import static com.vitadelta.api.entitlement.SqlTime.ts;
 
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -28,13 +30,20 @@ public class BillingAccountRepository {
   }
 
   /**
-   * The merged state of a provider subscription after {@link #mergeSubscription}.
+   * The stored, forward-only state of a provider subscription.
    *
-   * @param currentPeriodEnd the latest period end ever applied
+   * @param currentPeriodEnd the latest period end ever seen (paid or not)
+   * @param paidThrough the latest period end reported as paid, {@code null} when none was
    * @param endedAt when the subscription ended; once set it stays set
    */
   public record SubscriptionState(
-      UUID userId, String status, Instant currentPeriodEnd, Instant endedAt) {
+      String externalRef,
+      UUID userId,
+      String customerRef,
+      String status,
+      Instant currentPeriodEnd,
+      Instant paidThrough,
+      Instant endedAt) {
 
     public boolean ended() {
       return endedAt != null;
@@ -104,8 +113,11 @@ public class BillingAccountRepository {
 
   /**
    * Merges a fetched subscription state into the stored one so that it only moves forward: the
-   * period end is the later of both, an end time once stored is kept (and the status with it).
+   * period end and the paid-through time are the later of both, an end time once stored is kept
+   * (and the status with it), and nothing is marked paid after the subscription ended.
    *
+   * @param paidThrough the period end Stripe reports as paid, or {@code null} when the current
+   *     period is not paid
    * @return the merged state
    */
   public SubscriptionState mergeSubscription(
@@ -114,21 +126,26 @@ public class BillingAccountRepository {
       String customerRef,
       String status,
       Instant currentPeriodEnd,
+      Instant paidThrough,
       Instant endedAt,
       Instant now) {
     return jdbc.sql(
             "INSERT INTO billing_subscription (provider, external_ref, user_id, customer_ref,"
-                + " status, current_period_end, ended_at, updated_at)"
-                + " VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+                + " status, current_period_end, paid_through, ended_at, updated_at)"
+                + " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
                 + " ON CONFLICT (provider, external_ref) DO UPDATE SET"
                 + " customer_ref = EXCLUDED.customer_ref,"
                 + " status = CASE WHEN billing_subscription.ended_at IS NOT NULL"
                 + " THEN billing_subscription.status ELSE EXCLUDED.status END,"
                 + " current_period_end = GREATEST(billing_subscription.current_period_end,"
                 + " EXCLUDED.current_period_end),"
+                + " paid_through = CASE WHEN billing_subscription.ended_at IS NOT NULL"
+                + " THEN billing_subscription.paid_through"
+                + " ELSE GREATEST(billing_subscription.paid_through, EXCLUDED.paid_through) END,"
                 + " ended_at = COALESCE(billing_subscription.ended_at, EXCLUDED.ended_at),"
                 + " updated_at = EXCLUDED.updated_at"
-                + " RETURNING user_id, status, current_period_end, ended_at")
+                + " RETURNING "
+                + STATE_COLUMNS)
         .params(
             STRIPE,
             externalRef,
@@ -136,15 +153,39 @@ public class BillingAccountRepository {
             customerRef,
             status,
             ts(currentPeriodEnd),
+            ts(paidThrough),
             ts(endedAt),
             ts(now))
-        .query((rs, row) ->
-            new SubscriptionState(
-                rs.getObject("user_id", UUID.class),
-                rs.getString("status"),
-                instant(rs, "current_period_end"),
-                instant(rs, "ended_at")))
+        .query(BillingAccountRepository::state)
         .single();
+  }
+
+  /** The stored state of a provider subscription. */
+  public Optional<SubscriptionState> subscription(String externalRef) {
+    return jdbc.sql(
+            "SELECT "
+                + STATE_COLUMNS
+                + " FROM billing_subscription"
+                + " WHERE provider = ? AND external_ref = ?")
+        .params(STRIPE, externalRef)
+        .query(BillingAccountRepository::state)
+        .optional();
+  }
+
+  /**
+   * The live subscription of the user that is paid furthest beyond {@code now} (ties broken by the
+   * reference); the PRO entitlement follows it.
+   */
+  public Optional<SubscriptionState> entitlingSubscription(UUID userId, Instant now) {
+    return jdbc.sql(
+            "SELECT "
+                + STATE_COLUMNS
+                + " FROM billing_subscription"
+                + " WHERE user_id = ? AND provider = ? AND ended_at IS NULL AND paid_through > ?"
+                + " ORDER BY paid_through DESC, external_ref LIMIT 1")
+        .params(userId, STRIPE, ts(now))
+        .query(BillingAccountRepository::state)
+        .optional();
   }
 
   /** Provider subscriptions of the user that have not ended. */
@@ -155,5 +196,80 @@ public class BillingAccountRepository {
         .params(userId, STRIPE)
         .query(String.class)
         .list();
+  }
+
+  /**
+   * A claim of the user's checkout creation, with the user's latest session (all three {@code null}
+   * when there is none).
+   */
+  public record CheckoutClaim(
+      String previousSessionRef, String previousUrl, Instant previousExpiresAt) {
+
+    /** The latest session when it has not expired at {@code now}. */
+    public Optional<String> openSession(Instant now) {
+      return previousSessionRef != null && previousExpiresAt.isAfter(now)
+          ? Optional.of(previousSessionRef)
+          : Optional.empty();
+    }
+  }
+
+  /**
+   * Claims the creation of a checkout for the user until {@code leaseUntil}, unless another request
+   * holds an unexpired claim.
+   *
+   * @return the claim with the user's latest session, or empty while another creation runs
+   */
+  public Optional<CheckoutClaim> claimCheckout(UUID userId, Instant leaseUntil, Instant now) {
+    return jdbc.sql(
+            "INSERT INTO billing_checkout_session (user_id, provider, claim_until, created_at)"
+                + " VALUES (?, ?, ?, ?)"
+                + " ON CONFLICT (user_id) DO UPDATE SET claim_until = EXCLUDED.claim_until"
+                + " WHERE billing_checkout_session.claim_until IS NULL"
+                + " OR billing_checkout_session.claim_until <= EXCLUDED.created_at"
+                + " RETURNING session_ref, url, expires_at")
+        .params(userId, STRIPE, ts(leaseUntil), ts(now))
+        .query((rs, row) ->
+            new CheckoutClaim(
+                rs.getString("session_ref"), rs.getString("url"), instant(rs, "expires_at")))
+        .optional();
+  }
+
+  /** Records the session the claim created and releases the claim. */
+  public void openCheckout(UUID userId, String sessionRef, String url, Instant expiresAt) {
+    jdbc.sql(
+            "UPDATE billing_checkout_session SET session_ref = ?, url = ?, expires_at = ?,"
+                + " claim_until = NULL WHERE user_id = ?")
+        .params(sessionRef, url, ts(expiresAt), userId)
+        .update();
+  }
+
+  /** Releases the claim and keeps the latest session as it was. */
+  public void releaseCheckout(UUID userId) {
+    jdbc.sql("UPDATE billing_checkout_session SET claim_until = NULL WHERE user_id = ?")
+        .param(userId)
+        .update();
+  }
+
+  /** Forgets the user's latest session (its checkout completed). */
+  public void clearCheckout(UUID userId) {
+    jdbc.sql(
+            "UPDATE billing_checkout_session SET session_ref = NULL, url = NULL, expires_at = NULL"
+                + " WHERE user_id = ?")
+        .param(userId)
+        .update();
+  }
+
+  private static final String STATE_COLUMNS =
+      "external_ref, user_id, customer_ref, status, current_period_end, paid_through, ended_at";
+
+  private static SubscriptionState state(ResultSet rs, int row) throws SQLException {
+    return new SubscriptionState(
+        rs.getString("external_ref"),
+        rs.getObject("user_id", UUID.class),
+        rs.getString("customer_ref"),
+        rs.getString("status"),
+        instant(rs, "current_period_end"),
+        instant(rs, "paid_through"),
+        instant(rs, "ended_at"));
   }
 }

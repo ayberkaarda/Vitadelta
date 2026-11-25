@@ -2,7 +2,9 @@ package com.vitadelta.api.billing;
 
 import com.vitadelta.api.billing.BillingAccountRepository.SubscriptionState;
 import com.vitadelta.api.common.problem.ProblemException;
+import com.vitadelta.api.entitlement.PlanCode;
 import com.vitadelta.api.entitlement.Subscription;
+import com.vitadelta.api.entitlement.SubscriptionRepository;
 import com.vitadelta.api.entitlement.SubscriptionService;
 import com.vitadelta.api.entitlement.SubscriptionService.ProviderApplication;
 import com.vitadelta.api.entitlement.SubscriptionService.ProviderChange;
@@ -49,17 +51,15 @@ import tools.jackson.databind.json.JsonMapper;
  *       {@value #CHECKOUT_COMPLETED} it must equal the session's {@code client_reference_id}) and
  *       the configured price; otherwise the event is ignored. E-mail addresses are never used.
  *   <li>In one transaction that first locks the user's row: the event id is checked again and
- *       recorded, the customer is mapped to the user (a customer or subscription already mapped to
- *       another user is refused), the subscription state is merged forward ({@link
- *       BillingAccountRepository#mergeSubscription}), and then
- *       <ul>
- *         <li>an ended subscription ends the user's matching PRO row ({@link
- *             SubscriptionService#endProviderSubscription});
- *         <li>a subscription whose current period is paid applies that period through the billing
- *             port ({@link StripeBillingProvider}); periods only move forward;
- *         <li>anything else (past due, unpaid, an open renewal invoice) changes nothing: the paid
- *             period stays in effect until it ends.
- *       </ul>
+ *       recorded (a customer or subscription already mapped to another user is refused), the state
+ *       of this subscription is merged forward ({@link BillingAccountRepository#mergeSubscription};
+ *       a period counts as paid only when the status is active or trialing and the latest invoice
+ *       is paid, so past due, unpaid and open renewals change nothing), and the user's entitlement
+ *       is reconciled with all of the user's provider subscriptions ({@link #reconcile}): PRO
+ *       follows the live subscription paid furthest ahead, through the billing port ({@link
+ *       StripeBillingProvider}), and ends only when no live subscription pays for it. The billing
+ *       portal follows the customer of the entitled subscription ({@link #mapCustomer}); a
+ *       completed checkout clears the user's open checkout session.
  *   <li>When the user no longer exists, a subscription that has not ended is canceled at Stripe
  *       after the transaction (a checkout paid after the account was deleted, or a deletion that
  *       committed during this delivery), so a deleted account is never left being charged.
@@ -129,6 +129,7 @@ public class StripeWebhookService {
   private final BillingAccountRepository accounts;
   private final StripeBillingProvider provider;
   private final SubscriptionService subscriptions;
+  private final SubscriptionRepository activeSubscriptions;
   private final UserRepository users;
   private final MeterRegistry meters;
   private final Clock clock;
@@ -141,6 +142,7 @@ public class StripeWebhookService {
       BillingAccountRepository accounts,
       StripeBillingProvider provider,
       SubscriptionService subscriptions,
+      SubscriptionRepository activeSubscriptions,
       UserRepository users,
       MeterRegistry meters,
       Clock clock,
@@ -150,6 +152,7 @@ public class StripeWebhookService {
     this.accounts = accounts;
     this.provider = provider;
     this.subscriptions = subscriptions;
+    this.activeSubscriptions = activeSubscriptions;
     this.users = users;
     this.meters = meters;
     this.clock = clock;
@@ -374,50 +377,104 @@ public class StripeWebhookService {
       LOG.warn("Stripe event {}: customer or subscription belongs to another user", event.id());
       return record(event, Outcome.CUSTOMER_CONFLICT, now);
     }
-    accounts.saveCustomer(userId, subscription.customer(), now);
     Instant endedAt =
         subscription.terminal()
             ? (subscription.endedAt() != null ? subscription.endedAt() : now)
             : null;
-    SubscriptionState state =
-        accounts.mergeSubscription(
-            subscription.id(),
-            userId,
-            subscription.customer(),
-            subscription.status(),
-            subscription.currentPeriodEnd(),
-            endedAt,
-            now);
-    Outcome outcome;
-    if (state.ended()) {
-      outcome =
-          subscriptions.endProviderSubscription(userId, subscription.id()).isPresent()
-              ? Outcome.APPLIED
-              : Outcome.UNCHANGED;
-    } else if (subscription.currentPeriodPaid() && subscription.currentPeriodEnd() != null) {
-      ProviderApplication application =
-          provider.apply(
-              new ActivationRequest.ProviderPeriod(
-                  userId, subscription.id(), subscription.currentPeriodEnd()));
-      outcome =
-          application.change() == ProviderChange.UNCHANGED ? Outcome.UNCHANGED : Outcome.APPLIED;
-      warnOnSecondSubscription(userId, subscription.id(), application.subscription());
-    } else {
-      outcome = Outcome.UNCHANGED;
+    accounts.mergeSubscription(
+        subscription.id(),
+        userId,
+        subscription.customer(),
+        subscription.status(),
+        subscription.currentPeriodEnd(),
+        subscription.currentPeriodPaid() ? subscription.currentPeriodEnd() : null,
+        endedAt,
+        now);
+    boolean changed = reconcile(userId, now);
+    mapCustomer(userId, subscription);
+    if (event.type().equals(CHECKOUT_COMPLETED)) {
+      accounts.clearCheckout(userId);
     }
-    return record(event, outcome, now);
+    return record(event, changed ? Outcome.APPLIED : Outcome.UNCHANGED, now);
   }
 
-  private void warnOnSecondSubscription(UUID userId, String externalRef, Subscription active) {
-    if (active != null
-        && active.source() == SubscriptionSource.PROVIDER
-        && active.externalRef() != null
-        && !active.externalRef().equals(externalRef)) {
+  /**
+   * Makes the user's ACTIVE subscription follow the stored provider subscriptions, under the user's
+   * row lock. The entitlement belongs to the live subscription paid furthest ahead ({@link
+   * BillingAccountRepository#entitlingSubscription}); an event of one subscription only ever
+   * extends or ends that subscription's own row:
+   *
+   * <ul>
+   *   <li>the ACTIVE row belongs to the entitling subscription: its period moves forward;
+   *   <li>the ACTIVE row belongs to another provider subscription: the entitling one replaces it
+   *       when that one has ended or is paid further ahead;
+   *   <li>no subscription is paid ahead and the ACTIVE row's subscription has ended: the user is
+   *       downgraded to FREE;
+   *   <li>the ACTIVE row is FREE, or PRO from a promo code or a manual grant: the entitling
+   *       subscription activates PRO.
+   * </ul>
+   *
+   * @return whether the ACTIVE subscription changed
+   */
+  private boolean reconcile(UUID userId, Instant now) {
+    Optional<SubscriptionState> entitling = accounts.entitlingSubscription(userId, now);
+    Optional<Subscription> active = activeSubscriptions.findActive(userId);
+    String activeRef =
+        active
+            .filter(row -> row.planCode() == PlanCode.PRO)
+            .filter(row -> row.source() == SubscriptionSource.PROVIDER)
+            .map(Subscription::externalRef)
+            .orElse(null);
+    if (accounts.liveSubscriptions(userId).size() > 1) {
       meters.counter("vitadelta.billing.duplicate_subscription").increment();
       LOG.warn(
-          "User {} has a second live Stripe subscription; the PRO period follows the later one"
-              + " and the operator must cancel and refund the duplicate (runbook)",
+          "User {} has more than one live Stripe subscription; PRO follows the one paid furthest"
+              + " ahead and the operator must cancel and refund the others (runbook)",
           userId);
+    }
+    if (activeRef == null) {
+      return entitling.isPresent() && grant(userId, entitling.get());
+    }
+    boolean activeEnded =
+        accounts.subscription(activeRef).map(SubscriptionState::ended).orElse(false);
+    if (entitling.isPresent()) {
+      SubscriptionState best = entitling.get();
+      if (best.externalRef().equals(activeRef)
+          || activeEnded
+          || best.paidThrough().isAfter(active.get().currentPeriodEnd())) {
+        return grant(userId, best);
+      }
+      return false;
+    }
+    return activeEnded && subscriptions.endProviderSubscription(userId, activeRef).isPresent();
+  }
+
+  private boolean grant(UUID userId, SubscriptionState subscription) {
+    ProviderApplication application =
+        provider.apply(
+            new ActivationRequest.ProviderPeriod(
+                userId, subscription.externalRef(), subscription.paidThrough()));
+    return application.change() != ProviderChange.UNCHANGED;
+  }
+
+  /**
+   * Points the billing portal at the customer of the subscription that holds the user's
+   * entitlement. Without a provider entitlement, a live subscription sets the customer only when
+   * the user has none yet; an ended subscription never sets or replaces it.
+   */
+  private void mapCustomer(UUID userId, StripeSubscription event) {
+    Instant now = clock.instant();
+    Optional<String> entitled =
+        activeSubscriptions
+            .findActive(userId)
+            .filter(row -> row.source() == SubscriptionSource.PROVIDER)
+            .map(Subscription::externalRef)
+            .flatMap(accounts::subscription)
+            .map(SubscriptionState::customerRef);
+    if (entitled.isPresent()) {
+      accounts.saveCustomer(userId, entitled.get(), now);
+    } else if (!event.terminal() && accounts.customerOf(userId).isEmpty()) {
+      accounts.saveCustomer(userId, event.customer(), now);
     }
   }
 

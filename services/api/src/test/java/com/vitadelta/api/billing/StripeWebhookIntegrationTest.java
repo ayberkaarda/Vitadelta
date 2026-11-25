@@ -582,4 +582,114 @@ class StripeWebhookIntegrationTest extends StripeIntegrationTest {
                 .single())
         .isZero();
   }
+
+  private String customerOf(UUID userId) {
+    return jdbc.sql("SELECT customer_ref FROM billing_customer WHERE user_id = ?")
+        .param(userId)
+        .query(String.class)
+        .single();
+  }
+
+  /** A second subscription of the same user, completed through its own checkout. */
+  private void secondCheckout(Paid first, String subscription, String customer, int days) {
+    subscription(subscription, customer, "active", first.user().id(), PRICE, end(days), "paid");
+    assertAck(
+        webhook(
+            checkoutCompleted(
+                stripeId("evt_"), first.user().id().toString(), subscription, customer)));
+  }
+
+  private void deleted(Paid paid) {
+    subscription(
+        paid.subscription(), paid.customer(), "canceled", paid.user().id(), PRICE, end(30), "paid");
+    assertAck(
+        webhook(
+            subscriptionEvent(
+                stripeId("evt_"), "customer.subscription.deleted", paid.subscription())));
+  }
+
+  @Test
+  void overlappingSubscriptionsKeepProWhileOneOfThemIsPaid() {
+    Paid first = paidUser();
+    String second = stripeId("sub_");
+    String secondCustomer = stripeId("cus_");
+    secondCheckout(first, second, secondCustomer, 45);
+
+    // The entitlement follows the subscription that is paid furthest, under its own reference.
+    assertThat(active(first.user().id()).get("external_ref")).isEqualTo(second);
+    assertThat(activeEnd(first.user().id())).isEqualTo(end(45));
+
+    // Ending the first subscription does not drop PRO that the second one still pays for.
+    deleted(first);
+    Map<String, Object> active = active(first.user().id());
+    assertThat(active.get("plan_code")).isEqualTo("PRO");
+    assertThat(active.get("external_ref")).isEqualTo(second);
+    assertThat(activeEnd(first.user().id())).isEqualTo(end(45));
+
+    // A renewal of the second subscription extends its own row.
+    subscription(second, secondCustomer, "active", first.user().id(), PRICE, end(75), "paid");
+    assertAck(webhook(invoiceEvent(stripeId("evt_"), "invoice.paid", second)));
+    assertThat(activeEnd(first.user().id())).isEqualTo(end(75));
+    assertThat(active(first.user().id()).get("external_ref")).isEqualTo(second);
+  }
+
+  @Test
+  void aPaidSubscriptionTakesOverWhenTheEntitledOneEnds() {
+    Paid first = paidUser();
+    String second = stripeId("sub_");
+    // The second subscription is paid for a shorter period: the first keeps the entitlement.
+    secondCheckout(first, second, stripeId("cus_"), 20);
+    assertThat(active(first.user().id()).get("external_ref")).isEqualTo(first.subscription());
+    assertThat(activeEnd(first.user().id())).isEqualTo(end(30));
+
+    deleted(first);
+
+    Map<String, Object> active = active(first.user().id());
+    assertThat(active.get("plan_code")).isEqualTo("PRO");
+    assertThat(active.get("external_ref")).isEqualTo(second);
+    assertThat(activeEnd(first.user().id())).isEqualTo(end(20));
+  }
+
+  @Test
+  void aLateEventOfAnotherSubscriptionNeverMovesThePortalToItsCustomer() {
+    Paid first = paidUser();
+    String second = stripeId("sub_");
+    String secondCustomer = stripeId("cus_");
+    secondCheckout(first, second, secondCustomer, 45);
+    assertThat(customerOf(first.user().id())).isEqualTo(secondCustomer);
+
+    deleted(first);
+    assertThat(customerOf(first.user().id())).isEqualTo(secondCustomer);
+
+    // A live but unpaid update of the first subscription does not take the portal either.
+    subscription(
+        first.subscription(),
+        first.customer(),
+        "past_due",
+        first.user().id(),
+        PRICE,
+        end(60),
+        "open");
+    assertAck(
+        webhook(
+            subscriptionEvent(
+                stripeId("evt_"), "customer.subscription.updated", first.subscription())));
+    assertThat(customerOf(first.user().id())).isEqualTo(secondCustomer);
+  }
+
+  @Test
+  void aTerminalEventSetsNoCustomerForAUserWithoutOne() {
+    TestUser user = user();
+    String subscription = stripeId("sub_");
+    subscription(subscription, stripeId("cus_"), "canceled", user.id(), PRICE, end(30), "paid");
+    assertAck(
+        webhook(
+            subscriptionEvent(stripeId("evt_"), "customer.subscription.deleted", subscription)));
+    assertThat(
+            jdbc.sql("SELECT count(*) FROM billing_customer WHERE user_id = ?")
+                .param(user.id())
+                .query(Long.class)
+                .single())
+        .isZero();
+  }
 }
