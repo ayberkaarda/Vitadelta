@@ -32,6 +32,9 @@ public enum ProblemCode {
   UNSUPPORTED_IU_FORM(HttpStatus.UNPROCESSABLE_CONTENT, "Unsupported IU form"),
   INVALID_OFFER_URL(HttpStatus.UNPROCESSABLE_CONTENT, "Invalid offer URL"),
   IMPORT_FAILED(HttpStatus.UNPROCESSABLE_CONTENT, "Import failed"),
+  BILLING_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "Billing unavailable"),
+  PLAN_ALREADY_ACTIVE(HttpStatus.CONFLICT, "Plan already active"),
+  NO_BILLING_ACCOUNT(HttpStatus.CONFLICT, "No billing account"),
   INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "Internal error");
 
   /** Prefix of every problem type URI. */

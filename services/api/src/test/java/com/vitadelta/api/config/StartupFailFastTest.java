@@ -76,6 +76,45 @@ class StartupFailFastTest extends PostgresIntegrationTest {
         });
   }
 
+  /**
+   * An incomplete Stripe configuration, or a live key without the explicit opt-in, stops the
+   * startup before the database is contacted.
+   */
+  @Test
+  void anIncompleteOrLiveStripeConfigurationIsRefusedBeforeTheDatabase() {
+    Predicate<String> keep = p -> !p.startsWith("VITADELTA_DB_URL=");
+    String unreachable = "VITADELTA_DB_URL=jdbc:postgresql://127.0.0.1:9/none";
+    String webhookSecret =
+        "VITADELTA_STRIPE_WEBHOOK_SECRET=whsec_"
+            + com.vitadelta.api.support.TestEnvironment.randomHex(24);
+    String price = "VITADELTA_STRIPE_PRICE_ID=price_1SyntheticPro";
+    assertThatThrownBy(
+            () -> start(keep, new String[0], unreachable, "VITADELTA_BILLING_PROVIDER=stripe"))
+        .hasStackTraceContaining("VITADELTA_STRIPE_SECRET_KEY is not set")
+        .satisfies(e -> {
+          java.io.StringWriter trace = new java.io.StringWriter();
+          e.printStackTrace(new java.io.PrintWriter(trace));
+          assertThat(trace.toString()).doesNotContain("PSQLException");
+        });
+    String liveKey =
+        "VITADELTA_STRIPE_SECRET_KEY=sk_"
+            + "live_"
+            + com.vitadelta.api.support.TestEnvironment.randomHex(24);
+    assertThatThrownBy(() ->
+            start(
+                keep,
+                new String[0],
+                unreachable,
+                "VITADELTA_BILLING_PROVIDER=stripe",
+                liveKey,
+                webhookSecret,
+                price))
+        .hasStackTraceContaining("live-mode key");
+    assertThatThrownBy(
+            () -> start(keep, new String[0], unreachable, "VITADELTA_BILLING_PROVIDER=paypal"))
+        .hasStackTraceContaining("VITADELTA_BILLING_PROVIDER must be none or stripe");
+  }
+
   @Test
   void thePrivacyContactIsOptionalInTheDevProfileOnly() {
     Predicate<String> keep =

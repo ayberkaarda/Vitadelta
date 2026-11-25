@@ -27,7 +27,7 @@ class ProblemsTest {
 
   @Test
   void everySpecifiedCodeHasItsTypeUri() {
-    assertThat(ProblemCode.values()).hasSize(24);
+    assertThat(ProblemCode.values()).hasSize(27);
     for (ProblemCode code : ProblemCode.values()) {
       assertThat(code.type().toString()).isEqualTo("https://vitadelta.dev/problems/" + code.code());
       assertThat(code.code()).matches("^[a-z_]+$");

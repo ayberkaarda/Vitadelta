@@ -205,6 +205,18 @@
       "title": "İçe aktarma başarısız",
       "body": "Dosya içe aktarılmadı. Hiçbir şey yazılmadı."
     },
+    "billing_unavailable": {
+      "title": "Çevrimiçi ödeme şu anda kullanılamıyor",
+      "body": "Ödeme hizmetine ulaşılamadı. Hiçbir ücret alınmadı. Daha sonra tekrar deneyin veya bir promosyon kodu kullanın."
+    },
+    "plan_already_active": {
+      "title": "PRO zaten etkin",
+      "body": "Hesabınızda PRO zaten etkin, ödenecek bir şey yok. Plan ayrıntılarınız hesabınızda."
+    },
+    "no_billing_account": {
+      "title": "Ücretli abonelik bulunamadı",
+      "body": "Abonelik, tamamlanmış bir çevrimiçi ödemeden sonra yönetilebilir. Promosyon koduyla alınan PRO plan için yönetim gerekmez."
+    },
     "internal_error": {
       "title": "Bizim tarafımızda bir sorun oluştu",
       "body": "İstek tamamlanamadı. Daha sonra tekrar deneyin."

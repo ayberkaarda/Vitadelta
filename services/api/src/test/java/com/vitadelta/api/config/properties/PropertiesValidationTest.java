@@ -153,11 +153,30 @@ class PropertiesValidationTest {
   void bodyLimitsPerPath() {
     HttpLimitsProperties limits =
         new HttpLimitsProperties(
-            DataSize.ofKilobytes(64), DataSize.ofMegabytes(20), List.of("/api/v1/admin/imports/"));
+            DataSize.ofKilobytes(64),
+            DataSize.ofMegabytes(20),
+            List.of("/api/v1/admin/imports/"),
+            DataSize.ofKilobytes(256),
+            List.of("/api/v1/billing/webhooks/"));
     assertThat(limits.limitFor("/api/v1/recommendations/query")).isEqualTo(65_536);
     assertThat(limits.limitFor("/api/v1/admin/imports/offers")).isEqualTo(20_971_520);
-    assertThatThrownBy(
-            () -> new HttpLimitsProperties(DataSize.ofBytes(0), DataSize.ofMegabytes(1), List.of()))
+    assertThat(limits.limitFor("/api/v1/billing/webhooks/stripe")).isEqualTo(262_144);
+    assertThat(limits.limitFor("/api/v1/billing/checkout-session")).isEqualTo(65_536);
+    assertThatThrownBy(() ->
+            new HttpLimitsProperties(
+                DataSize.ofBytes(0),
+                DataSize.ofMegabytes(1),
+                List.of(),
+                DataSize.ofKilobytes(1),
+                List.of()))
+        .isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() ->
+            new HttpLimitsProperties(
+                DataSize.ofKilobytes(1),
+                DataSize.ofMegabytes(1),
+                List.of(),
+                DataSize.ofBytes(0),
+                List.of()))
         .isInstanceOf(IllegalArgumentException.class);
   }
 }

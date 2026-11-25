@@ -150,10 +150,30 @@ vitadelta:
     user-requests-per-minute: 30
     user-concurrency: 2
   http:
-    # Request body limits of /api/v1/** (query body 64 kB; import JSON and CSV 20 MB).
+    # Request body limits of /api/v1/** (query body 64 kB; import JSON and CSV 20 MB; payment
+    # provider webhooks 256 kB).
     max-body: 64KB
     import-max-body: 20MB
     import-paths: /api/v1/admin/imports/
+    webhook-max-body: 256KB
+    webhook-paths: /api/v1/billing/webhooks/
+  billing:
+    # Optional payment provider (Phase 8, ADR-0014): none (default) or stripe. With stripe the
+    # secret key, webhook signing secret and price id are required and only test keys are accepted
+    # unless VITADELTA_STRIPE_ALLOW_LIVE=true; the application refuses to start otherwise.
+    provider: ${VITADELTA_BILLING_PROVIDER:none}
+    # Webhooks whose signed timestamp is further than this from the server clock are rejected.
+    webhook-tolerance: 5m
+    stripe:
+      secret-key: ${VITADELTA_STRIPE_SECRET_KEY:}
+      webhook-secret: ${VITADELTA_STRIPE_WEBHOOK_SECRET:}
+      price-id: ${VITADELTA_STRIPE_PRICE_ID:}
+      allow-live: ${VITADELTA_STRIPE_ALLOW_LIVE:false}
+      # Stripe API host (tests point it at a local stub); calls pin Stripe-Version 2026-11-18.endive.
+      api-base-url: https://api.stripe.com
+      connect-timeout: 5s
+      read-timeout: 20s
+      max-response-bytes: 1048576
   seed:
     # Directory holding reference/, fixtures/ and real/. scripts/seed.sh mounts the repository's
     # data directory read-only at this path inside the api container. The API also reads

@@ -57,7 +57,7 @@ PostgreSQL publishes no port; SQL runs through the database container. Mailpit p
 | FREE | full, paged | 5 | 3 | 30 per calendar month (UTC) |
 | PRO | full, paged | unlimited | unlimited | unlimited |
 
-Plans are rows in the `plan` table, read through a cached plan service, and never taken from token claims. A single `EntitlementService` decides every limited action. Saving a product and creating or activating an alert lock the user's row, count and write in one transaction, so parallel requests cannot exceed a limit; a refusal is `403 entitlement_exceeded` with the limit, the usage and the upgrade target. The web app only renders these decisions. PRO is activated by a promo code or by an administrator through the billing port; no payment provider is integrated ([ADR-0007](adr/0007-entitlements.md), [ADR-0010](adr/0010-billing-port.md)). When PRO expires, nothing is deleted: excess saved products stay, and alerts beyond the FREE limit are deactivated from the newest.
+Plans are rows in the `plan` table, read through a cached plan service, and never taken from token claims. A single `EntitlementService` decides every limited action. Saving a product and creating or activating an alert lock the user's row, count and write in one transaction, so parallel requests cannot exceed a limit; a refusal is `403 entitlement_exceeded` with the limit, the usage and the upgrade target. The web app only renders these decisions. PRO is activated through the billing port by a promo code, by an administrator, or, when the optional Stripe provider is configured, by a subscription bought on Stripe's hosted checkout. Stripe changes a subscription only through signature-verified webhooks: the API reads the referenced subscription from Stripe, applies it under the user's row lock, records each event id once and only ever moves a paid period forward ([ADR-0007](adr/0007-entitlements.md), [ADR-0010](adr/0010-billing-port.md), [ADR-0014](adr/0014-stripe-billing-provider.md)). When PRO expires, nothing is deleted: excess saved products stay, and alerts beyond the FREE limit are deactivated from the newest.
 
 ## Alert pipeline
 
@@ -89,6 +89,8 @@ Every scheduled job (outbox, exchange-rate refresh, subscription expiry, houseke
 | Exchange rates | `V4__fx_rates.sql` | `fx_rate` |
 | Catalog (forms) | `V5__form_registry_and_ul_notes.sql` | `nutrient_form`; form membership enforced on product nutrients, citation notes on upper limits |
 | Alerts | `V6__alert_ordering.sql` | ordering columns on `outbox_event`, catalog-version boundary on `alert_subscription` |
+| Billing provider | `V7__billing_provider.sql` | `billing_customer`, `billing_subscription`, `billing_webhook_event` |
+| Billing provider | `V8__billing_entitlement_state.sql` | `paid_through` on `billing_subscription` |
 
 Every committing catalog write bumps `catalog_version` exactly once, which keys the ranking cache and the alert boundaries. Real label products carry `source = 'DSLD'`, the label id and its entry date; their offers and all other prices are synthetic ([ADR-0012](adr/0012-real-label-data-source.md)).
 
@@ -123,3 +125,4 @@ The operations layer is a set of scripts and CI jobs around the stack. `scripts/
 | [0011](adr/0011-single-instance-and-job-locks.md) | Single instance and job locks |
 | [0012](adr/0012-real-label-data-source.md) | Real label data snapshot with synthetic prices |
 | [0013](adr/0013-migration-numbering.md) | Migration numbering per module |
+| [0014](adr/0014-stripe-billing-provider.md) | Stripe as the optional payment provider |

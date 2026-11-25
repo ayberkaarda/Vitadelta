@@ -1,4 +1,4 @@
-// contract-sha256: c4db0bd3e0b9e04676554f13189b0840993db057e696234b1b1eebaaecc8257f
+// contract-sha256: e29e22f59118943b95fe82e5122ca3e7686dcb25f2c621d12e3378f2137c7d92
 // Types of the public API, derived from contracts/public-api.openapi.yaml.
 // Do not edit by hand: run `npm run api:types` in apps/web after changing the contract.
 
@@ -1103,6 +1103,119 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/billing/checkout-session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start a hosted checkout for the PRO plan
+         * @description Creates a hosted checkout session of the payment provider for the
+         *     monthly PRO subscription and returns its URL; the web app redirects the
+         *     browser there. No request body. The session is bound to the caller (the
+         *     user id travels as the session's client reference and as subscription
+         *     metadata), never to an e-mail address. The provider returns the browser
+         *     to `<web base URL>/upgrade?checkout=success` or
+         *     `<web base URL>/upgrade?checkout=canceled`; the plan changes only when
+         *     the provider's signed webhook arrives (`POST /billing/webhooks/stripe`),
+         *     never because of the return URL.
+         *
+         *     Problem codes: `unauthorized` (401), `email_not_verified` (403),
+         *     `plan_already_active` (409, the caller's ACTIVE plan is already PRO, or
+         *     a provider subscription of the caller has not ended, for example a
+         *     past-due one, which is settled in the billing portal),
+         *     `rate_limited` (429, 10 per hour per user), `billing_unavailable`
+         *     (503, no provider configured or the provider cannot be reached).
+         */
+        post: operations["createCheckoutSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/billing/portal-session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Open the hosted billing portal
+         * @description Creates a session of the payment provider's hosted billing portal for
+         *     the caller's provider customer and returns its URL. Payment methods,
+         *     invoices and cancellation are handled there; a cancellation reaches the
+         *     API through the provider's signed webhook. The portal returns the
+         *     browser to `<web base URL>/account`. No request body.
+         *
+         *     Problem codes: `unauthorized` (401), `no_billing_account` (409, the
+         *     caller never completed a provider checkout), `rate_limited` (429, 10 per
+         *     hour per user), `billing_unavailable` (503).
+         */
+        post: operations["createBillingPortalSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/billing/webhooks/stripe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Stripe webhook receiver
+         * @description Called by Stripe only. Authenticated by the `Stripe-Signature` header
+         *     alone: no bearer token, cookie or CSRF header is used. The raw request
+         *     body is verified before it is parsed: HMAC-SHA256 with the endpoint's
+         *     signing secret over `<t>.<raw body>`, compared in constant time with
+         *     every `v1` entry; the timestamp `t` must lie within 5 minutes of the
+         *     server clock. A missing, repeated or malformed header, a header
+         *     without a matching `v1` signature, a timestamp outside the window, or
+         *     a body that is not a JSON event is answered 400 with one generic
+         *     `about:blank` body that names no reason.
+         *
+         *     Handled event types: `checkout.session.completed`, `invoice.paid`,
+         *     `invoice.payment_failed`, `customer.subscription.updated`,
+         *     `customer.subscription.deleted`. For each, the API reads the current
+         *     state of the referenced subscription from Stripe and applies it under
+         *     the user's subscription lock (source `PROVIDER`, the Stripe
+         *     subscription id as external reference); the user is identified by the
+         *     user id the API attached at checkout, never by e-mail. Applied changes
+         *     only move forward: a PRO period end never decreases and an ended
+         *     provider subscription never becomes active again, so late or
+         *     reordered deliveries cannot downgrade a newer state. Each event id is
+         *     applied at most once; a repeated delivery answers 200 without
+         *     effect. Other event types, events of the other mode (live or test),
+         *     and events that do not belong to a subscription created by this API
+         *     answer 200 and are ignored.
+         *
+         *     Exempt from the client rate limits of the other operations; it has its
+         *     own cap (300 per minute per client address) and body limit (256 kB).
+         *
+         *     Problem codes: `rate_limited` (429), `validation_failed` (413),
+         *     `billing_unavailable` (503, no provider configured or Stripe cannot be
+         *     reached; Stripe retries the delivery), `internal_error` (500).
+         */
+        post: operations["receiveStripeWebhook"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/health": {
         parameters: {
             query?: never;
@@ -1584,7 +1697,7 @@ export interface components {
              * @description `https://vitadelta.dev/problems/<code>`, or `about:blank` for generic HTTP errors.
              * @enum {string}
              */
-            type: "https://vitadelta.dev/problems/validation_failed" | "https://vitadelta.dev/problems/country_not_found" | "https://vitadelta.dev/problems/product_not_found" | "https://vitadelta.dev/problems/product_not_available_in_country" | "https://vitadelta.dev/problems/currency_mismatch" | "https://vitadelta.dev/problems/scoring_unavailable" | "https://vitadelta.dev/problems/unauthorized" | "https://vitadelta.dev/problems/forbidden" | "https://vitadelta.dev/problems/invalid_credentials" | "https://vitadelta.dev/problems/account_disabled" | "https://vitadelta.dev/problems/email_not_verified" | "https://vitadelta.dev/problems/token_invalid" | "https://vitadelta.dev/problems/token_expired" | "https://vitadelta.dev/problems/refresh_reuse_detected" | "https://vitadelta.dev/problems/quota_exceeded" | "https://vitadelta.dev/problems/entitlement_exceeded" | "https://vitadelta.dev/problems/promo_invalid" | "https://vitadelta.dev/problems/conflict_retry" | "https://vitadelta.dev/problems/fx_unsupported_currency" | "https://vitadelta.dev/problems/rate_limited" | "https://vitadelta.dev/problems/unsupported_iu_form" | "https://vitadelta.dev/problems/invalid_offer_url" | "https://vitadelta.dev/problems/import_failed" | "https://vitadelta.dev/problems/internal_error" | "about:blank";
+            type: "https://vitadelta.dev/problems/validation_failed" | "https://vitadelta.dev/problems/country_not_found" | "https://vitadelta.dev/problems/product_not_found" | "https://vitadelta.dev/problems/product_not_available_in_country" | "https://vitadelta.dev/problems/currency_mismatch" | "https://vitadelta.dev/problems/scoring_unavailable" | "https://vitadelta.dev/problems/unauthorized" | "https://vitadelta.dev/problems/forbidden" | "https://vitadelta.dev/problems/invalid_credentials" | "https://vitadelta.dev/problems/account_disabled" | "https://vitadelta.dev/problems/email_not_verified" | "https://vitadelta.dev/problems/token_invalid" | "https://vitadelta.dev/problems/token_expired" | "https://vitadelta.dev/problems/refresh_reuse_detected" | "https://vitadelta.dev/problems/quota_exceeded" | "https://vitadelta.dev/problems/entitlement_exceeded" | "https://vitadelta.dev/problems/promo_invalid" | "https://vitadelta.dev/problems/conflict_retry" | "https://vitadelta.dev/problems/fx_unsupported_currency" | "https://vitadelta.dev/problems/rate_limited" | "https://vitadelta.dev/problems/unsupported_iu_form" | "https://vitadelta.dev/problems/invalid_offer_url" | "https://vitadelta.dev/problems/import_failed" | "https://vitadelta.dev/problems/billing_unavailable" | "https://vitadelta.dev/problems/plan_already_active" | "https://vitadelta.dev/problems/no_billing_account" | "https://vitadelta.dev/problems/internal_error" | "about:blank";
             /** @description Short, human-readable summary of the problem type. */
             title: string;
             /** Format: int32 */
@@ -2265,6 +2378,13 @@ export interface components {
         Plan: components["schemas"]["PlanLimits"] & {
             /** @description `null` for FREE. */
             price: components["schemas"]["PlanPrice"] | null;
+            /**
+             * @description Whether the plan can be bought through `POST /billing/checkout-session`:
+             *     `true` only for PRO and only when a payment provider is
+             *     configured. It does not depend on the caller; a caller whose
+             *     plan is already PRO gets 409 `plan_already_active`.
+             */
+            checkoutAvailable: boolean;
         };
         PlanList: {
             meta: components["schemas"]["MoneyMeta"];
@@ -2701,6 +2821,32 @@ export interface components {
         SubscriptionActivation: {
             plan: components["schemas"]["PlanCode"];
             subscription: components["schemas"]["Subscription"];
+        };
+        BillingRedirect: {
+            /**
+             * Format: uri
+             * @description Absolute https URL of the provider's hosted page; the browser is sent there.
+             */
+            url: string;
+        };
+        /**
+         * @description A Stripe event (snapshot payload) as Stripe sends it. Only `id`, `type`,
+         *     `livemode` and `data.object` are read, after the signature check; other
+         *     members are ignored.
+         */
+        StripeEvent: {
+            /** @example evt_1QwErTyUiOpAsDfG */
+            id: string;
+            /** @example invoice.paid */
+            type: string;
+            livemode: boolean;
+            data: {
+                object: Record<string, never>;
+            };
+        };
+        WebhookAck: {
+            /** @description Always `true`. */
+            received: boolean;
         };
         ComponentHealth: {
             status: components["schemas"]["HealthStatus"];
@@ -3157,7 +3303,7 @@ export interface components {
                 "application/problem+json": components["schemas"]["Problem"];
             };
         };
-        /** @description Request body exceeds the size limit (64 kB for every request body including the query, import JSON 20 MB, CSV 20 MB). Code `validation_failed`. */
+        /** @description Request body exceeds the size limit (64 kB for every request body including the query, Stripe webhook 256 kB, import JSON 20 MB, CSV 20 MB). Code `validation_failed`. */
         PayloadTooLarge: {
             headers: {
                 "X-Request-Id": components["headers"]["XRequestId"];
@@ -3315,6 +3461,75 @@ export interface components {
                 [name: string]: unknown;
             };
             content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
+        /**
+         * @description The billing action does not apply to the caller's state. Codes
+         *     `plan_already_active` (checkout while the ACTIVE plan is PRO or a
+         *     provider subscription has not ended) and `no_billing_account` (portal
+         *     before any completed provider checkout).
+         */
+        BillingConflict: {
+            headers: {
+                "X-Request-Id": components["headers"]["XRequestId"];
+                [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "type": "https://vitadelta.dev/problems/plan_already_active",
+                 *       "title": "Plan already active",
+                 *       "status": 409,
+                 *       "detail": "The PRO plan is already active.",
+                 *       "instance": "/api/v1/billing/checkout-session",
+                 *       "requestId": "8c1d2e3f-4a5b-4c6d-9e7f-0a1b2c3d4e5f"
+                 *     }
+                 */
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
+        /** @description No payment provider is configured, or the provider cannot be reached. Code `billing_unavailable`. */
+        BillingUnavailable: {
+            headers: {
+                "X-Request-Id": components["headers"]["XRequestId"];
+                [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "type": "https://vitadelta.dev/problems/billing_unavailable",
+                 *       "title": "Billing unavailable",
+                 *       "status": 503,
+                 *       "detail": "Online payment is not available right now.",
+                 *       "instance": "/api/v1/billing/checkout-session",
+                 *       "requestId": "8c1d2e3f-4a5b-4c6d-9e7f-0a1b2c3d4e5f"
+                 *     }
+                 */
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
+        /**
+         * @description The webhook request is not authentic or not readable. One generic body
+         *     for every reason (signature, timestamp window, header format, body
+         *     format); the reason is only logged and counted.
+         */
+        WebhookRejected: {
+            headers: {
+                "X-Request-Id": components["headers"]["XRequestId"];
+                [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "type": "about:blank",
+                 *       "title": "Bad Request",
+                 *       "status": 400,
+                 *       "detail": "Bad Request.",
+                 *       "instance": "/api/v1/billing/webhooks/stripe",
+                 *       "requestId": "8c1d2e3f-4a5b-4c6d-9e7f-0a1b2c3d4e5f"
+                 *     }
+                 */
                 "application/problem+json": components["schemas"]["Problem"];
             };
         };
@@ -5582,6 +5797,125 @@ export interface operations {
             422: components["responses"]["UnprocessableEntity"];
             429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalError"];
+        };
+    };
+    createCheckoutSession: {
+        parameters: {
+            query?: never;
+            header?: {
+                /**
+                 * @description Client-supplied request id. Accepted only when it matches the pattern;
+                 *     otherwise, or when absent, the API generates a new id. Never rejected.
+                 */
+                "X-Request-Id"?: components["parameters"]["XRequestId"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Checkout session created. */
+            200: {
+                headers: {
+                    "X-Request-Id": components["headers"]["XRequestId"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "url": "https://checkout.stripe.com/c/pay/cs_test_a1B2c3D4e5F6g7H8"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["BillingRedirect"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["BillingConflict"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["BillingUnavailable"];
+        };
+    };
+    createBillingPortalSession: {
+        parameters: {
+            query?: never;
+            header?: {
+                /**
+                 * @description Client-supplied request id. Accepted only when it matches the pattern;
+                 *     otherwise, or when absent, the API generates a new id. Never rejected.
+                 */
+                "X-Request-Id"?: components["parameters"]["XRequestId"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Portal session created. */
+            200: {
+                headers: {
+                    "X-Request-Id": components["headers"]["XRequestId"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "url": "https://billing.stripe.com/p/session/test_YWNjdF8xUXdFcnR5"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["BillingRedirect"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            409: components["responses"]["BillingConflict"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["BillingUnavailable"];
+        };
+    };
+    receiveStripeWebhook: {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description Client-supplied request id. Accepted only when it matches the pattern;
+                 *     otherwise, or when absent, the API generates a new id. Never rejected.
+                 */
+                "X-Request-Id"?: components["parameters"]["XRequestId"];
+                /** @description `t=<unix seconds>,v1=<hex HMAC-SHA256>[,v1=...]`; other entries are ignored. */
+                "Stripe-Signature": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The Stripe event exactly as sent; verified as raw bytes before parsing. */
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StripeEvent"];
+            };
+        };
+        responses: {
+            /** @description Accepted (applied, already applied or ignored). */
+            200: {
+                headers: {
+                    "X-Request-Id": components["headers"]["XRequestId"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "received": true
+                     *     }
+                     */
+                    "application/json": components["schemas"]["WebhookAck"];
+                };
+            };
+            400: components["responses"]["WebhookRejected"];
+            413: components["responses"]["PayloadTooLarge"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["BillingUnavailable"];
         };
     };
     getAdminHealth: {

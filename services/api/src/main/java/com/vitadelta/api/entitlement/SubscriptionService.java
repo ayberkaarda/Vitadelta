@@ -24,7 +24,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * Subscription lifecycle (section 8.3): the FREE subscription of a new account, PRO activation and
- * extension, and the downgrade of an expired PRO subscription.
+ * extension, the paid periods and the end of a payment-provider subscription (ADR-0014), and the
+ * downgrade of an expired PRO subscription.
  *
  * <p><b>Serialization:</b> every change runs in a transaction that first locks the user's row
  * ({@code SELECT ... FROM app_user WHERE id = ? FOR UPDATE}), then re-reads the ACTIVE subscription
@@ -187,7 +188,157 @@ public class SubscriptionService implements SubscriptionProvisioning {
         || !active.get().currentPeriodEnd().isBefore(now)) {
       return Optional.empty();
     }
-    subscriptions.expire(active.get().id());
+    return Optional.of(downgrade(user.get(), active.get(), now, false));
+  }
+
+  /** The outcome of {@link #applyProviderPeriod}. */
+  public enum ProviderChange {
+    /** A PRO subscription with source {@code PROVIDER} was started. */
+    ACTIVATED,
+    /** The period end of the ACTIVE row of the same provider subscription moved forward. */
+    EXTENDED,
+    /**
+     * The ACTIVE PRO row of another provider subscription was replaced by a row of this one (the
+     * plan stays PRO; no mail, no event).
+     */
+    REPLACED,
+    /** Nothing changed (the period end is not later, or already past). */
+    UNCHANGED
+  }
+
+  /**
+   * The result of {@link #applyProviderPeriod}.
+   *
+   * @param subscription the ACTIVE subscription after the change
+   */
+  public record ProviderApplication(ProviderChange change, Subscription subscription) {}
+
+  /**
+   * Applies a paid period of a payment-provider subscription, inside the caller's transaction
+   * (which should already hold the user's row lock; it is taken again here). Periods only move
+   * forward:
+   *
+   * <ul>
+   *   <li>a {@code periodEnd} that is not in the future changes nothing;
+   *   <li>ACTIVE PRO row of the same provider subscription ({@code external_ref = externalRef}):
+   *       {@code current_period_end} becomes {@code periodEnd} when that is later, otherwise
+   *       nothing changes (a late or repeated delivery);
+   *   <li>ACTIVE PRO row of another provider subscription: it becomes {@code CANCELED} and a row of
+   *       this subscription with {@code periodEnd} replaces it ({@link ProviderChange#REPLACED});
+   *       the caller decides which of a user's provider subscriptions holds the entitlement;
+   *   <li>otherwise (FREE, or PRO from a promo code or a manual grant): the ACTIVE row becomes
+   *       {@code CANCELED} and an ACTIVE PRO row with source {@code PROVIDER}, {@code external_ref
+   *       = externalRef} and the later of {@code periodEnd} and the replaced PRO period end is
+   *       inserted; the {@code plan-activated} mail is queued after commit and a {@link
+   *       SubscriptionActivatedEvent} is published.
+   * </ul>
+   *
+   * Renewals ({@link ProviderChange#EXTENDED}) send no mail.
+   *
+   * @throws ProblemException {@code 409 conflict_retry} when the unique index rejects the insert
+   * @throws IllegalStateException when the user does not exist
+   */
+  @Transactional(propagation = Propagation.MANDATORY)
+  public ProviderApplication applyProviderPeriod(
+      UUID userId, String externalRef, Instant periodEnd) {
+    Objects.requireNonNull(externalRef, "externalRef");
+    Objects.requireNonNull(periodEnd, "periodEnd");
+    UserAccount user =
+        users
+            .findByIdForUpdate(userId)
+            .orElseThrow(() -> new IllegalStateException("user does not exist"));
+    Instant now = clock.instant();
+    Optional<Subscription> active = subscriptions.findActive(userId);
+    if (!periodEnd.isAfter(now)) {
+      return new ProviderApplication(ProviderChange.UNCHANGED, active.orElse(null));
+    }
+    if (active.isPresent() && active.get().isProviderSubscription(externalRef)) {
+      if (active.get().currentPeriodEnd() != null
+          && !periodEnd.isAfter(active.get().currentPeriodEnd())) {
+        return new ProviderApplication(ProviderChange.UNCHANGED, active.get());
+      }
+      subscriptions.extend(active.get().id(), periodEnd);
+      return new ProviderApplication(
+          ProviderChange.EXTENDED, active.get().withPeriodEnd(periodEnd));
+    }
+    if (active.isPresent()
+        && active.get().planCode() == PlanCode.PRO
+        && active.get().source() == SubscriptionSource.PROVIDER) {
+      // The entitlement moves to another provider subscription of the user; the plan stays PRO.
+      subscriptions.cancel(active.get().id(), now);
+      Subscription replacement = providerRow(userId, externalRef, now, periodEnd);
+      insertActive(replacement);
+      return new ProviderApplication(ProviderChange.REPLACED, replacement);
+    }
+    Instant end = periodEnd;
+    if (active.isPresent()
+        && active.get().planCode() == PlanCode.PRO
+        && active.get().currentPeriodEnd() != null
+        && active.get().currentPeriodEnd().isAfter(end)) {
+      end = active.get().currentPeriodEnd();
+    }
+    active.ifPresent(current -> subscriptions.cancel(current.id(), now));
+    Subscription pro = providerRow(userId, externalRef, now, end);
+    insertActive(pro);
+    mail.dispatchAfterCommit(
+        OutgoingMail.planActivated(
+            user.email(), locale(user), plans.get(PlanCode.PRO).name(), pro.currentPeriodEnd()));
+    events.publishEvent(
+        new SubscriptionActivatedEvent(
+            userId, pro.id(), PlanCode.PRO, SubscriptionSource.PROVIDER, end, false));
+    return new ProviderApplication(ProviderChange.ACTIVATED, pro);
+  }
+
+  private static Subscription providerRow(
+      UUID userId, String externalRef, Instant now, Instant periodEnd) {
+    return new Subscription(
+        UUID.randomUUID(),
+        userId,
+        PlanCode.PRO,
+        SubscriptionStatus.ACTIVE,
+        SubscriptionSource.PROVIDER,
+        now,
+        periodEnd,
+        null,
+        externalRef);
+  }
+
+  /**
+   * Ends the ACTIVE PRO subscription of the payment-provider subscription {@code externalRef} at
+   * once, inside the caller's transaction (which should hold the user's row lock): the row becomes
+   * {@code CANCELED} and the user is downgraded to FREE exactly as by the expiry job (alert
+   * subscriptions beyond the FREE limit deactivated, {@code plan-expired} mail after commit, {@link
+   * SubscriptionExpiredEvent}). Nothing happens when the ACTIVE subscription is another one (for
+   * example already downgraded by the expiry job, or a promo period).
+   *
+   * @return the published event, or empty when nothing was ended
+   */
+  @Transactional(propagation = Propagation.MANDATORY)
+  public Optional<SubscriptionExpiredEvent> endProviderSubscription(
+      UUID userId, String externalRef) {
+    Optional<UserAccount> user = users.findByIdForUpdate(userId);
+    if (user.isEmpty()) {
+      return Optional.empty();
+    }
+    Optional<Subscription> active = subscriptions.findActive(userId);
+    if (active.isEmpty() || !active.get().isProviderSubscription(externalRef)) {
+      return Optional.empty();
+    }
+    return Optional.of(downgrade(user.get(), active.get(), clock.instant(), true));
+  }
+
+  /**
+   * Replaces the ACTIVE PRO row by an ACTIVE FREE row (source {@code MANUAL}): the PRO row becomes
+   * {@code CANCELED} when {@code canceled}, otherwise {@code EXPIRED}.
+   */
+  private SubscriptionExpiredEvent downgrade(
+      UserAccount user, Subscription active, Instant now, boolean canceled) {
+    UUID userId = user.id();
+    if (canceled) {
+      subscriptions.cancel(active.id(), now);
+    } else {
+      subscriptions.expire(active.id());
+    }
     Subscription free =
         new Subscription(
             UUID.randomUUID(),
@@ -203,12 +354,11 @@ public class SubscriptionService implements SubscriptionProvisioning {
     int deactivated =
         alertLimit == null ? 0 : usage.deactivateAlertSubscriptionsBeyond(userId, alertLimit);
     mail.dispatchAfterCommit(
-        OutgoingMail.planExpired(
-            user.get().email(), locale(user.get()), plans.get(PlanCode.PRO).name()));
+        OutgoingMail.planExpired(user.email(), locale(user), plans.get(PlanCode.PRO).name()));
     SubscriptionExpiredEvent event =
-        new SubscriptionExpiredEvent(userId, active.get().id(), free.id(), deactivated);
+        new SubscriptionExpiredEvent(userId, active.id(), free.id(), deactivated);
     events.publishEvent(event);
-    return Optional.of(event);
+    return event;
   }
 
   private void insertActive(Subscription subscription) {

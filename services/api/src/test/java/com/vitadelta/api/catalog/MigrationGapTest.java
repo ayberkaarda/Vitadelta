@@ -25,11 +25,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * The delivered migrations V1 to V6 on a clean database, and the delivery order of ADR-0013: a
- * database that is already at V5 without V3 (V3 was delivered after V4 and V5) applies V3 and V6
- * later with {@code out-of-order} (as configured in {@code application.yml}) and ends in the same
- * schema as a fresh database; without it Flyway rejects the database. An edited applied migration
- * still fails validation.
+ * The delivered migrations V1 to V8 on a clean database, and the delivery order of ADR-0013: a
+ * database that is already at V5 without V3 (V3 was delivered after V4 and V5) applies V3, V6, V7
+ * and V8 later with {@code out-of-order} (as configured in {@code application.yml}) and ends in the
+ * same schema as a fresh database; without it Flyway rejects the database. An edited applied
+ * migration still fails validation.
  */
 class MigrationGapTest extends PostgresIntegrationTest {
 
@@ -39,7 +39,9 @@ class MigrationGapTest extends PostgresIntegrationTest {
     "V3__notifications_and_outbox.sql",
     "V4__fx_rates.sql",
     "V5__form_registry_and_ul_notes.sql",
-    "V6__alert_ordering.sql"
+    "V6__alert_ordering.sql",
+    "V7__billing_provider.sql",
+    "V8__billing_entitlement_state.sql"
   };
 
   @TempDir Path later;
@@ -105,7 +107,7 @@ class MigrationGapTest extends PostgresIntegrationTest {
     current.migrate();
     MigrationInfo[] applied = current.info().applied();
     assertThat(Arrays.stream(applied).map(i -> i.getVersion().getVersion()))
-        .containsExactly("1", "2", "3", "4", "5", "6");
+        .containsExactly("1", "2", "3", "4", "5", "6", "7", "8");
     assertThat(applied).allSatisfy(i -> assertThat(i.getState()).isEqualTo(MigrationState.SUCCESS));
     assertThat(current.info().pending()).isEmpty();
   }
@@ -115,8 +117,11 @@ class MigrationGapTest extends PostgresIntegrationTest {
     Path withoutV3 = later.resolve("without-v3");
     Files.createDirectories(withoutV3);
     for (String file : MIGRATIONS) {
-      // V6 builds on V3 and was delivered after it.
-      if (!file.startsWith("V3") && !file.startsWith("V6")) {
+      // V6 builds on V3 and was delivered after it; V7 and V8 were delivered after both.
+      if (!file.startsWith("V3")
+          && !file.startsWith("V6")
+          && !file.startsWith("V7")
+          && !file.startsWith("V8")) {
         Files.writeString(withoutV3.resolve(file), migration(file));
       }
     }
@@ -130,12 +135,55 @@ class MigrationGapTest extends PostgresIntegrationTest {
     Flyway upgraded = flyway(existing, true, "classpath:db/migration");
     upgraded.migrate();
     assertThat(Arrays.stream(upgraded.info().applied()).map(i -> i.getVersion().getVersion()))
-        .containsExactly("1", "2", "4", "5", "3", "6");
+        .containsExactly("1", "2", "4", "5", "3", "6", "7", "8");
     upgraded.validate();
 
     String fresh = createDatabase();
     flyway(fresh, true, "classpath:db/migration").migrate();
     assertThat(schema(existing)).isEqualTo(schema(fresh));
+  }
+
+  /**
+   * V8 adds {@code billing_subscription.paid_through} without inventing a paid horizon: an active
+   * subscription applied before V8 has no proof of a paid invoice, so the column stays empty until
+   * the next webhook read-back sets it.
+   */
+  @Test
+  void v8LeavesThePaidHorizonUnsetWithoutProofOfPayment() throws Exception {
+    String url = createDatabase();
+    Flyway atV7 =
+        Flyway.configure()
+            .dataSource(url, POSTGRES.getUsername(), POSTGRES.getPassword())
+            .locations("classpath:db/migration")
+            .outOfOrder(true)
+            .cleanDisabled(true)
+            .target("7")
+            .load();
+    atV7.migrate();
+    try (Connection connection =
+            DriverManager.getConnection(url, POSTGRES.getUsername(), POSTGRES.getPassword());
+        Statement statement = connection.createStatement()) {
+      statement.execute(
+          "INSERT INTO app_user (id, email, password_hash, created_at, updated_at) VALUES"
+              + " ('7b1c4a52-0d6e-4f7a-9c3b-2a1e5d6f7a8b', 'v8@example.org', 'synthetic',"
+              + " now(), now())");
+      statement.execute(
+          "INSERT INTO billing_subscription (provider, external_ref, user_id, customer_ref,"
+              + " status, current_period_end, ended_at, updated_at) VALUES ('STRIPE',"
+              + " 'sub_V8Synthetic', '7b1c4a52-0d6e-4f7a-9c3b-2a1e5d6f7a8b', 'cus_V8Synthetic',"
+              + " 'active', now() + interval '20 days', NULL, now())");
+    }
+    flyway(url, true, "classpath:db/migration").migrate();
+    try (Connection connection =
+            DriverManager.getConnection(url, POSTGRES.getUsername(), POSTGRES.getPassword());
+        Statement statement = connection.createStatement();
+        ResultSet rows =
+            statement.executeQuery(
+                "SELECT paid_through FROM billing_subscription"
+                    + " WHERE external_ref = 'sub_V8Synthetic'")) {
+      assertThat(rows.next()).isTrue();
+      assertThat(rows.getObject("paid_through")).isNull();
+    }
   }
 
   @Test

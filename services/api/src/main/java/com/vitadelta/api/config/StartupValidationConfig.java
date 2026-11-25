@@ -1,5 +1,6 @@
 package com.vitadelta.api.config;
 
+import com.vitadelta.api.billing.BillingProperties;
 import com.vitadelta.api.config.properties.MailSettingsProperties;
 import com.vitadelta.api.config.properties.OperationsProperties;
 import com.vitadelta.api.config.properties.ScoringProperties;
@@ -26,7 +27,9 @@ import org.springframework.context.annotation.Configuration;
  * DataSource} bean therefore depends on the beans of {@link #VALIDATED_FIRST}, so a missing or
  * invalid {@code VITADELTA_JWT_SECRET}, {@code VITADELTA_COOKIE_SECRET}, {@code
  * VITADELTA_WEB_BASE_URL}, {@code VITADELTA_MAIL_FROM}, {@code VITADELTA_PRIVACY_CONTACT} or {@code
- * VITADELTA_SCORING_BASE_URL} always stops the startup first.
+ * VITADELTA_SCORING_BASE_URL}, or an incomplete payment-provider configuration ({@code
+ * VITADELTA_BILLING_PROVIDER=stripe} without its keys, or with a live key) always stops the startup
+ * first.
  */
 @Configuration(proxyBeanMethods = false)
 public class StartupValidationConfig {
@@ -38,7 +41,8 @@ public class StartupValidationConfig {
           WebProperties.class,
           MailSettingsProperties.class,
           OperationsProperties.class,
-          ScoringProperties.class);
+          ScoringProperties.class,
+          BillingProperties.class);
 
   @Bean
   static BeanFactoryPostProcessor validateConfigurationBeforeDataSource() {

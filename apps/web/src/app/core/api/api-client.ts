@@ -11,6 +11,7 @@ import {
   AlertList,
   AlertSubscription,
   AuthTokenResponse,
+  BillingRedirect,
   CompareRequest,
   CompareResponse,
   CountryList,
@@ -327,6 +328,18 @@ export class ApiClient {
 
   redeemPromoCode(body: PromoRedeemRequest): Observable<SubscriptionActivation> {
     return this.post('/me/subscription/promo', body);
+  }
+
+  // Billing (optional payment provider; 503 `billing_unavailable` when none is configured)
+
+  /** `POST /billing/checkout-session` (no body): URL of the provider's hosted checkout. */
+  createCheckoutSession(): Observable<BillingRedirect> {
+    return this.post('/billing/checkout-session', null);
+  }
+
+  /** `POST /billing/portal-session` (no body): URL of the provider's billing portal. */
+  createBillingPortalSession(): Observable<BillingRedirect> {
+    return this.post('/billing/portal-session', null);
   }
 
   // Admin

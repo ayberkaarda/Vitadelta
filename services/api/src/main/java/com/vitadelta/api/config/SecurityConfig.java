@@ -41,8 +41,10 @@ import org.springframework.web.filter.CorsFilter;
  *   <li>public: {@code GET /health}, {@code GET /openapi.json} ({@link #OPENAPI_DOCUMENT}), {@code
  *       /auth/**}, {@code /plans}, {@code /session/quota}, {@code /countries}, {@code /nutrients},
  *       {@code /weights/defaults}, {@code /legal}, {@code /fx/**}, {@code /products/**}, {@code
- *       /recommendations/**} ({@link #PUBLIC_PATHS});
- *   <li>authenticated (USER or ADMIN bearer token): {@code /me} and {@code /me/**};
+ *       /recommendations/**}, {@code /billing/webhooks/**} (payment-provider webhooks,
+ *       authenticated by their signature only) ({@link #PUBLIC_PATHS});
+ *   <li>authenticated (USER or ADMIN bearer token): {@code /me}, {@code /me/**} and the other
+ *       {@code /billing/**} routes;
  *   <li>role ADMIN: {@code /admin/**};
  *   <li>Actuator {@code health} and {@code metrics} on the separate management port only;
  *   <li>everything else is denied ({@code 401} without credentials, {@code 403} with).
@@ -85,7 +87,8 @@ public class SecurityConfig {
     API + "/legal",
     API + "/fx/**",
     API + "/products/**",
-    API + "/recommendations/**"
+    API + "/recommendations/**",
+    API + "/billing/webhooks/**"
   };
 
   /**
@@ -149,7 +152,7 @@ public class SecurityConfig {
                 .permitAll()
                 .requestMatchers(PUBLIC_PATHS)
                 .permitAll()
-                .requestMatchers(API + "/me/**")
+                .requestMatchers(API + "/me/**", API + "/billing/**")
                 .authenticated()
                 .requestMatchers(API + "/admin/**")
                 .access(adminManager)

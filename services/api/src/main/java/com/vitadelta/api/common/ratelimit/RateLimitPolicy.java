@@ -44,6 +44,20 @@ public record RateLimitPolicy(String name, long capacity, Duration period) {
   /** Client IP: {@code POST /auth/refresh}, 60 per minute. */
   public static final RateLimitPolicy REFRESH_PER_IP = of("refresh-ip", 60, Duration.ofMinutes(1));
 
+  /** User id: {@code POST /billing/checkout-session}, 10 per hour. */
+  public static final RateLimitPolicy CHECKOUT_PER_USER =
+      of("checkout-user", 10, Duration.ofHours(1));
+
+  /** User id: {@code POST /billing/portal-session}, 10 per hour. */
+  public static final RateLimitPolicy PORTAL_PER_USER = of("portal-user", 10, Duration.ofHours(1));
+
+  /**
+   * Client IP: {@code POST /billing/webhooks/stripe}, 300 per minute. The webhook is exempt from
+   * the other limits; this cap is checked before the signature.
+   */
+  public static final RateLimitPolicy STRIPE_WEBHOOK_PER_IP =
+      of("stripe-webhook-ip", 300, Duration.ofMinutes(1));
+
   public RateLimitPolicy {
     Objects.requireNonNull(name, "name");
     Objects.requireNonNull(period, "period");

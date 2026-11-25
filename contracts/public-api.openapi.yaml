@@ -70,6 +70,13 @@ tags:
     description: In-app notification inbox.
   - name: Subscription
     description: Plan activation by promo code.
+  - name: Billing
+    description: |
+      Optional payment provider (Stripe). PRO is bought on the provider's hosted
+      checkout page and managed (payment method, cancellation) on its hosted
+      billing portal; the subscription is changed only by signed provider
+      webhooks. Without a configured provider these operations answer 503
+      `billing_unavailable` and `Plan.checkoutAvailable` is `false`.
   - name: AdminImports
     description: Catalog, availability and offer imports. Requires role ADMIN.
   - name: AdminUsers
@@ -835,13 +842,14 @@ paths:
                       currency: TRY
                       fx: { base: TRY, quote: TRY, rate: 1, asOf: null, source: null, stale: false, status: OK }
                     items:
-                      - { code: FREE, name: Free, savedProductsLimit: 5, alertSubscriptionsLimit: 3, notificationsPerMonthLimit: 30, price: null }
+                      - { code: FREE, name: Free, savedProductsLimit: 5, alertSubscriptionsLimit: 3, notificationsPerMonthLimit: 30, price: null, checkoutAvailable: false }
                       - code: PRO
                         name: Pro
                         savedProductsLimit: null
                         alertSubscriptionsLimit: null
                         notificationsPerMonthLimit: null
                         price: { amount: 199.0, amountNative: 199.0, currency: TRY, nativeCurrency: TRY, billingPeriod: MONTHLY }
+                        checkoutAvailable: true
                 fxUnavailable:
                   summary: Display currency requested while no rate exists
                   value:
@@ -850,13 +858,14 @@ paths:
                       currency: TRY
                       fx: { base: TRY, quote: EUR, rate: null, asOf: null, source: null, stale: false, status: UNAVAILABLE }
                     items:
-                      - { code: FREE, name: Free, savedProductsLimit: 5, alertSubscriptionsLimit: 3, notificationsPerMonthLimit: 30, price: null }
+                      - { code: FREE, name: Free, savedProductsLimit: 5, alertSubscriptionsLimit: 3, notificationsPerMonthLimit: 30, price: null, checkoutAvailable: false }
                       - code: PRO
                         name: Pro
                         savedProductsLimit: null
                         alertSubscriptionsLimit: null
                         notificationsPerMonthLimit: null
                         price: { amount: 199.0, amountNative: 199.0, currency: TRY, nativeCurrency: TRY, billingPeriod: MONTHLY }
+                        checkoutAvailable: true
         '401': { $ref: '#/components/responses/Unauthorized' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '500': { $ref: '#/components/responses/InternalError' }
@@ -2079,6 +2088,148 @@ paths:
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalError' }
 
+  /billing/checkout-session:
+    post:
+      tags: [Billing]
+      operationId: createCheckoutSession
+      summary: Start a hosted checkout for the PRO plan
+      description: |
+        Creates a hosted checkout session of the payment provider for the
+        monthly PRO subscription and returns its URL; the web app redirects the
+        browser there. No request body. The session is bound to the caller (the
+        user id travels as the session's client reference and as subscription
+        metadata), never to an e-mail address. The provider returns the browser
+        to `<web base URL>/upgrade?checkout=success` or
+        `<web base URL>/upgrade?checkout=canceled`; the plan changes only when
+        the provider's signed webhook arrives (`POST /billing/webhooks/stripe`),
+        never because of the return URL.
+
+        Problem codes: `unauthorized` (401), `email_not_verified` (403),
+        `plan_already_active` (409, the caller's ACTIVE plan is already PRO, or
+        a provider subscription of the caller has not ended, for example a
+        past-due one, which is settled in the billing portal),
+        `rate_limited` (429, 10 per hour per user), `billing_unavailable`
+        (503, no provider configured or the provider cannot be reached).
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+      responses:
+        '200':
+          description: Checkout session created.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BillingRedirect' }
+              example: { url: 'https://checkout.stripe.com/c/pay/cs_test_a1B2c3D4e5F6g7H8' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/BillingConflict' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/BillingUnavailable' }
+
+  /billing/portal-session:
+    post:
+      tags: [Billing]
+      operationId: createBillingPortalSession
+      summary: Open the hosted billing portal
+      description: |
+        Creates a session of the payment provider's hosted billing portal for
+        the caller's provider customer and returns its URL. Payment methods,
+        invoices and cancellation are handled there; a cancellation reaches the
+        API through the provider's signed webhook. The portal returns the
+        browser to `<web base URL>/account`. No request body.
+
+        Problem codes: `unauthorized` (401), `no_billing_account` (409, the
+        caller never completed a provider checkout), `rate_limited` (429, 10 per
+        hour per user), `billing_unavailable` (503).
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+      responses:
+        '200':
+          description: Portal session created.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BillingRedirect' }
+              example: { url: 'https://billing.stripe.com/p/session/test_YWNjdF8xUXdFcnR5' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/BillingConflict' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/BillingUnavailable' }
+
+  /billing/webhooks/stripe:
+    post:
+      tags: [Billing]
+      operationId: receiveStripeWebhook
+      summary: Stripe webhook receiver
+      description: |
+        Called by Stripe only. Authenticated by the `Stripe-Signature` header
+        alone: no bearer token, cookie or CSRF header is used. The raw request
+        body is verified before it is parsed: HMAC-SHA256 with the endpoint's
+        signing secret over `<t>.<raw body>`, compared in constant time with
+        every `v1` entry; the timestamp `t` must lie within 5 minutes of the
+        server clock. A missing, repeated or malformed header, a header
+        without a matching `v1` signature, a timestamp outside the window, or
+        a body that is not a JSON event is answered 400 with one generic
+        `about:blank` body that names no reason.
+
+        Handled event types: `checkout.session.completed`, `invoice.paid`,
+        `invoice.payment_failed`, `customer.subscription.updated`,
+        `customer.subscription.deleted`. For each, the API reads the current
+        state of the referenced subscription from Stripe and applies it under
+        the user's subscription lock (source `PROVIDER`, the Stripe
+        subscription id as external reference); the user is identified by the
+        user id the API attached at checkout, never by e-mail. Applied changes
+        only move forward: a PRO period end never decreases and an ended
+        provider subscription never becomes active again, so late or
+        reordered deliveries cannot downgrade a newer state. Each event id is
+        applied at most once; a repeated delivery answers 200 without
+        effect. Other event types, events of the other mode (live or test),
+        and events that do not belong to a subscription created by this API
+        answer 200 and are ignored.
+
+        Exempt from the client rate limits of the other operations; it has its
+        own cap (300 per minute per client address) and body limit (256 kB).
+
+        Problem codes: `rate_limited` (429), `validation_failed` (413),
+        `billing_unavailable` (503, no provider configured or Stripe cannot be
+        reached; Stripe retries the delivery), `internal_error` (500).
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+        - name: Stripe-Signature
+          in: header
+          required: true
+          description: '`t=<unix seconds>,v1=<hex HMAC-SHA256>[,v1=...]`; other entries are ignored.'
+          schema: { type: string, maxLength: 2048 }
+      requestBody:
+        required: true
+        description: The Stripe event exactly as sent; verified as raw bytes before parsing.
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/StripeEvent' }
+      responses:
+        '200':
+          description: Accepted (applied, already applied or ignored).
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WebhookAck' }
+              example: { received: true }
+        '400': { $ref: '#/components/responses/WebhookRejected' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/BillingUnavailable' }
+
   /admin/health:
     get:
       tags: [AdminOperations]
@@ -2877,7 +3028,7 @@ components:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
     PayloadTooLarge:
-      description: Request body exceeds the size limit (64 kB for every request body including the query, import JSON 20 MB, CSV 20 MB). Code `validation_failed`.
+      description: Request body exceeds the size limit (64 kB for every request body including the query, Stripe webhook 256 kB, import JSON 20 MB, CSV 20 MB). Code `validation_failed`.
       headers:
         X-Request-Id: { $ref: '#/components/headers/XRequestId' }
       content:
@@ -2985,6 +3136,55 @@ components:
       content:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
+    BillingConflict:
+      description: |
+        The billing action does not apply to the caller's state. Codes
+        `plan_already_active` (checkout while the ACTIVE plan is PRO or a
+        provider subscription has not ended) and `no_billing_account` (portal
+        before any completed provider checkout).
+      headers:
+        X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+          example:
+            type: https://vitadelta.dev/problems/plan_already_active
+            title: Plan already active
+            status: 409
+            detail: The PRO plan is already active.
+            instance: /api/v1/billing/checkout-session
+            requestId: 8c1d2e3f-4a5b-4c6d-9e7f-0a1b2c3d4e5f
+    BillingUnavailable:
+      description: No payment provider is configured, or the provider cannot be reached. Code `billing_unavailable`.
+      headers:
+        X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+          example:
+            type: https://vitadelta.dev/problems/billing_unavailable
+            title: Billing unavailable
+            status: 503
+            detail: Online payment is not available right now.
+            instance: /api/v1/billing/checkout-session
+            requestId: 8c1d2e3f-4a5b-4c6d-9e7f-0a1b2c3d4e5f
+    WebhookRejected:
+      description: |
+        The webhook request is not authentic or not readable. One generic body
+        for every reason (signature, timestamp window, header format, body
+        format); the reason is only logged and counted.
+      headers:
+        X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+          example:
+            type: about:blank
+            title: Bad Request
+            status: 400
+            detail: Bad Request.
+            instance: /api/v1/billing/webhooks/stripe
+            requestId: 8c1d2e3f-4a5b-4c6d-9e7f-0a1b2c3d4e5f
 
   schemas:
     # ---------- Primitives ----------
@@ -3161,6 +3361,9 @@ components:
             - https://vitadelta.dev/problems/unsupported_iu_form
             - https://vitadelta.dev/problems/invalid_offer_url
             - https://vitadelta.dev/problems/import_failed
+            - https://vitadelta.dev/problems/billing_unavailable
+            - https://vitadelta.dev/problems/plan_already_active
+            - https://vitadelta.dev/problems/no_billing_account
             - https://vitadelta.dev/problems/internal_error
             - about:blank
         title:
@@ -4149,13 +4352,20 @@ components:
       allOf:
         - $ref: '#/components/schemas/PlanLimits'
         - type: object
-          required: [price]
+          required: [price, checkoutAvailable]
           properties:
             price:
               oneOf:
                 - $ref: '#/components/schemas/PlanPrice'
                 - type: 'null'
               description: '`null` for FREE.'
+            checkoutAvailable:
+              type: boolean
+              description: |
+                Whether the plan can be bought through `POST /billing/checkout-session`:
+                `true` only for PRO and only when a payment provider is
+                configured. It does not depend on the caller; a caller whose
+                plan is already PRO gets 409 `plan_already_active`.
     PlanList:
       type: object
       required: [meta, items]
@@ -4764,6 +4974,40 @@ components:
       properties:
         plan: { $ref: '#/components/schemas/PlanCode' }
         subscription: { $ref: '#/components/schemas/Subscription' }
+
+    # ---------- Billing ----------
+    BillingRedirect:
+      type: object
+      required: [url]
+      properties:
+        url:
+          type: string
+          format: uri
+          pattern: '^https://'
+          description: Absolute https URL of the provider's hosted page; the browser is sent there.
+    StripeEvent:
+      type: object
+      description: |
+        A Stripe event (snapshot payload) as Stripe sends it. Only `id`, `type`,
+        `livemode` and `data.object` are read, after the signature check; other
+        members are ignored.
+      required: [id, type, livemode, data]
+      properties:
+        id: { type: string, maxLength: 255, example: evt_1QwErTyUiOpAsDfG }
+        type: { type: string, maxLength: 100, example: invoice.paid }
+        livemode: { type: boolean }
+        data:
+          type: object
+          required: [object]
+          properties:
+            object: { type: object }
+    WebhookAck:
+      type: object
+      required: [received]
+      properties:
+        received:
+          type: boolean
+          description: Always `true`.
 
     # ---------- Admin ----------
     ComponentHealth:

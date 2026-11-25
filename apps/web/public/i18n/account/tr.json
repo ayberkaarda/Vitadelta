@@ -61,6 +61,11 @@
     "resets": "{{ date }} tarihinde sıfırlanır (UTC)",
     "compare": "FREE ve PRO'yu karşılaştır"
   },
+  "billing": {
+    "manage": "Aboneliği yönet",
+    "manage_hint": "Ödeme yöntemini değiştirin, faturaları görün veya Stripe'ın güvenli sayfasında iptal edin.",
+    "busy": "Fatura portalı açılıyor…"
+  },
   "promo": {
     "title": "Promosyon kodunuz var mı?",
     "title_redeem": "Promosyon kodu kullanın",

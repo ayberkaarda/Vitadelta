@@ -258,6 +258,20 @@ const CASES: readonly Case[] = [
     body: { code: 'LAUNCH-ABC' },
   },
   {
+    name: 'createCheckoutSession',
+    call: (a) => a.createCheckoutSession(),
+    method: 'POST',
+    url: '/api/v1/billing/checkout-session',
+    body: null,
+  },
+  {
+    name: 'createBillingPortalSession',
+    call: (a) => a.createBillingPortalSession(),
+    method: 'POST',
+    url: '/api/v1/billing/portal-session',
+    body: null,
+  },
+  {
     name: 'getAdminHealth',
     call: (a) => a.getAdminHealth(),
     method: 'GET',
@@ -365,7 +379,7 @@ describe('ApiClient', () => {
       (name) => name !== 'constructor' && !['get', 'post', 'patch', 'delete'].includes(name),
     );
     expect(methods.sort()).toEqual([...covered].sort());
-    expect(methods).toHaveLength(48);
+    expect(methods).toHaveLength(50);
   });
 
   it('returns a DOWN health body sent with 503 as a value', async () => {

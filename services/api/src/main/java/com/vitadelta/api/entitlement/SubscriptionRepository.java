@@ -20,7 +20,8 @@ import org.springframework.stereotype.Repository;
 public class SubscriptionRepository {
 
   private static final String COLUMNS =
-      "id, user_id, plan_code, status, source, started_at, current_period_end, canceled_at";
+      "id, user_id, plan_code, status, source, started_at, current_period_end, canceled_at,"
+          + " external_ref";
 
   private final JdbcClient jdbc;
 
@@ -55,7 +56,8 @@ public class SubscriptionRepository {
   public void insert(Subscription subscription) {
     jdbc.sql(
             "INSERT INTO subscription (id, user_id, plan_code, status, source, started_at,"
-                + " current_period_end, canceled_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+                + " current_period_end, canceled_at, external_ref)"
+                + " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
         .params(
             subscription.id(),
             subscription.userId(),
@@ -64,7 +66,8 @@ public class SubscriptionRepository {
             subscription.source().name(),
             ts(subscription.startedAt()),
             ts(subscription.currentPeriodEnd()),
-            ts(subscription.canceledAt()))
+            ts(subscription.canceledAt()),
+            subscription.externalRef())
         .update();
   }
 
@@ -120,6 +123,7 @@ public class SubscriptionRepository {
         SubscriptionSource.valueOf(rs.getString("source")),
         instant(rs, "started_at"),
         instant(rs, "current_period_end"),
-        instant(rs, "canceled_at"));
+        instant(rs, "canceled_at"),
+        rs.getString("external_ref"));
   }
 }

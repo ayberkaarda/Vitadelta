@@ -564,6 +564,7 @@ export const FIXTURE_PLANS: PlanList = {
       alertSubscriptionsLimit: 3,
       notificationsPerMonthLimit: 30,
       price: null,
+      checkoutAvailable: false,
     },
     {
       code: 'PRO',
@@ -578,6 +579,7 @@ export const FIXTURE_PLANS: PlanList = {
         nativeCurrency: 'TRY',
         billingPeriod: 'MONTHLY',
       },
+      checkoutAvailable: false,
     },
   ],
 };

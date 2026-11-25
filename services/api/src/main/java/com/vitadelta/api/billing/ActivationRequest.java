@@ -1,6 +1,7 @@
 package com.vitadelta.api.billing;
 
 import com.vitadelta.api.entitlement.PlanCode;
+import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -39,6 +40,22 @@ public sealed interface ActivationRequest {
       Objects.requireNonNull(userId, "userId");
       Objects.requireNonNull(planCode, "planCode");
       Objects.requireNonNull(grantedBy, "grantedBy");
+    }
+  }
+
+  /**
+   * A paid period of a payment-provider subscription, reported by a verified webhook (ADR-0014).
+   *
+   * @param externalRef the provider's subscription id
+   * @param periodEnd end of the paid period
+   */
+  record ProviderPeriod(UUID userId, String externalRef, Instant periodEnd)
+      implements ActivationRequest {
+
+    public ProviderPeriod {
+      Objects.requireNonNull(userId, "userId");
+      Objects.requireNonNull(externalRef, "externalRef");
+      Objects.requireNonNull(periodEnd, "periodEnd");
     }
   }
 }

@@ -206,6 +206,19 @@ describe('AccountPageComponent', () => {
       accountEn.plan.source.PROMO,
     );
     expect(host().textContent).not.toContain('Resets on');
+    // A promo-code PRO plan has nothing to manage at the payment provider.
+    expect(host().querySelector('vd-manage-subscription')).toBeNull();
+  });
+
+  it('offers "Manage subscription" for a PRO plan paid through the payment provider', async () => {
+    await setup({ ...PRO_ME, subscription: { ...PRO_ME.subscription, source: 'PROVIDER' } });
+    const card = host().querySelector('vd-plan-card');
+    expect(card?.querySelector('[data-period]')?.textContent).toContain(
+      accountEn.plan.source.PROVIDER,
+    );
+    expect(card?.querySelector('button[data-action="manage-subscription"]')?.textContent).toContain(
+      accountEn.billing.manage,
+    );
   });
 
   it('redeems a promo code and reloads /me', async () => {
