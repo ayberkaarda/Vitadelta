@@ -196,4 +196,37 @@ describe('authInterceptor', () => {
     expect((error as HttpErrorResponse).status).toBe(401);
     expect(navigate).not.toHaveBeenCalled();
   });
+
+  it('does not retry a request whose refresh succeeded after another identity signed in', async () => {
+    let completeRefresh: (outcome: string) => void = () => undefined;
+    session.refreshAccessToken.mockImplementation(
+      () =>
+        new Promise<string>((resolve) => {
+          completeRefresh = resolve;
+        }),
+    );
+    const result = firstValueFrom(http.get('/api/v1/me/alerts'));
+    const first = backend.expectOne('/api/v1/me/alerts');
+    expect(first.request.headers.get('Authorization')).toBe('Bearer old-token');
+    first.flush(null, { status: 401, statusText: 'Unauthorized' });
+    const settled = result.catch((e: unknown) => e);
+    await flush();
+    expect(session.refreshAccessToken).toHaveBeenCalledTimes(1);
+
+    // While the silent refresh of generation 1 is in flight, another tab signs in as account B
+    // (generation 2); the refresh then reports success.
+    token = 'token-of-account-b';
+    generation = 2;
+    completeRefresh('refreshed');
+    await flush();
+
+    backend.expectNone('/api/v1/me/alerts');
+    const error = await settled;
+    expect(error).toBeInstanceOf(HttpErrorResponse);
+    expect((error as HttpErrorResponse).status).toBe(401);
+    expect(session.refreshAccessToken).toHaveBeenCalledTimes(1);
+    expect(navigate).not.toHaveBeenCalled();
+    expect(token).toBe('token-of-account-b');
+    expect(generation).toBe(2);
+  });
 });

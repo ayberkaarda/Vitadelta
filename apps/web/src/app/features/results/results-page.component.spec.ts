@@ -510,6 +510,80 @@ describe('ResultsPageComponent', () => {
     expect(navigate).toHaveBeenCalledWith(['/results'], {
       queryParams: { country: 'TR', page: '2' },
     });
+    // `total` exceeds the page size, but the server locked nothing: no locked rows, no CTA.
+    expect(host(harness).querySelector('vd-locked-results .locked-row')).toBeNull();
+    expect(host(harness).querySelector('vd-locked-results .cta')).toBeNull();
+  });
+
+  describe('locked rows follow meta.visibility only', () => {
+    const lockedLabels = (page: HTMLElement) =>
+      Array.from(page.querySelectorAll('vd-locked-results .locked-row:not(.tail)')).map((row) =>
+        row.getAttribute('aria-label'),
+      );
+    const lockedHeading = (page: HTMLElement) =>
+      text(page.querySelector('vd-locked-results .cta h2'));
+
+    // Synthetic metas whose visibility deliberately disagrees with the item count and with
+    // `meta.total`: the rendering must follow `meta.visibility`, never arithmetic on either.
+    const visitorCases = [
+      {
+        name: 'fewer items than visibility.shown',
+        items: () => [goldA(), goldB()],
+        total: 8,
+        visibility: { shown: 3, total: 8, locked: 5, reason: 'SIGN_UP_REQUIRED' as const },
+        labels: [4, 5, 6, 7, 8],
+        heading: '5 more results are locked',
+      },
+      {
+        name: 'a locked count below total minus items',
+        items: () => [goldA(), goldB(), zincForte()],
+        total: 12,
+        visibility: { shown: 3, total: 12, locked: 2, reason: 'SIGN_UP_REQUIRED' as const },
+        labels: [4, 5],
+        heading: '2 more results are locked',
+      },
+      {
+        name: 'one locked row after a single visible item',
+        items: () => [goldA()],
+        total: 30,
+        visibility: { shown: 1, total: 2, locked: 1, reason: 'SIGN_UP_REQUIRED' as const },
+        labels: [2],
+        heading: EN.results.locked_cta_one,
+      },
+    ];
+
+    for (const testCase of visitorCases) {
+      it(`renders the visitor's locked rows exactly as reported with ${testCase.name}`, async () => {
+        const response = anonymousResponse();
+        response.items = testCase.items();
+        response.meta = anonymousMeta({ total: testCase.total, visibility: testCase.visibility });
+        setup(() => of(response));
+        const page = host(await open());
+
+        expect(lockedLabels(page)).toEqual(testCase.labels.map((rank) => `Result ${rank}, locked`));
+        expect(page.querySelector('vd-locked-results .tail.wide-only')).toBeNull();
+        expect(lockedHeading(page)).toBe(testCase.heading);
+        expect(page.querySelector('vd-pagination nav')).toBeNull();
+      });
+    }
+
+    it('never renders locked rows for a signed-in page whose total exceeds the page size', async () => {
+      const response = userResponse();
+      response.items = [goldA(), goldB(), zincForte()];
+      response.meta = {
+        ...response.meta,
+        page: 2,
+        pageSize: 3,
+        total: 45,
+        visibility: { shown: 3, total: 45, locked: 0, reason: null },
+      };
+      setup(() => of(response), true);
+      const page = host(await open('/results?country=TR&page=2'));
+
+      expect(rows(page)).toHaveLength(3);
+      expect(page.querySelector('vd-locked-results')?.children).toHaveLength(0);
+      expect(page.querySelector('vd-pagination nav')).not.toBeNull();
+    });
   });
 
   it('drops the previous account rows and runs the query again when the session changes', async () => {
