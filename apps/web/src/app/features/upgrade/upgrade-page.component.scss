@@ -58,6 +58,16 @@
   }
 }
 
+// The payment part sits at the bottom of the PRO card, level with the end of the FREE card.
+.checkout {
+  margin-top: auto;
+  padding-top: var(--vd-space-2);
+
+  &:empty {
+    display: none;
+  }
+}
+
 .how {
   max-width: 60ch;
   line-height: 1.55;
