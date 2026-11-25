@@ -1,94 +1,159 @@
-<header class="shell-header">
-  <div class="shell-bar">
-    <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
-      <rect class="brand-mark-tile" width="32" height="32" rx="8" />
-      <path class="brand-mark-delta" d="M16 8.75 23.5 22.5h-15Z" />
-    </svg>
-    <div class="brand-text">
-      <h1 class="shell-title">{{ 'shell.title' | transloco }}</h1>
-      <p class="shell-tagline">{{ 'shell.tagline' | transloco }}</p>
+<a class="skip-link" href="#main" (click)="skipToMain($event)">{{
+  'shell.skip_link' | transloco
+}}</a>
+
+<header class="hdr">
+  <div class="hdr-in">
+    <a class="brand" routerLink="/" [attr.aria-label]="'shell.home_link' | transloco">
+      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+        <rect class="tile" width="32" height="32" rx="8" />
+        <path class="delta" d="M16 8.75 23.5 22.5h-15Z" />
+      </svg>
+      <span aria-hidden="true">{{ 'app.name' | transloco }}</span>
+    </a>
+
+    <nav class="nav" [attr.aria-label]="'shell.nav.label' | transloco">
+      <a
+        routerLink="/"
+        routerLinkActive
+        [routerLinkActiveOptions]="{ exact: true }"
+        ariaCurrentWhenActive="page"
+        >{{ 'shell.nav.find' | transloco }}</a
+      >
+      @if (session.isAuthenticated()) {
+        <a routerLink="/account/saved" routerLinkActive ariaCurrentWhenActive="page">{{
+          'shell.nav.saved' | transloco
+        }}</a>
+        <a routerLink="/account/alerts" routerLinkActive ariaCurrentWhenActive="page">{{
+          'shell.nav.alerts' | transloco
+        }}</a>
+        @if (session.isAdmin()) {
+          <a routerLink="/admin" routerLinkActive ariaCurrentWhenActive="page">{{
+            'shell.nav.admin' | transloco
+          }}</a>
+        }
+      } @else {
+        <a routerLink="/upgrade" routerLinkActive ariaCurrentWhenActive="page">{{
+          'shell.nav.pro' | transloco
+        }}</a>
+      }
+    </nav>
+
+    <div class="tools">
+      <div class="desktop-only tools-group">
+        <vd-region-controls />
+      </div>
+
+      @if (session.status() === 'anonymous' && session.anonymousQuota(); as quota) {
+        <vd-quota-chip
+          class="desktop-only"
+          [used]="quota.queriesUsed"
+          [limit]="quota.queriesLimit"
+        />
+        <vd-quota-chip
+          class="mobile-only"
+          [used]="quota.queriesUsed"
+          [limit]="quota.queriesLimit"
+          [compact]="true"
+        />
+      }
+
+      @if (session.isAuthenticated()) {
+        <vd-notification-bell class="desktop-only" />
+        <vd-user-menu class="desktop-only" />
+      } @else if (session.status() === 'anonymous') {
+        <div class="desktop-only row-2">
+          <a class="btn btn-ghost" routerLink="/auth/login">{{ 'shell.auth.login' | transloco }}</a>
+          <a class="btn btn-primary" routerLink="/auth/register">{{
+            'shell.auth.register' | transloco
+          }}</a>
+        </div>
+      }
+
+      <button
+        type="button"
+        class="btn btn-icon mobile-only menu-btn"
+        aria-haspopup="dialog"
+        [attr.aria-expanded]="sheetOpen()"
+        [attr.aria-label]="'shell.menu.open' | transloco"
+        (click)="sheetOpen.set(true)"
+      >
+        <vd-icon name="menu" />
+      </button>
     </div>
   </div>
 </header>
 
-<main class="shell-main">
-  <section class="health-panel" aria-labelledby="health-heading">
-    <h2 id="health-heading" class="health-heading">{{ 'shell.health.label' | transloco }}</h2>
-
-    <div class="health-body">
-      <p
-        class="health-value"
-        role="status"
-        aria-live="polite"
-        aria-atomic="true"
-        [attr.data-state]="health().kind"
-        [attr.aria-busy]="health().kind === 'loading'"
-      >
-        @switch (health().kind) {
-          @case ('loading') {
-            <span class="health-badge" data-tone="pending">
-              <svg
-                class="health-icon is-spinning"
-                viewBox="0 0 20 20"
-                aria-hidden="true"
-                focusable="false"
-              >
-                <circle class="health-icon-track" cx="10" cy="10" r="7.25" />
-                <path d="M17.25 10A7.25 7.25 0 0 0 10 2.75" />
-              </svg>
-              <span>{{ 'shell.health.loading' | transloco }}</span>
-            </span>
-          }
-          @case ('unreachable') {
-            <span class="health-badge" data-tone="unknown">
-              <svg class="health-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
-                <circle cx="10" cy="10" r="7.25" stroke-dasharray="2.4 2.4" />
-                <path d="M6.75 10h6.5" />
-              </svg>
-              <span>{{ 'shell.health.unreachable' | transloco }}</span>
-            </span>
-          }
-        }
-        @let current = health();
-        @if (current.kind === 'ready') {
-          <span class="health-badge" [attr.data-status]="current.status">
-            @switch (current.status) {
-              @case ('UP') {
-                <svg class="health-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
-                  <circle cx="10" cy="10" r="7.25" />
-                  <path d="m6.75 10.25 2.25 2.25 4.25-4.75" />
-                </svg>
-              }
-              @case ('DEGRADED') {
-                <svg class="health-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
-                  <path d="M10 3.25 17.5 16.25h-15Z" />
-                  <path d="M10 8.25v3.25M10 13.9v.01" />
-                </svg>
-              }
-              @case ('DOWN') {
-                <svg class="health-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
-                  <path d="M7.1 2.75h5.8l4.35 4.35v5.8l-4.35 4.35H7.1L2.75 12.9V7.1Z" />
-                  <path d="m7.75 7.75 4.5 4.5m0-4.5-4.5 4.5" />
-                </svg>
-              }
-            }
-            <span>{{ 'shell.health.status.' + current.status | transloco }}</span>
-          </span>
-        }
-      </p>
-
+<vd-drawer
+  placement="top"
+  labelledBy="vd-sheet-title"
+  [open]="sheetOpen()"
+  (closed)="sheetOpen.set(false)"
+>
+  <div class="sheet">
+    <div class="sheet-head">
+      <h2 id="vd-sheet-title" class="brand">
+        <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+          <rect class="tile" width="32" height="32" rx="8" />
+          <path class="delta" d="M16 8.75 23.5 22.5h-15Z" />
+        </svg>
+        <span>{{ 'shell.menu.sheet_title' | transloco }}</span>
+      </h2>
       <button
         type="button"
-        class="health-retry"
-        [disabled]="health().kind === 'loading'"
-        (click)="checkHealth()"
+        class="btn btn-icon"
+        data-initial-focus
+        [attr.aria-label]="'shell.menu.close' | transloco"
+        (click)="sheetOpen.set(false)"
       >
-        <svg class="health-retry-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
-          <path d="M16.25 10a6.25 6.25 0 1 1-1.83-4.42" />
-          <path d="M16.25 3.75v3.5h-3.5" />
-        </svg>
-        <span>{{ 'shell.health.retry' | transloco }}</span>
+        <vd-icon name="close" />
       </button>
     </div>
-  </section>
+
+    <vd-region-controls layout="sheet" />
+
+    <hr class="divider" />
+
+    <nav class="sheet-nav" [attr.aria-label]="'shell.nav.label' | transloco">
+      <a routerLink="/">{{ 'shell.nav.find' | transloco }}</a>
+      @if (session.isAuthenticated()) {
+        <a routerLink="/account">{{ 'shell.menu.account' | transloco }}</a>
+        <a routerLink="/account/saved">{{ 'shell.menu.saved' | transloco }}</a>
+        <a routerLink="/account/alerts">{{ 'shell.menu.alerts' | transloco }}</a>
+        <a routerLink="/account/notifications">{{ 'shell.menu.notifications' | transloco }}</a>
+        @if (session.isAdmin()) {
+          <a routerLink="/admin">{{ 'shell.menu.admin' | transloco }}</a>
+        }
+      } @else {
+        <a routerLink="/upgrade">{{ 'shell.nav.pro' | transloco }}</a>
+      }
+    </nav>
+
+    @if (session.isAuthenticated()) {
+      <button type="button" class="btn btn-block" (click)="session.signOut()">
+        <vd-icon name="logout" />{{ 'shell.menu.logout' | transloco }}
+      </button>
+    } @else {
+      <a class="btn btn-primary btn-block" routerLink="/auth/register">{{
+        'shell.auth.register' | transloco
+      }}</a>
+      <a class="btn btn-block" routerLink="/auth/login">{{ 'shell.auth.login' | transloco }}</a>
+    }
+
+    <a routerLink="/privacy" class="text-sm">{{ 'legal.privacy' | transloco }}</a>
+  </div>
+</vd-drawer>
+
+<main id="main" #main class="main" tabindex="-1">
+  <router-outlet />
 </main>
+
+<footer class="ftr">
+  <div class="ftr-in">
+    <p>{{ 'disclaimer.footer' | transloco }}</p>
+    <nav class="ftr-nav" [attr.aria-label]="'shell.footer.label' | transloco">
+      <a routerLink="/privacy">{{ 'legal.privacy' | transloco }}</a>
+      <span>{{ 'shell.footer.data_note' | transloco }}</span>
+    </nav>
+  </div>
+</footer>

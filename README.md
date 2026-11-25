@@ -6,7 +6,7 @@ VitaDelta is a vitamin and supplement comparison service. It compares supplement
 
 > VitaDelta provides comparative information only. It is not medical advice and does not replace a conversation with a physician or pharmacist.
 
-**Status: Phase 5, saved products, alert subscriptions, notifications with e-mail delivery through a transactional outbox, exchange rates with display-currency conversion, and admin health and outbox statistics, on top of the Phase 4 catalog and product endpoints, ranked recommendations with the try-before-sign-up limit, pairwise comparison and admin imports, the Phase 3 accounts, plans and promo codes and the Phase 2 scoring engine (`/score` and `/compare`, golden and property tests, verdict calibration).** The repository contains the runnable shells of every service, the contracts, the local stack and the CI workflow, the catalog database schema, the reference data and a loader that seeds them, and the scoring engine behind the internal `/score` and `/compare` endpoints. The scoring formulas, configuration and error model are described in [services/scoring/README.md](services/scoring/README.md); the verdict calibration result is in [services/scoring/calibration/verdict-calibration.md](services/scoring/calibration/verdict-calibration.md). The API now also provides registration, e-mail verification, login with refresh sessions, password reset, plan entitlements and promo codes. The catalog is readable through the API (countries, nutrients, product search and detail), recommendation queries return a ranked list scored by the scoring service, and two products can be compared pairwise. Remaining product features arrive in later phases.
+**Status: Phase 6, the web application (query builder, ranked results with locked rows for visitors, comparison verdicts, product pages, accounts, saved products, alerts, notifications, upgrade page, admin pages and privacy notice; Turkish and English UI; light and dark themes), on top of the Phase 5 saved products, alert subscriptions, notifications with e-mail delivery through a transactional outbox, exchange rates with display-currency conversion, and admin health and outbox statistics, the Phase 4 catalog and product endpoints, ranked recommendations with the try-before-sign-up limit, pairwise comparison and admin imports, the Phase 3 accounts, plans and promo codes and the Phase 2 scoring engine (`/score` and `/compare`, golden and property tests, verdict calibration).** The repository contains the runnable shells of every service, the contracts, the local stack and the CI workflow, the catalog database schema, the reference data and a loader that seeds them, and the scoring engine behind the internal `/score` and `/compare` endpoints. The scoring formulas, configuration and error model are described in [services/scoring/README.md](services/scoring/README.md); the verdict calibration result is in [services/scoring/calibration/verdict-calibration.md](services/scoring/calibration/verdict-calibration.md). The API now also provides registration, e-mail verification, login with refresh sessions, password reset, plan entitlements and promo codes. The catalog is readable through the API (countries, nutrients, product search and detail), recommendation queries return a ranked list scored by the scoring service, and two products can be compared pairwise. Remaining product features arrive in later phases.
 
 ## Architecture at a glance
 
@@ -82,6 +82,26 @@ Add `--volumes` to the `down` command to delete the database volume as well.
 ## Accounts and e-mail in development
 
 Register through the API (`POST /api/v1/auth/register`); the verification and password-reset e-mails are caught by Mailpit and can be read at http://127.0.0.1:8025. The first administrator is created from `VITADELTA_BOOTSTRAP_ADMIN_EMAIL` and `VITADELTA_BOOTSTRAP_ADMIN_PASSWORD` in `.env`; no default credentials exist, so set both before starting the API or no administrator is created. The first `scripts/dev-up.sh` run generates every secret into `.env`. Actuator health and metrics are served on an internal port inside the api container that is not published or proxied, and logs are structured JSON with credentials and e-mail addresses redacted.
+
+## Using the web app
+
+After `scripts/dev-up.sh` and `scripts/seed.sh`, open http://localhost:8080. The interface is available in Turkish and English, in light and dark themes. Without an account a visitor can build a query, run three free queries and see the first three results of each ranking; the remaining rows are shown locked. Registering unlocks the full ranking and adds saved products, price alerts, notifications and the upgrade page. Verification and password-reset e-mails are caught by Mailpit and can be read at http://127.0.0.1:8025. To become an administrator locally, set `VITADELTA_BOOTSTRAP_ADMIN_EMAIL` and `VITADELTA_BOOTSTRAP_ADMIN_PASSWORD` in `.env` before the API starts and sign in with those credentials; the admin pages (imports, promo codes, users) then appear in the account menu.
+
+The app shows comparative information only and is not medical advice. Products marked as label snapshots come from the NIH DSLD snapshot described under Data sources and disclaimers, and their prices are demo offers.
+
+The web tests run from `apps/web`; the end-to-end suite needs the stack up and seeded, a bootstrap administrator in `.env`, and a restarted `api` service between runs because the API rate limits are held in memory:
+
+```bash
+cd apps/web
+npm run lint
+npm test
+npm run build
+npm run e2e:install
+npm run e2e
+
+# or, from the repository root, with the stack up
+RUN_E2E=1 scripts/test-all.sh
+```
 
 ## Trying the API
 

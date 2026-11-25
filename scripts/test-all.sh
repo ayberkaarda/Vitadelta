@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Runs every test suite that exists in the repository and prints a summary.
-# Suites: contracts, scoring (services/scoring), api (services/api), web (apps/web).
+# Suites: contracts, scoring (services/scoring), api (services/api), web (apps/web) and the
+# opt-in steps of RUN_E2E=1: the nginx routing check (docker) and the e2e and adversarial
+# suites (apps/web/e2e; a running, seeded stack).
 # A suite whose directory is absent is reported as SKIPPED. Exit status is non-zero
 # if any step fails. Requires bash (Git Bash or WSL on Windows) plus the toolchain
 # of each present suite: node/npx, uv, java.
@@ -115,9 +117,45 @@ fi
 # web
 if begin_suite web apps/web node npm; then
   run_step web "npm ci" apps/web npm ci --no-audit --no-fund
+  run_step web "npm run api:check" apps/web npm run api:check
   run_step web "npm run lint" apps/web npm run lint
   run_step web "npm test" apps/web npm test
   run_step web "npm run build" apps/web npm run build
+fi
+
+# nginx (opt-in with RUN_E2E=1): routing, caching and header check of infra/nginx against the
+# web build of the step above, in a throwaway container (no stack needed).
+if [ "${RUN_E2E:-0}" != "1" ]; then
+  record nginx "(opt-in: set RUN_E2E=1)" "SKIPPED" "-"
+elif begin_suite nginx infra/nginx docker curl; then
+  run_step nginx "check-routing.sh" "$ROOT" bash infra/nginx/check-routing.sh
+fi
+
+# Restarts the api service so the in-memory per-client rate limits start empty, then waits
+# until the API answers through nginx again.
+restart_api() {
+  docker compose --env-file .env -f infra/docker-compose.yml restart api &&
+    for _ in $(seq 1 90); do
+      if curl -fsS --max-time 5 "$E2E_BASE_URL/api/v1/health" >/dev/null 2>&1; then return 0; fi
+      sleep 2
+    done
+  printf 'api did not answer after the restart\n' >&2
+  return 1
+}
+
+# e2e (opt-in): RUN_E2E=1 runs the Playwright suites of apps/web (the regular suite, then the
+# adversarial suite after an api restart) against an already running, seeded stack
+# (scripts/dev-up.sh, scripts/seed.sh); they are skipped while the stack is down.
+E2E_BASE_URL="${E2E_BASE_URL:-http://localhost:8080}"
+if [ "${RUN_E2E:-0}" != "1" ]; then
+  record e2e "(opt-in: set RUN_E2E=1)" "SKIPPED" "-"
+elif ! curl -fsS --max-time 10 "$E2E_BASE_URL/api/v1/health" >/dev/null 2>&1; then
+  record e2e "(stack not reachable)" "SKIPPED" "-"
+elif begin_suite e2e apps/web node npm docker; then
+  run_step e2e "install headless chromium" apps/web npm run e2e:install
+  run_step e2e "npm run e2e" apps/web npm run e2e
+  run_step e2e "restart api (rate limits)" "$ROOT" restart_api
+  run_step e2e "npm run e2e:adversarial" apps/web npm run e2e:adversarial
 fi
 
 printf '\n==== summary ====\n'

@@ -1,0 +1,165 @@
+<div class="page">
+  <a class="back text-sm" routerLink="/results" [queryParams]="backParams()" data-role="back">
+    <vd-icon name="back" size="sm" />{{ 'compare.back' | transloco }}
+  </a>
+
+  <p class="sr-only" role="status" aria-live="polite">
+    @if (response(); as r) {
+      {{ 'compare.loaded' | transloco: { a: r.productA.name, b: r.productB.name } }}
+    }
+  </p>
+
+  @switch (view().kind) {
+    @case ('loading') {
+      <div class="card tight">
+        <vd-skeleton [rows]="4" [status]="'compare.loading' | transloco" />
+      </div>
+    }
+    @case ('error') {
+      @if (errorView(); as e) {
+        <div class="card" role="alert" data-role="error">
+          <vd-empty-state [tone]="e.tone" [icon]="e.icon" [heading]="e.titleKey | transloco">
+            <p>
+              @if (e.productKey) {
+                {{ e.bodyKey | transloco: { product: (e.productKey | transloco) } }}
+              } @else {
+                {{ e.bodyKey | transloco }}
+              }
+            </p>
+            @if (e.requestId) {
+              <p class="text-xs">
+                {{ 'problem.request_id' | transloco: { requestId: e.requestId } }}
+              </p>
+            }
+            <div vdStateActions class="row-2">
+              @if (e.retry) {
+                <button
+                  type="button"
+                  class="btn btn-primary"
+                  data-role="retry"
+                  [disabled]="secondsLeft() > 0"
+                  (click)="retry()"
+                >
+                  <vd-icon name="refresh" />
+                  @if (secondsLeft() > 0) {
+                    {{ 'problem.retry_in' | transloco: { seconds: secondsLeft() } }}
+                  } @else {
+                    {{ 'problem.retry' | transloco }}
+                  }
+                </button>
+              }
+              <a class="btn" routerLink="/results" [queryParams]="backParams()">{{
+                'compare.back' | transloco
+              }}</a>
+            </div>
+          </vd-empty-state>
+        </div>
+      }
+    }
+    @case ('ready') {
+      @if (response(); as r) {
+        <header class="stack-2">
+          <p class="eyebrow">
+            {{
+              'compare.eyebrow'
+                | transloco
+                  : {
+                      country: countryName(),
+                      stock: ('compare.stock.' + query.state().stockFilter | transloco),
+                    }
+            }}
+          </p>
+          @if (title(); as t) {
+            <h1 class="h1">{{ t.key | transloco: t.params }}</h1>
+          }
+        </header>
+
+        <vd-fx-notice [meta]="r.meta" />
+
+        @if (r.swapped) {
+          <vd-notice
+            tone="neutral"
+            icon="swap"
+            data-role="swapped"
+            [heading]="'compare.swapped_title' | transloco"
+          >
+            <p>
+              {{ 'compare.swapped_body' | transloco: { a: r.productA.name, b: r.productB.name } }}
+            </p>
+          </vd-notice>
+        }
+
+        <section class="pair" [attr.aria-label]="'compare.pair.label' | transloco">
+          @for (side of [r.productA, r.productB]; track side.productId; let first = $first) {
+            @if (!first) {
+              <span class="vs" aria-hidden="true">{{ 'compare.pair.vs' | transloco }}</span>
+            }
+            <article class="card side" [attr.data-side]="first ? 'A' : 'B'">
+              <p class="row-2 text-xs muted">
+                <span class="ab" aria-hidden="true">{{
+                  (first ? 'compare.pair.letter_a' : 'compare.pair.letter_b') | transloco
+                }}</span>
+                <span
+                  >{{ side.brand }} · <span class="mono">{{ side.code }}</span></span
+                >
+              </p>
+              <h2 class="h3">
+                <a
+                  class="name"
+                  [routerLink]="['/products', side.productId]"
+                  [queryParams]="productParams()"
+                >
+                  <span class="sr-only">{{
+                    (first ? 'compare.pair.letter_a' : 'compare.pair.letter_b') | transloco
+                  }}</span>
+                  {{ side.name }}
+                </a>
+              </h2>
+              <p class="row-2 text-xs muted">
+                <vd-provenance [provenance]="side.provenance" />
+                <span>{{ 'compare.pair.pack' | transloco: packParams(side) }}</span>
+              </p>
+              <dl class="facts">
+                <div>
+                  <dt>{{ 'compare.pair.cost_per_day' | transloco }}</dt>
+                  <dd>
+                    <vd-money
+                      [amount]="side.cost.costPerDay"
+                      [currency]="side.cost.currency"
+                      [nativeAmount]="side.cost.costPerDayNative"
+                      [nativeCurrency]="r.meta.nativeCurrency"
+                      [fx]="r.meta.fx"
+                      [price]="side.cost.effectivePrice"
+                      [daysSupply]="side.cost.daysSupply"
+                      [retailer]="side.selectedOffer.retailer"
+                      [checkedAt]="side.selectedOffer.checkedAt"
+                    />
+                  </dd>
+                </div>
+                <div>
+                  <dt>{{ 'compare.pair.content' | transloco }}</dt>
+                  <dd class="big">{{ format.amount(side.contentScore, 4) }}</dd>
+                </div>
+                <div>
+                  <dt>{{ 'compare.pair.value' | transloco }}</dt>
+                  <dd class="big">{{ format.amount(side.valueScore, 4) }}</dd>
+                </div>
+              </dl>
+            </article>
+          }
+        </section>
+
+        <vd-verdict-card [response]="r" [engine]="engine()" />
+
+        <vd-delta-table
+          [rows]="r.rows"
+          [deltaContent]="r.deltaContent"
+          [engine]="engine()"
+          [reference]="referenceSet()"
+        />
+
+        <vd-disclaimer />
+      }
+    }
+  }
+</div>

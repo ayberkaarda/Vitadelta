@@ -1,0 +1,67 @@
+:host {
+  display: inline-flex;
+}
+
+.vlabel {
+  --t: var(--vd-verdict-neutral);
+  --tb: var(--vd-color-neutral-bg);
+
+  display: inline-flex;
+  align-items: center;
+  gap: var(--vd-space-2);
+  padding: var(--vd-space-1) var(--vd-space-3) var(--vd-space-1) var(--vd-space-2);
+  border-radius: var(--vd-radius-pill);
+  background: var(--tb);
+  color: var(--t);
+  font-weight: var(--vd-font-weight-bold);
+  font-size: var(--vd-font-size-md);
+  line-height: 1.3;
+
+  ::ng-deep .i {
+    width: 1.375rem;
+    height: 1.375rem;
+    stroke-width: 2;
+  }
+
+  &.sm {
+    font-size: var(--vd-font-size-xs);
+    padding: 2px var(--vd-space-2) 2px 4px;
+    gap: 4px;
+
+    ::ng-deep .i {
+      width: 0.95rem;
+      height: 0.95rem;
+    }
+  }
+}
+
+.v-worth {
+  --t: var(--vd-verdict-worth);
+  --tb: var(--vd-verdict-worth-bg);
+}
+
+.v-marginal {
+  --t: var(--vd-verdict-marginal);
+  --tb: var(--vd-verdict-marginal-bg);
+}
+
+.v-notworth {
+  --t: var(--vd-verdict-not-worth);
+  --tb: var(--vd-verdict-not-worth-bg);
+}
+
+.v-dominates {
+  --t: var(--vd-verdict-dominates);
+  --tb: var(--vd-verdict-worth-bg);
+}
+
+.v-equivalent {
+  --t: var(--vd-verdict-equivalent);
+  --tb: var(--vd-color-accent-bg);
+}
+
+.v-insufficient {
+  --t: var(--vd-verdict-neutral);
+  --tb: var(--vd-color-neutral-bg);
+  border: 1px dashed var(--vd-color-border-strong);
+}

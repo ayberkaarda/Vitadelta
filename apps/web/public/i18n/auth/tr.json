@@ -1,0 +1,75 @@
+{
+  "fields": {
+    "email": "E-posta",
+    "password": "Parola",
+    "new_password": "Yeni parola",
+    "repeat_password": "Parolayı tekrarlayın",
+    "country": "Ülke"
+  },
+  "password_rule": "En az 10 karakter",
+  "errors": {
+    "email": "Geçerli bir e-posta adresi girin.",
+    "password_mismatch": "İki parola birbiriyle eşleşmiyor.",
+    "country": "Listeden bir ülke seçin."
+  },
+  "login": {
+    "page_title": "Giriş yap",
+    "title": "Giriş yap",
+    "submit": "Giriş yap",
+    "busy": "Giriş yapılıyor…",
+    "forgot": "Parolanızı mı unuttunuz?",
+    "new_here": "Yeni misiniz?",
+    "register_link": "Hesap oluşturun",
+    "session_ended": "Oturumunuz sona erdi. Kaldığınız yerden devam etmek için yeniden giriş yapın.",
+    "password_changed": "Parolanız değiştirildi. Yeni parolanızla giriş yapın.",
+    "disabled_body": "Bunun bir hata olduğunu düşünüyorsanız gizlilik bildirimindeki adresten bize ulaşın."
+  },
+  "register": {
+    "page_title": "Hesap oluştur",
+    "title": "Hesabınızı oluşturun",
+    "submit": "Hesap oluştur",
+    "busy": "Hesap oluşturuluyor…",
+    "have_account": "Zaten kayıtlı mısınız?",
+    "login_link": "Giriş yapın",
+    "consent_prefix": "Hesap oluşturarak",
+    "consent_link": "gizlilik bildiriminde",
+    "consent_suffix": " açıklanan işlemeyi kabul etmiş olursunuz.",
+    "sent_title": "E-postanızı kontrol edin",
+    "sent_address": "Girilen adres: {{ email }}",
+    "sent_hint": "Birkaç dakika içinde bir şey gelmedi mi? İstenmeyen e-posta klasörünüze bakın, sonra yeniden gönderin.",
+    "resend": "E-postayı yeniden gönder"
+  },
+  "verify": {
+    "page_title": "E-postayı doğrula",
+    "busy_title": "Doğrulanıyor…",
+    "busy_text": "Doğrulama bağlantınızı kontrol ediyoruz.",
+    "success_title": "E-posta doğrulandı",
+    "success_text": "Hesabınız hazır. Alarmlar artık adresinize gönderilebilir.",
+    "login": "Giriş yap",
+    "to_account": "Hesabınıza gidin",
+    "failed_title": "Doğrulama tamamlanmadı",
+    "expired_title": "Bu bağlantının süresi doldu",
+    "expired_text": "Doğrulama bağlantılarının süresi bir süre sonra dolar ve yalnızca bir kez çalışır. Yenisini almak için e-postanızı girin.",
+    "invalid_title": "Bu bağlantı geçerli değil",
+    "invalid_text": "Bağlantı eksik veya daha önce kullanılmış. Yenisini almak için e-postanızı girin.",
+    "resend": "Yeni bağlantı gönder"
+  },
+  "forgot": {
+    "page_title": "Parolamı unuttum",
+    "title": "Parolanızı sıfırlayın",
+    "lead": "Hesabınızın e-posta adresini girin. Yeni parola seçmeniz için bir bağlantı göndeririz.",
+    "submit": "Sıfırlama bağlantısı gönder",
+    "sent": "Bağlantı gönderildi",
+    "back_to_login": "Girişe dön"
+  },
+  "reset": {
+    "page_title": "Yeni parola seçin",
+    "title": "Yeni parola seçin",
+    "submit": "Parolayı kaydet",
+    "busy": "Kaydediliyor…",
+    "sessions_note": "Kaydettikten sonra diğer tüm oturumlar kapatılır.",
+    "invalid_title": "Bu sıfırlama bağlantısı artık geçerli değil",
+    "invalid_text": "Süresi dolmuş veya daha önce kullanılmış olabilir.",
+    "request_new": "Yeni bağlantı iste"
+  }
+}

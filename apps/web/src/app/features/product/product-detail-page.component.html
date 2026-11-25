@@ -1,0 +1,288 @@
+<div class="page">
+  <p class="sr-only" aria-live="polite">
+    @if (response(); as r) {
+      {{ 'product.loaded' | transloco: { name: r.product.name } }}
+    }
+  </p>
+
+  @switch (view().kind) {
+    @case ('loading') {
+      <vd-skeleton [rows]="6" [status]="'product.loading' | transloco" />
+    }
+    @case ('error') {
+      @if (problem(); as problem) {
+        @if (problem.code === 'product_not_found' || (problem.status === 404 && !problem.code)) {
+          <div class="card">
+            <vd-empty-state
+              icon="search"
+              [heading]="'product.not_found.title' | transloco"
+              data-state="not-found"
+            >
+              <p>{{ 'product.not_found.text' | transloco }}</p>
+              <div vdStateActions>
+                <a class="btn btn-primary" routerLink="/">{{
+                  'product.not_found.find' | transloco
+                }}</a>
+              </div>
+            </vd-empty-state>
+          </div>
+        } @else if (problem.code === 'product_not_available_in_country') {
+          <div class="card">
+            <vd-empty-state
+              icon="nostock"
+              [heading]="'product.not_available.title' | transloco: { country: countryName() }"
+              data-state="not-available"
+            >
+              <p>{{ 'product.not_available.text' | transloco: { country: countryName() } }}</p>
+              <div vdStateActions>
+                <a class="btn" routerLink="/">{{ 'product.not_found.find' | transloco }}</a>
+              </div>
+            </vd-empty-state>
+          </div>
+        } @else {
+          <vd-problem-notice [problem]="problem" [retryable]="true" (retry)="retry()" />
+        }
+      }
+    }
+    @case ('ready') {
+      @if (response(); as r) {
+        @let p = r.product;
+        <nav class="crumbs" [attr.aria-label]="'product.crumbs.label' | transloco">
+          @if (resultsParams(); as params) {
+            <a routerLink="/results" [queryParams]="params">{{
+              'product.crumbs.results' | transloco
+            }}</a>
+          } @else {
+            <a routerLink="/">{{ 'product.crumbs.find' | transloco }}</a>
+          }
+          <span aria-hidden="true">/</span>
+          <span aria-current="page">{{ p.name }}</span>
+        </nav>
+
+        <header class="head">
+          <div class="stack-2 grow">
+            <p class="text-sm muted">
+              {{ p.brand }} · <span class="code">{{ p.code }}</span>
+            </p>
+            <h1 class="h1">{{ p.name }}</h1>
+            <p class="pack text-sm muted">
+              <span>{{ 'dosage.' + p.dosageForm | transloco }}</span>
+              <span>{{
+                'product.pack.per_container' | transloco: { count: p.unitsPerContainer }
+              }}</span>
+              <span>{{
+                'product.pack.per_serving' | transloco: { count: p.unitsPerServing }
+              }}</span>
+              <span>{{
+                (p.servingsPerDay === 1
+                  ? 'product.pack.servings_day_one'
+                  : 'product.pack.servings_day'
+                ) | transloco: { count: quantity.plain(p.servingsPerDay) }
+              }}</span>
+              @if (p.cost; as cost) {
+                <span>{{
+                  'product.pack.days' | transloco: { count: quantity.plain(cost.daysSupply) }
+                }}</span>
+              }
+            </p>
+            <vd-provenance [provenance]="p.provenance" [detail]="true" />
+          </div>
+
+          @if (actionState(); as s) {
+            <div class="acts" role="group" [attr.aria-label]="'product.actions.group' | transloco">
+              <vd-product-action-buttons
+                [state]="s"
+                [name]="p.name"
+                variant="text"
+                [small]="false"
+                [showAlert]="false"
+              />
+              @if (session.isAuthenticated()) {
+                <button
+                  #createAlert
+                  type="button"
+                  class="btn"
+                  data-action="create-alert"
+                  [attr.aria-expanded]="alertFormOpen()"
+                  [attr.aria-controls]="alertFormId"
+                  (click)="toggleAlertForm()"
+                >
+                  <vd-icon name="bell" />{{ 'product.actions.create_alert' | transloco }}
+                </button>
+              } @else {
+                <a
+                  class="btn"
+                  data-action="create-alert"
+                  routerLink="/auth/login"
+                  [queryParams]="actions.loginParams()"
+                >
+                  <vd-icon name="bell" />{{ 'product.actions.create_alert' | transloco }}
+                </a>
+              }
+              <a
+                class="btn"
+                routerLink="/results"
+                [queryParams]="compareParams()"
+                data-action="compare"
+              >
+                <vd-icon name="cmp" />{{ 'product.actions.compare' | transloco }}
+              </a>
+            </div>
+          }
+        </header>
+
+        <div class="layout">
+          <div class="main stack-5">
+            <vd-fx-notice [meta]="r.meta" />
+            <vd-flag-badges
+              [flags]="p.flags"
+              [currency]="r.meta.nativeCurrency"
+              [country]="countryName()"
+              [interactiveCodes]="['EXCEEDS_UL']"
+              (activate)="onFlag($event)"
+            />
+
+            <section class="stack-3" aria-labelledby="vd-formulation-title">
+              <div class="row-between">
+                <h2 id="vd-formulation-title" class="h3">
+                  {{ 'product.formulation.title' | transloco }}
+                </h2>
+                <span class="text-xs muted">{{
+                  'product.formulation.units_note' | transloco
+                }}</span>
+              </div>
+              <vd-formulation-table
+                [nutrients]="p.nutrients"
+                [productName]="p.name"
+                [exceeded]="exceededCodes()"
+                [highlight]="highlighted()"
+              />
+              <p class="text-xs muted">{{ 'product.formulation.note' | transloco }}</p>
+            </section>
+
+            <section class="stack-3" aria-labelledby="vd-offers-title">
+              <div class="row-between">
+                <h2 id="vd-offers-title" class="h3">
+                  {{ 'product.offers.title' | transloco: { country: countryName() } }}
+                </h2>
+                <span class="row-2 text-xs muted">
+                  <vd-icon name="info" size="sm" />{{ 'product.offers.caption' | transloco }}
+                </span>
+              </div>
+              <vd-offers-table
+                [offers]="p.offers"
+                [selectedOffer]="p.selectedOffer"
+                [meta]="r.meta"
+                [countryName]="countryName()"
+              />
+            </section>
+
+            <vd-disclaimer />
+          </div>
+
+          <aside class="aside stack-5" [attr.aria-label]="'product.aside_label' | transloco">
+            <section class="card raised stack-3 price" aria-labelledby="vd-price-title">
+              <h2 id="vd-price-title" class="eyebrow">{{ 'product.price.eyebrow' | transloco }}</h2>
+              @if (p.cost; as cost) {
+                <div>
+                  <p class="big num">{{ format.money(cost.costPerDay, cost.currency) }}</p>
+                  @if (converted()) {
+                    <p class="text-xs muted num">
+                      {{ format.money(cost.costPerDayNative, r.meta.nativeCurrency) }}
+                    </p>
+                  }
+                </div>
+                <dl class="kv">
+                  <dt>{{ 'product.price.effective' | transloco }}</dt>
+                  <dd>{{ format.money(cost.effectivePrice, cost.currency) }}</dd>
+                  <dt>{{ 'product.price.days' | transloco }}</dt>
+                  <dd>{{ quantity.plain(cost.daysSupply) }}</dd>
+                  @if (p.selectedOffer; as offer) {
+                    <dt>{{ 'product.price.offer' | transloco }}</dt>
+                    <dd>
+                      {{
+                        'product.price.offer_value'
+                          | transloco
+                            : { retailer: offer.retailer, date: format.date(offer.checkedAt) }
+                      }}
+                    </dd>
+                  }
+                  <dt>{{ 'product.price.availability' | transloco }}</dt>
+                  <dd>
+                    @if (p.availability.status === 'AVAILABLE') {
+                      <span class="badge t-ok" data-availability="AVAILABLE">
+                        <vd-icon name="ok" />
+                        <span>{{
+                          'product.price.sold_in' | transloco: { country: countryName() }
+                        }}</span>
+                      </span>
+                    } @else {
+                      <span class="badge" [attr.data-availability]="p.availability.status">
+                        <vd-icon name="nostock" />
+                        <span>{{
+                          'product.price.not_sold_in' | transloco: { country: countryName() }
+                        }}</span>
+                      </span>
+                    }
+                  </dd>
+                </dl>
+                <vd-provenance kind="demo-price" />
+              } @else {
+                <p class="text-sm muted" data-state="no-offer">
+                  {{ 'product.price.no_offer' | transloco: { country: countryName() } }}
+                </p>
+              }
+            </section>
+
+            @if (actionState(); as s) {
+              <vd-product-action-notice [state]="s" />
+
+              @if (alertCreated()) {
+                <vd-notice tone="ok" live="status">
+                  <p>{{ 'product.alert.created' | transloco }}</p>
+                </vd-notice>
+              }
+
+              @if (alertFormOpen()) {
+                <vd-alert-form
+                  [id]="alertFormId"
+                  [state]="s"
+                  [price]="todayPrice()"
+                  (done)="onAlertDone($event)"
+                />
+              }
+
+              @if (s.alerts().length > 0) {
+                <section class="card stack-2" aria-labelledby="vd-existing-alerts">
+                  <h2 id="vd-existing-alerts" class="h4">
+                    {{ 'product.alert.existing' | transloco }}
+                  </h2>
+                  <ul role="list" class="alerts">
+                    @for (alert of s.alerts(); track alert.id) {
+                      <li>
+                        <span
+                          class="badge"
+                          [class.t-ok]="alert.active"
+                          [attr.data-trigger]="alert.trigger"
+                        >
+                          <vd-icon name="bell" />
+                          <span>
+                            {{ triggerKey(alert.trigger) | transloco }} ·
+                            {{
+                              (alert.active ? 'product.alert.active' : 'product.alert.paused')
+                                | transloco
+                            }}
+                          </span>
+                        </span>
+                      </li>
+                    }
+                  </ul>
+                </section>
+              }
+            }
+          </aside>
+        </div>
+      }
+    }
+  }
+</div>

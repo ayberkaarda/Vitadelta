@@ -1,0 +1,144 @@
+<div class="page">
+  <header class="stack-2">
+    <p class="eyebrow">{{ 'privacy.eyebrow' | transloco }}</p>
+    <h1 class="h1">{{ 'privacy.title' | transloco }}</h1>
+    <p class="text-sm muted">{{ 'privacy.updated' | transloco }}</p>
+  </header>
+
+  <div class="layout">
+    <nav class="toc" [attr.aria-label]="'privacy.toc_label' | transloco">
+      <ul role="list">
+        @for (section of sections; track section) {
+          <li>
+            <a
+              routerLink="."
+              [fragment]="section"
+              [attr.aria-current]="fragment() === section ? 'location' : null"
+              >{{ 'privacy.' + section + '.title' | transloco }}</a
+            >
+          </li>
+        }
+      </ul>
+    </nav>
+
+    <article class="article">
+      <p class="intro">{{ 'privacy.intro' | transloco }}</p>
+
+      <section id="who" aria-labelledby="who-title">
+        <h2 id="who-title" class="h2">{{ 'privacy.who.title' | transloco }}</h2>
+        <p>{{ 'privacy.who.text' | transloco }}</p>
+        @let c = contact();
+        <div class="contact-card">
+          @if (c.kind === 'ready') {
+            <div class="row">
+              <span class="contact" data-contact>{{ c.contact }}</span>
+              <button type="button" class="btn btn-sm" (click)="copy(c.contact)">
+                <vd-icon name="copy" />{{ 'privacy.who.copy' | transloco }}
+              </button>
+            </div>
+            <p class="text-xs muted" role="status">
+              @if (copied() === true) {
+                {{ 'privacy.who.copied' | transloco }}
+              } @else if (copied() === false) {
+                {{ 'privacy.who.copy_failed' | transloco }}
+              }
+            </p>
+          } @else if (c.kind === 'error') {
+            <vd-problem-notice [problem]="c.problem" [retryable]="true" (retry)="load()" />
+          } @else {
+            <p class="text-sm muted" aria-busy="true">{{ 'privacy.who.loading' | transloco }}</p>
+          }
+        </div>
+      </section>
+
+      <section id="data" aria-labelledby="data-title">
+        <h2 id="data-title" class="h2">{{ 'privacy.data.title' | transloco }}</h2>
+        <ul>
+          @for (item of dataItems; track item) {
+            <li>{{ 'privacy.data.items.' + item | transloco }}</li>
+          }
+        </ul>
+        <p>{{ 'privacy.data.not_collected' | transloco }}</p>
+      </section>
+
+      <section id="purposes" aria-labelledby="purposes-title">
+        <h2 id="purposes-title" class="h2">{{ 'privacy.purposes.title' | transloco }}</h2>
+        <div class="tbl-wrap">
+          <table class="tbl">
+            <caption class="sr-only">
+              {{
+                'privacy.purposes.title' | transloco
+              }}
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">{{ 'privacy.purposes.col.purpose' | transloco }}</th>
+                <th scope="col">{{ 'privacy.purposes.col.data' | transloco }}</th>
+                <th scope="col">{{ 'privacy.purposes.col.basis' | transloco }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of purposeRows; track row) {
+                <tr>
+                  <td>{{ 'privacy.purposes.rows.' + row + '.purpose' | transloco }}</td>
+                  <td>{{ 'privacy.purposes.rows.' + row + '.data' | transloco }}</td>
+                  <td>{{ 'privacy.purposes.rows.' + row + '.basis' | transloco }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="retention" aria-labelledby="retention-title">
+        <h2 id="retention-title" class="h2">{{ 'privacy.retention.title' | transloco }}</h2>
+        <ul>
+          @for (item of retentionItems; track item) {
+            <li>{{ 'privacy.retention.items.' + item | transloco }}</li>
+          }
+        </ul>
+      </section>
+
+      <section id="recipients" aria-labelledby="recipients-title">
+        <h2 id="recipients-title" class="h2">{{ 'privacy.recipients.title' | transloco }}</h2>
+        <p>{{ 'privacy.recipients.mail' | transloco }}</p>
+        <p>{{ 'privacy.recipients.fx' | transloco }}</p>
+        <p>{{ 'privacy.recipients.none' | transloco }}</p>
+      </section>
+
+      <section id="cookies" aria-labelledby="cookies-title">
+        <h2 id="cookies-title" class="h2">{{ 'privacy.cookies.title' | transloco }}</h2>
+        <p>{{ 'privacy.cookies.text' | transloco }}</p>
+        <ul>
+          <li>
+            <code>{{ cookieNames.anon }}</code> — {{ 'privacy.cookies.anon' | transloco }}
+          </li>
+          <li>
+            <code>{{ cookieNames.refresh }}</code> — {{ 'privacy.cookies.refresh' | transloco }}
+          </li>
+        </ul>
+        <p>{{ 'privacy.cookies.no_banner' | transloco }}</p>
+        <p>{{ 'privacy.cookies.local_storage' | transloco }}</p>
+      </section>
+
+      <section id="rights" aria-labelledby="rights-title">
+        <h2 id="rights-title" class="h2">{{ 'privacy.rights.title' | transloco }}</h2>
+        <p>{{ 'privacy.rights.intro' | transloco }}</p>
+        <ul>
+          @for (item of rightItems; track item) {
+            <li>{{ 'privacy.rights.items.' + item | transloco }}</li>
+          }
+        </ul>
+        <h3 class="h4">{{ 'privacy.rights.how_title' | transloco }}</h3>
+        <p>
+          {{ 'privacy.rights.how_delete_prefix' | transloco }}
+          <a routerLink="/account">{{ 'privacy.rights.how_delete_link' | transloco }}</a>{{
+            'privacy.rights.how_delete_suffix' | transloco
+          }}
+        </p>
+        <p>{{ 'privacy.rights.how_contact' | transloco }}</p>
+        <p>{{ 'privacy.rights.response' | transloco }}</p>
+      </section>
+    </article>
+  </div>
+</div>

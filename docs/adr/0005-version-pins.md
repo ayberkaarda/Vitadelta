@@ -160,6 +160,21 @@ These versions were checked on 2026-11-24 and are the pins to use when the corre
 | Mailpit as a test container | `axllent/mailpit:v1.34.0` | `services/api/src/test/java/com/vitadelta/api/alerts/AlertsIntegrationTest.java` | same tag as `infra/docker-compose.yml`; the alert e-mail tests deliver over real SMTP and read the message back through its HTTP API |
 | Runtime and test dependencies | unchanged | `services/api/build.gradle.kts` | no dependency was added in Phase 5; the FX client uses the JDK HTTP client, and WireMock, Caffeine, Thymeleaf and Testcontainers were already pinned |
 
+### Added in Phase 6
+
+| Item | Pin | Where pinned | Notes |
+|---|---|---|---|
+| `@angular/router` | 22.3.0 | `apps/web/package.json` | dependency; same version as the other Angular packages; npm registry checked 2026-11-25 |
+| `@angular/forms` | 22.3.0 | `apps/web/package.json` | dependency; reactive forms of the feature pages |
+| `@vitest/coverage-v8` | 5.1.1 | `apps/web/package.json` | devDependency; peer `vitest` 5.1.1; line coverage gate of 70 % in `npm test` |
+| `@types/node` | 22.20.5 | `apps/web/package.json` | devDependency; newest 22.x, matching the Node 22 engine; used by spec files and the e2e sources only (excluded from the application build) |
+| `@playwright/test` | 1.65.1 | `apps/web/package.json` | devDependency; end-to-end suite (`npm run e2e`), the pin named in the table above; npm `latest` on 2026-11-25 |
+| `@axe-core/playwright` | 4.14.0 | `apps/web/package.json` | devDependency; accessibility scans in the e2e suite; its `axe-core` resolves to 4.14.x through the lock file; npm `latest` is the 4.14.1 patch, left to Dependabot |
+| Headless browser | Chrome Headless Shell 159.0.8154.6 (Playwright `chromium-headless-shell` build 1255) | installed by `npm run e2e:install` (`playwright install --only-shell chromium`) | no headed browser is downloaded or opened |
+| `openapi-typescript` | 7.13.0 | `apps/web/tools/openapi/package.json` | isolated package with its own `package-lock.json`; generates `schema.d.ts` from `contracts/public-api.openapi.yaml` (`npm run api:types`, checked by `npm run api:check`) |
+| `typescript` (generator package only) | 5.9.3 | `apps/web/tools/openapi/package.json` | `openapi-typescript` 7.13.0 declares the peer `typescript: ^5.x`, while the application stays on TypeScript 6.0.3 (Deviations, item 2); the two installs never share a `node_modules` |
+| Application toolchain | unchanged | `apps/web/package.json` | Angular 22.3.0, TypeScript 6.0.3, Vitest 5.1.1, Transloco 8.4.0, rxjs, ESLint and Prettier keep their Phase 0 pins; no UI library or other runtime dependency was added |
+
 ## Consequences
 
 - Builds are reproducible from the manifests and lock files (`uv.lock`, `package-lock.json`, the Gradle wrapper checksum).

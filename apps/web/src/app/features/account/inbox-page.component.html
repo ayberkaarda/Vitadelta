@@ -1,0 +1,108 @@
+<section class="stack" aria-labelledby="inbox-title">
+  <div class="list-head">
+    <h2 id="inbox-title" class="h2">{{ 'account.inbox.title' | transloco }}</h2>
+    <div class="row">
+      @if (unread.count() !== null) {
+        <p class="text-sm muted" data-unread>
+          {{ 'account.inbox.unread_count' | transloco: { count: unread.count() } }}
+        </p>
+      }
+      <button
+        type="button"
+        class="btn btn-sm"
+        [disabled]="!unread.count()"
+        [attr.aria-busy]="markingAll()"
+        (click)="markAllRead()"
+      >
+        <vd-icon name="check" />{{ 'account.inbox.mark_all' | transloco }}
+      </button>
+    </div>
+  </div>
+
+  <div aria-live="polite" class="sr-only">
+    @if (announcement(); as key) {
+      {{ key | transloco }}
+    }
+  </div>
+  @if (actionProblem(); as p) {
+    <vd-problem-notice [problem]="p" />
+  }
+
+  @let s = state();
+  @if (s.kind === 'loading') {
+    <div class="card tight">
+      <vd-skeleton [rows]="4" [status]="'account.inbox.loading' | transloco" />
+    </div>
+  } @else if (s.kind === 'error') {
+    <vd-problem-notice [problem]="s.problem" [retryable]="true" (retry)="load(page())" />
+  } @else if (s.page.items.length === 0) {
+    <div class="card">
+      <vd-empty-state icon="bell" [heading]="'account.inbox.empty_title' | transloco">
+        <p>{{ 'account.inbox.empty_text' | transloco }}</p>
+      </vd-empty-state>
+    </div>
+  } @else {
+    <ul class="inbox" role="list">
+      @for (n of s.page.items; track n.id) {
+        @let e = entry(n);
+        <li class="item" [class.unread]="n.readAt === null" [attr.data-type]="n.type">
+          <span class="dot" aria-hidden="true"></span>
+          <span class="tile" [attr.data-tone]="e.tone" aria-hidden="true"
+            ><vd-icon [name]="e.icon"
+          /></span>
+          <div class="text">
+            <p class="title">
+              @if (n.readAt === null) {
+                <span class="sr-only">{{ 'account.inbox.unread' | transloco }}</span>
+              }
+              @if (e.productLink) {
+                <a [routerLink]="e.productLink" [queryParams]="{ country: e.country }">{{
+                  e.titleKey | transloco: e.titleParams
+                }}</a>
+              } @else {
+                {{ e.titleKey | transloco: e.titleParams }}
+              }
+            </p>
+            @if (e.detailKey) {
+              <p class="detail">
+                {{ e.detailKey | transloco: e.detailParams }}
+                @if (e.showUpgrade) {
+                  <a routerLink="/upgrade">{{ 'limits.see_pro' | transloco }}</a>
+                }
+              </p>
+            }
+            @if (e.extraKey) {
+              <p class="detail">{{ e.extraKey | transloco: e.extraParams }}</p>
+            }
+          </div>
+          <div class="meta">
+            <time class="text-xs muted" [attr.datetime]="n.createdAt">{{
+              format.dateTime(n.createdAt)
+            }}</time>
+            @if (n.readAt === null) {
+              <button
+                type="button"
+                class="btn btn-ghost btn-sm"
+                [attr.aria-label]="
+                  'account.inbox.mark_read_aria'
+                    | transloco: { title: (e.titleKey | transloco: e.titleParams) }
+                "
+                (click)="markRead(n)"
+              >
+                {{ 'account.inbox.mark_read' | transloco }}
+              </button>
+            } @else {
+              <span class="text-xs muted">{{ 'account.inbox.read' | transloco }}</span>
+            }
+          </div>
+        </li>
+      }
+    </ul>
+    <vd-pagination
+      [page]="s.page.meta.page"
+      [pageSize]="s.page.meta.pageSize"
+      [total]="s.page.meta.total"
+      (pageChange)="load($event)"
+    />
+  }
+</section>

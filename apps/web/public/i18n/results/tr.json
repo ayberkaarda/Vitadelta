@@ -1,0 +1,121 @@
+{
+  "page_title": "Sonuçlar",
+  "eyebrow": "Sonuçlar · {{ country }} · {{ mode }}",
+  "mode": {
+    "PRICE": "Fiyat",
+    "RICHNESS": "İçerik zenginliği",
+    "VALUE": "Değer",
+    "CUSTOM": "Özel"
+  },
+  "title": "{{ total }} ürün sıralandı",
+  "title_one": "1 ürün sıralandı",
+  "stock": {
+    "IN_STOCK_ONLY": "Yalnızca stokta olanlar",
+    "INCLUDE_OUT_OF_STOCK": "Stokta olmayanlar dahil"
+  },
+  "excluded": {
+    "no_stock": "Stokta teklifi olmadığı için {{ count }} ürün dışarıda kaldı",
+    "no_stock_one": "Stokta teklifi olmadığı için 1 ürün dışarıda kaldı",
+    "no_offer": "Teklifi olmayan {{ count }} ürün",
+    "no_offer_one": "Teklifi olmayan 1 ürün",
+    "required": "{{ count }} üründe zorunlu bir besin öğesi eksik",
+    "required_one": "1 üründe zorunlu bir besin öğesi eksik",
+    "exceeds_ul": "Üst sınırı aşan {{ count }} ürün dışarıda bırakıldı",
+    "exceeds_ul_one": "Üst sınırı aşan 1 ürün dışarıda bırakıldı"
+  },
+  "reference_line": "referans {{ reference }}, üst sınırlar {{ ul }}",
+  "edit_query": "Sorguyu düzenle",
+  "market_rate": "Piyasa oranı: içerik puanı başına günlük {{ amount }} ({{ count }} ürünün medyanı)",
+  "select_hint": "Karşılaştırmak için iki ürün seçin",
+  "table": {
+    "caption": "Sıralanan ürünler",
+    "select": "Karşılaştır",
+    "rank": "Sıra",
+    "product": "Ürün",
+    "cost": "Günlük maliyet",
+    "content": "İçerik",
+    "value": "Değer",
+    "custom": "Özel",
+    "flags": "İşaretler",
+    "actions": "İşlemler",
+    "select_label": "{{ name }} ürününü karşılaştırmaya ekle",
+    "breakdown": "Döküm",
+    "breakdown_label": "{{ name }} puan dökümü",
+    "per_day": "günlük"
+  },
+  "loading": "Ürünler sıralanıyor…",
+  "announce": "{{ total }} ürün sıralandı, sayfa {{ page }}",
+  "selection": {
+    "label": "Karşılaştırma için seçilen ürünler",
+    "count": "{{ count }} seçildi",
+    "remove": "{{ name }} ürününü karşılaştırmadan çıkar",
+    "compare": "Karşılaştır",
+    "replaced": "Yalnızca iki ürün karşılaştırılabilir; bu yüzden {{ name }} seçimden çıkarıldı."
+  },
+  "empty": {
+    "title": "Tüm gereksinimlerinize uyan ürün yok",
+    "text": "Piyasadaki şu ürünler dışarıda kaldı:",
+    "required": "Zorunlu bir besin öğesi eksik",
+    "exceeds_ul": "Üst sınırın üzerinde (dışarıda bırakıldı)",
+    "no_stock": "Stokta teklif yok",
+    "no_offer": "{{ country }} için teklif yok",
+    "edit_required": "Zorunlu besin öğelerini düzenle",
+    "include_out_of_stock": "Stokta olmayanları da dahil et"
+  },
+  "quota": {
+    "title": "{{ limit }} ücretsiz sorgu hakkınızı kullandınız",
+    "text": "Sıralamaya devam etmek için ücretsiz bir hesap oluşturun. Hiçbir ücret alınmaz ve mevcut ayarlarınız korunur.",
+    "benefits": "Ücretsiz hesabın sağladıkları",
+    "unlimited": "Sınırsız sorgu ve tam sonuç listeleri",
+    "saved": "{{ count }} ürüne kadar kaydetme",
+    "saved_unlimited": "İstediğiniz kadar ürün kaydetme",
+    "alerts": "{{ count }} fiyat veya stok uyarısı",
+    "alerts_unlimited": "Sınırsız fiyat veya stok uyarısı",
+    "open_note": "Karşılaştırma ve ürün sayfaları hesap olmadan da açık kalır."
+  },
+  "error": {
+    "edit": "Sorguyu düzenle"
+  },
+  "drawer": {
+    "title": "{{ name }} · puan dökümü",
+    "close": "Dökümü kapat",
+    "cost_per_day": "Günlük maliyet",
+    "content": "İçerik puanı",
+    "value": "Değer puanı",
+    "of_100": "100 üzerinden {{ value }}",
+    "value_sub": "{{ currency }} başına · 100 üzerinden {{ value }}",
+    "note": "Satırlar besin öğesi koduna göre sıralıdır. Referans: {{ country }} için {{ reference }}. Katkı = ağırlık × fayda.",
+    "amount": "Günlük miktar",
+    "reference": "Referans",
+    "coverage": "Karşılama",
+    "utility_weight": "Fayda × ağırlık",
+    "contribution": "Katkı {{ value }}",
+    "source": {
+      "MARKET_MEDIAN": "Piyasa medyanı",
+      "PRESENCE_ONLY": "Yalnızca varlık"
+    },
+    "capped_umax": "Tavanda, fazlası puan kazandırmıyor",
+    "capped_ul": "Üst sınırda kesildi",
+    "ul_below_reference": "Bu besin öğesinin üst sınırı referans miktarından düşük.",
+    "below_floor": "Varlık eşiğinin altında",
+    "ref_line": "%100 ({{ amount }})",
+    "ceiling": "tavan {{ percent }}",
+    "total": "İçerik puanı {{ value }}",
+    "empty": "Bu ürün için besin öğesi dökümü yok.",
+    "product_page": "Ürün sayfası",
+    "nutrients": "Besin öğeleri"
+  },
+  "actions": {
+    "save": "Kaydet",
+    "saved": "Kaydedildi",
+    "save_named": "{{ name }} ürününü kaydet",
+    "alert": "Fiyat uyarısı",
+    "alert_on": "Uyarı açık",
+    "alert_named": "{{ name }} için fiyat uyarısı",
+    "login_save": "{{ name }} ürününü kaydetmek için giriş yapın",
+    "login_alert": "{{ name }} için fiyat uyarısı oluşturmak üzere giriş yapın",
+    "manage_saved": "Kayıtlı ürünleri yönet",
+    "manage_alerts": "Uyarıları yönet",
+    "resend": "Doğrulama e-postasını yeniden gönder"
+  }
+}

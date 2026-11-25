@@ -1,0 +1,67 @@
+<div class="auth">
+  <section class="auth-card" aria-labelledby="reset-title">
+    @if (invalid()) {
+      <span class="ic-well t-warn" aria-hidden="true"><vd-icon name="clock" /></span>
+      <h1 id="reset-title" class="h2" tabindex="-1" vdFocusOnInit>
+        {{ 'auth.reset.invalid_title' | transloco }}
+      </h1>
+      <p class="body-text" role="status">{{ 'auth.reset.invalid_text' | transloco }}</p>
+      <a class="btn btn-primary btn-block" routerLink="/auth/forgot">{{
+        'auth.reset.request_new' | transloco
+      }}</a>
+    } @else {
+      <h1 id="reset-title" class="h2">{{ 'auth.reset.title' | transloco }}</h1>
+
+      @if (problem(); as p) {
+        <vd-problem-notice [problem]="p" (retry)="submit()" />
+      }
+      <vd-error-summary [errors]="errors().summary" />
+
+      @let passwordError = errors().fields[ids.password];
+      @let repeatError = errors().fields[ids.repeat];
+      <form class="stack" novalidate (submit)="submit($event)">
+        <vd-field
+          [controlId]="ids.password"
+          [label]="'auth.fields.new_password' | transloco"
+          [hint]="'auth.password_rule' | transloco"
+          [error]="passwordError ? (passwordError | transloco) : null"
+        >
+          <input
+            #passwordInput
+            vdControl
+            class="inp"
+            type="password"
+            name="new-password"
+            autocomplete="new-password"
+            [value]="password()"
+            (input)="password.set(passwordInput.value)"
+          />
+        </vd-field>
+        <vd-field
+          [controlId]="ids.repeat"
+          [label]="'auth.fields.repeat_password' | transloco"
+          [error]="repeatError ? (repeatError | transloco) : null"
+        >
+          <input
+            #repeatInput
+            vdControl
+            class="inp"
+            type="password"
+            name="repeat-password"
+            autocomplete="new-password"
+            [value]="repeat()"
+            (input)="repeat.set(repeatInput.value)"
+          />
+        </vd-field>
+        <button class="btn btn-primary btn-block" type="submit" [attr.aria-busy]="busy()">
+          @if (busy()) {
+            <vd-icon name="refresh" [spin]="true" />{{ 'auth.reset.busy' | transloco }}
+          } @else {
+            {{ 'auth.reset.submit' | transloco }}
+          }
+        </button>
+      </form>
+      <p class="fine">{{ 'auth.reset.sessions_note' | transloco }}</p>
+    }
+  </section>
+</div>

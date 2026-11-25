@@ -1,17 +1,364 @@
 {
+  "app": {
+    "name": "VitaDelta",
+    "title_with_page": "{{ page }} · {{ app }}"
+  },
   "shell": {
-    "title": "Vitadelta",
-    "tagline": "Compare supplements by what a daily dose delivers and what it costs",
-    "health": {
-      "label": "API status",
-      "loading": "Checking API status…",
-      "unreachable": "API unreachable",
-      "retry": "Check again",
-      "status": {
-        "UP": "Up",
-        "DEGRADED": "Degraded",
-        "DOWN": "Down"
-      }
+    "skip_link": "Skip to content",
+    "home_link": "VitaDelta home",
+    "nav": {
+      "label": "Main",
+      "find": "Find",
+      "pro": "PRO",
+      "saved": "Saved",
+      "alerts": "Alerts",
+      "admin": "Admin"
+    },
+    "country": {
+      "label": "Country"
+    },
+    "currency": {
+      "label": "Show in",
+      "native": "native",
+      "native_option": "{{ currency }} (country currency)",
+      "as_of": "rate {{ date }}",
+      "stale": "{{ date }} · stale",
+      "unavailable": "no rate · {{ currency }} shown"
+    },
+    "language": {
+      "label": "Language",
+      "en": "EN",
+      "tr": "TR",
+      "en_name": "English",
+      "tr_name": "Türkçe"
+    },
+    "notifications": {
+      "label": "Notifications",
+      "label_unread": "Notifications, {{ count }} unread",
+      "overflow": "99+"
+    },
+    "auth": {
+      "login": "Log in",
+      "register": "Create account"
+    },
+    "menu": {
+      "button": "Account menu",
+      "open": "Open menu",
+      "close": "Close menu",
+      "sheet_title": "Menu",
+      "signed_in_as": "Signed in as",
+      "account": "Account and plan",
+      "saved": "Saved products",
+      "alerts": "Alerts",
+      "notifications": "Notifications",
+      "notifications_new": "{{ count }} new",
+      "admin": "Admin",
+      "logout": "Log out"
+    },
+    "footer": {
+      "label": "Footer",
+      "data_note": "Product data: synthetic demo set and a US label snapshot · all prices are demo values"
     }
+  },
+  "plan": {
+    "FREE": "FREE",
+    "PRO": "PRO",
+    "ADMIN": "ADMIN"
+  },
+  "legal": {
+    "privacy": "Privacy notice"
+  },
+  "disclaimer": {
+    "not_medical_advice": "This comparison is based on label contents and demo prices. It is not medical advice and does not say what you should take.",
+    "footer": "VitaDelta compares supplement labels and prices. It is not medical advice; talk to a health professional about what you take."
+  },
+  "quota": {
+    "label": "Free queries",
+    "remaining": "{{ left }}/{{ limit }} free queries left",
+    "remaining_one": "{{ left }}/{{ limit }} free query left",
+    "remaining_short": "{{ left }}/{{ limit }} left",
+    "exhausted": "No free queries left · Sign up",
+    "exhausted_short": "Sign up"
+  },
+  "limits": {
+    "saved_products_reached": "You have saved {{ used }} of {{ limit }} products. Remove one from your list or upgrade to PRO.",
+    "alert_subscriptions_reached": "{{ used }} of {{ limit }} alerts are already active. Switch another alert off first, or upgrade to PRO for unlimited alerts.",
+    "title": "Plan limit reached",
+    "see_pro": "See PRO"
+  },
+  "auth": {
+    "register": {
+      "check_email": "If this address can be registered, a verification link is on its way."
+    },
+    "verify": {
+      "resent": "If this address needs verification, a new link is on its way."
+    },
+    "forgot": {
+      "check_email": "If an account exists for this address, a reset link has been sent."
+    }
+  },
+  "problem": {
+    "request_id": "Request ID {{ requestId }} · include it if you contact us",
+    "retry": "Try again",
+    "retry_in": "Try again in {{ seconds }} s",
+    "generic": {
+      "title": "Something went wrong",
+      "body": "The request could not be completed. Try again in a moment."
+    },
+    "network": {
+      "title": "No connection",
+      "body": "The server could not be reached. Check your connection and try again."
+    },
+    "not_found": {
+      "title": "Not found",
+      "body": "This item does not exist or is no longer available."
+    },
+    "validation_failed": {
+      "title": "Check your input",
+      "body": "Some values are not valid. The fields below say what to change."
+    },
+    "country_not_found": {
+      "title": "Unknown country",
+      "body": "This country is not supported. Choose another country."
+    },
+    "product_not_found": {
+      "title": "Product not found",
+      "body": "This product does not exist or was removed from the catalog."
+    },
+    "product_not_available_in_country": {
+      "title": "Not sold in this country",
+      "body": "This product is not available in the selected country."
+    },
+    "currency_mismatch": {
+      "title": "Currency does not match",
+      "body": "A price uses a different currency than its country."
+    },
+    "scoring_unavailable": {
+      "title": "Ranking is temporarily unavailable",
+      "body": "The scoring service did not answer in time. Your free query was not counted. Try again in a moment."
+    },
+    "unauthorized": {
+      "title": "Please log in",
+      "body": "Log in to continue."
+    },
+    "forbidden": {
+      "title": "Not allowed",
+      "body": "Your account cannot perform this action."
+    },
+    "invalid_credentials": {
+      "title": "Login failed",
+      "body": "E-mail or password is not correct."
+    },
+    "account_disabled": {
+      "title": "This account is disabled",
+      "body": "You cannot log in with this account. See the privacy notice for how to contact us."
+    },
+    "email_not_verified": {
+      "title": "Verify your e-mail first",
+      "body": "Open the link we sent you to verify your e-mail address, then try again."
+    },
+    "token_invalid": {
+      "title": "This link is not valid",
+      "body": "The link is incomplete or was already used. Request a new link."
+    },
+    "token_expired": {
+      "title": "This link has expired",
+      "body": "Request a new link and use it within its validity period."
+    },
+    "refresh_reuse_detected": {
+      "title": "Your session ended",
+      "body": "For your security every session of this account was logged out. Log in again."
+    },
+    "quota_exceeded": {
+      "title": "You have used your free queries",
+      "body": "Create a free account to keep ranking products."
+    },
+    "entitlement_exceeded": {
+      "title": "Plan limit reached",
+      "body": "Your plan does not allow more of these. Remove one or upgrade to PRO."
+    },
+    "promo_invalid": {
+      "title": "Code not accepted",
+      "body": "This code is not valid or has expired."
+    },
+    "conflict_retry": {
+      "title": "Please try again",
+      "body": "Another change was being saved at the same moment. Try again."
+    },
+    "fx_unsupported_currency": {
+      "title": "Currency not supported",
+      "body": "Prices cannot be shown in this currency. Choose another one."
+    },
+    "rate_limited": {
+      "title": "Too many requests",
+      "body": "Please wait a moment before trying again."
+    },
+    "unsupported_iu_form": {
+      "title": "Unit not supported",
+      "body": "IU is accepted only with a supported nutrient form."
+    },
+    "invalid_offer_url": {
+      "title": "Offer link not accepted",
+      "body": "Offer links must be absolute http or https addresses."
+    },
+    "import_failed": {
+      "title": "Import failed",
+      "body": "The file was not imported. Nothing was written."
+    },
+    "internal_error": {
+      "title": "Something went wrong on our side",
+      "body": "The request could not be completed. Try again later."
+    }
+  },
+  "validation": {
+    "generic": "This value is not valid.",
+    "required": "This field is required.",
+    "out_of_range": "This value is outside the allowed range.",
+    "value_out_of_range": "This value is outside the allowed range.",
+    "invalid_format": "This value does not have the expected format.",
+    "weights_all_zero": "At least one nutrient must keep a weight above 0.",
+    "unit_requires_form": "This unit needs a known nutrient form.",
+    "unknown_nutrient_code": "Unknown nutrient.",
+    "lambda_requires_custom": "The content-versus-price weight applies to the Custom mode only.",
+    "duplicate_nutrient": "This nutrient is listed twice.",
+    "same_product": "Choose two different products.",
+    "no_offer": "This product has no offer in the selected country.",
+    "no_stock": "This product has no offer in stock.",
+    "threshold_not_allowed": "A threshold applies to price-drop alerts only.",
+    "not_in_future": "Must be in the future.",
+    "too_short": "Use at least 10 characters.",
+    "breached_password": "This password appears in known data breaches. Choose another one.",
+    "summary_title": "Please correct {{ count }} field(s)",
+    "summary_title_one": "Please correct 1 field"
+  },
+  "flag": {
+    "EXCEEDS_UL": "Above upper limit: {{ nutrients }}",
+    "UL_FORM_DEPENDENT": "Limit depends on form: {{ nutrients }}",
+    "CONVERSION_ASSUMED": "IU conversion assumed: {{ nutrients }}",
+    "PRICE_STALE": "Price may be outdated",
+    "OUT_OF_STOCK": "Out of stock",
+    "MARKET_MEDIAN_REFERENCE_USED": "Market median reference: {{ nutrients }}",
+    "PRESENCE_ONLY_NUTRIENTS": "Presence only: {{ nutrients }}",
+    "BELOW_PRESENCE_FLOOR": "Below presence floor: {{ nutrients }}",
+    "FX_STALE": "Exchange rate stale",
+    "FX_UNAVAILABLE": "Shown in {{ currency }}, no rate",
+    "UNAVAILABLE_IN_COUNTRY": "Not sold in {{ country }}",
+    "method_notes": "{{ count }} method notes",
+    "method_notes_one": "1 method note",
+    "list_label": "Flags"
+  },
+  "delta": {
+    "flag": {
+      "NEW_IN_B": "New in B",
+      "REMOVED_IN_B": "Not in B",
+      "DIMINISHING": "Diminishing return",
+      "ABOVE_CEILING_NO_CREDIT": "Above ceiling, no credit",
+      "ABOVE_UL_NO_CREDIT": "Above upper limit, no credit"
+    }
+  },
+  "verdict": {
+    "WORTH_IT": "Worth it",
+    "MARGINAL": "Marginal",
+    "NOT_WORTH_IT": "Not worth it",
+    "DOMINATES": "Better at the same cost",
+    "EQUIVALENT": "Equivalent",
+    "INSUFFICIENT_DATA": "Not enough data",
+    "caption": "Verdict for B over A · indicative",
+    "indicative_note": "The verdict is indicative: it compares label contents per unit of cost and does not account for absorption, quality or your own needs.",
+    "market_fallback": "Market rate here is A's own cost per content point, because fewer than 3 products in this market have content (market of {{ marketSize }})."
+  },
+  "explain": {
+    "verdict": {
+      "worth_it": "B costs {{ deltaCostPerDay }} {{ currency }} more per day and adds {{ deltaContent }} content points. That extra costs {{ marginalRate }} {{ currency }} per point, {{ ratio }}× the market rate of {{ mRef }} {{ currency }}: worth it.",
+      "marginal": "B costs {{ deltaCostPerDay }} {{ currency }} more per day and adds {{ deltaContent }} content points. That extra costs {{ marginalRate }} {{ currency }} per point, {{ ratio }}× the market rate of {{ mRef }} {{ currency }}: marginal.",
+      "not_worth_it": "B costs {{ deltaCostPerDay }} {{ currency }} more per day for {{ deltaContent }} content points. That extra costs {{ marginalRate }} {{ currency }} per point, {{ ratio }}× the market rate of {{ mRef }} {{ currency }}: not worth it.",
+      "dominates": "B costs at most the same per day and has more content: {{ deltaContent }} content points more.",
+      "equivalent": "Both products cost the same per day and have the same content.",
+      "insufficient_data": "There is not enough data to judge whether the extra cost of B is worth it."
+    }
+  },
+  "results": {
+    "locked_label": "Locked result",
+    "locked_row": "Result {{ rank }}, locked",
+    "locked_more": "{{ from }}–{{ to }} · {{ count }} more locked",
+    "locked_list_label": "Locked results",
+    "locked_cta": "{{ locked }} more results are locked",
+    "locked_cta_one": "1 more result is locked",
+    "locked_text": "Create a free account to see the full ranking, save products and get price alerts. Queries become unlimited.",
+    "locked_register": "Create free account",
+    "locked_login": "Log in"
+  },
+  "money": {
+    "per_day": "per day",
+    "days_supply": "{{ price }} · {{ days }} days",
+    "native": "{{ amount }}",
+    "tooltip": {
+      "price": "Price",
+      "retailer": "Retailer",
+      "demo_checked": "Demo price, checked {{ date }}",
+      "native": "Native amount",
+      "rate": "1 {{ base }} = {{ rate }} {{ quote }}, ECB rate of {{ date }}",
+      "stale": "The exchange rate is more than 5 days old.",
+      "unavailable": "No exchange rate is available, so the amount stays in {{ currency }}."
+    }
+  },
+  "fx": {
+    "unavailable_title": "Prices are shown in {{ currency }}",
+    "unavailable_body": "No exchange rate is available for {{ base }} → {{ quote }} yet, so every amount stays in {{ currency }}. The ranking is not affected.",
+    "stale_body": "Prices converted from {{ base }} at 1 {{ base }} = {{ rate }} {{ quote }}, ECB rate of {{ date }}."
+  },
+  "provenance": {
+    "synthetic": "Synthetic demo product",
+    "label_snapshot": "US label snapshot · {{ date }}",
+    "label_snapshot_undated": "US label snapshot",
+    "identification_only": "Product names are for identification only; no affiliation.",
+    "demo_price": "Demo price",
+    "demo_prices": "All prices are demo values"
+  },
+  "score": {
+    "content": "Content score",
+    "value": "Value score",
+    "custom": "Custom score",
+    "accessible": "{{ label }} {{ display }} of 100, raw {{ raw }}",
+    "delta_accessible": "Change in content score {{ value }}"
+  },
+  "category": {
+    "VITAMIN": "Vitamin",
+    "MINERAL": "Mineral",
+    "COENZYME": "Coenzyme",
+    "OTHER": "Other"
+  },
+  "dosage": {
+    "TABLET": "Tablet",
+    "CAPSULE": "Capsule",
+    "SOFTGEL": "Softgel",
+    "GUMMY": "Gummy",
+    "POWDER": "Powder",
+    "LIQUID": "Liquid"
+  },
+  "usage": {
+    "of": "{{ used }} of {{ limit }}",
+    "unlimited": "{{ used }} · unlimited",
+    "limit_reached": "{{ used }} of {{ limit }} · limit reached"
+  },
+  "common": {
+    "close": "Close",
+    "cancel": "Cancel",
+    "loading": "Loading…",
+    "on": "On",
+    "off": "Off",
+    "none": "—"
+  },
+  "pagination": {
+    "label": "Pagination",
+    "showing": "Showing {{ from }}–{{ to }} of {{ total }}",
+    "previous": "Previous",
+    "next": "Next"
+  },
+  "not_found": {
+    "page_title": "Page not found",
+    "title": "This page does not exist",
+    "text": "The address may be mistyped, or the page was moved.",
+    "home": "Go to the start page"
   }
 }

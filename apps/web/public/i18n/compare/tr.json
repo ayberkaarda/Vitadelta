@@ -1,0 +1,79 @@
+{
+  "page_title": "Karşılaştırma",
+  "back": "Sonuçlara dön",
+  "eyebrow": "Karşılaştırma · {{ country }} · {{ stock }}",
+  "stock": {
+    "IN_STOCK_ONLY": "yalnızca stokta olanlar",
+    "INCLUDE_OUT_OF_STOCK": "stokta olmayanlar dahil"
+  },
+  "title_question": "{{ b }}, günlük {{ cost }} fazlasına değer mi?",
+  "title_or": "{{ a }} mı, {{ b }} mı?",
+  "swapped_title": "Sıra değişti",
+  "swapped_body": "Önce {{ b }} ürününü açtınız. A her zaman günlük maliyeti daha düşük olan üründür; bu yüzden A olarak {{ a }} gösteriliyor.",
+  "loading": "Ürünler karşılaştırılıyor…",
+  "loaded": "{{ a }} ile {{ b }} karşılaştırması yüklendi",
+  "pair": {
+    "label": "Karşılaştırılan ürünler",
+    "letter_a": "A",
+    "letter_b": "B",
+    "vs": "ile",
+    "pack": "{{ price }} demo fiyat · {{ days }} gün",
+    "cost_per_day": "Günlük maliyet",
+    "content": "İçerik puanı",
+    "value": "Değer puanı"
+  },
+  "verdict": {
+    "heading": "Değerlendirme",
+    "extra_cost": "Günlük ek maliyet",
+    "extra_content": "Ek içerik",
+    "marginal_rate": "Fazlanın fiyatı (puan başına, günlük)",
+    "ratio": "Piyasa oranına göre",
+    "difference": "{{ b }} − {{ a }}",
+    "market_rate": "piyasa oranı {{ amount }}",
+    "ratio_value": "{{ ratio }}×",
+    "thresholds": "değer ≤ {{ worth }} · sınırda ≤ {{ marginal }}"
+  },
+  "scale": {
+    "label": "Piyasa oranına göre {{ ratio }}; {{ worth }} değerine kadar değer, {{ marginal }} değerine kadar sınırda",
+    "value": "{{ ratio }}×",
+    "off_scale": "{{ ratio }}× · ölçek dışı"
+  },
+  "table": {
+    "heading": "Besin öğesi bazında ne değişiyor",
+    "caption": "Günlük miktarlar · {{ reference }} karşısında karşılama · çubuklar en büyük değişime göre ölçekli",
+    "sr_caption": "A'dan B'ye besin öğesi bazında değişim",
+    "nutrient": "Besin öğesi",
+    "a_day": "A / gün",
+    "b_day": "B / gün",
+    "delta_amount": "Δ miktar",
+    "coverage": "Karşılama A → B",
+    "utility": "Fayda A → B",
+    "weight": "Ağırlık",
+    "delta_contribution": "Δ katkı",
+    "flags": "İşaretler",
+    "arrow": "{{ a }} → {{ b }}",
+    "details": "{{ code }} ayrıntıları",
+    "total": "İçerik puanındaki toplam değişim",
+    "show_unchanged": "Değişmeyen {{ count }} besin öğesini göster",
+    "show_unchanged_one": "Değişmeyen 1 besin öğesini göster",
+    "hide_unchanged": "Değişmeyen besin öğelerini gizle",
+    "ceiling": "tavan {{ percent }}"
+  },
+  "flag_reading": {
+    "NEW_IN_B": "Bu besin öğesi yalnızca B'de var.",
+    "REMOVED_IN_B": "Bu besin öğesi A'da var, B'de yok.",
+    "DIMINISHING": "A referansı zaten karşılıyor; bu yüzden B'deki ek miktarın katkısı giderek azalıyor.",
+    "ABOVE_CEILING_NO_CREDIT": "Ek miktarın bir kısmı fayda tavanının üzerinde kalıyor ve puan kazandırmıyor.",
+    "ABOVE_UL_NO_CREDIT": "Ek miktarın bir kısmı üst sınırın üzerinde ve puana sayılmıyor.",
+    "ceiling_split": "Ek {{ delta }} miktarın ilk {{ credited }} kadarı hâlâ biraz katkı sağlıyor; son {{ wasted }} ise {{ ceiling }} tavanının üzerinde kalıyor ve puan kazandırmıyor."
+  },
+  "error": {
+    "title": "Bu ürünler karşılaştırılamıyor",
+    "same_product": "İki bağlantı da aynı ürünü gösteriyor. İki farklı ürün seçin.",
+    "no_offer": "{{ product }} için bu ülkede teklif yok.",
+    "no_stock": "{{ product }} için stokta teklif yok. Karşılaştırmak için sorgunuza stokta olmayan teklifleri de dahil edin.",
+    "baseline": "İlk ürün",
+    "candidate": "İkinci ürün",
+    "either": "Ürünlerden biri"
+  }
+}

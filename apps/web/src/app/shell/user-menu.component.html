@@ -1,0 +1,72 @@
+<button
+  #trigger
+  type="button"
+  class="user"
+  aria-haspopup="menu"
+  [attr.aria-expanded]="open()"
+  [attr.aria-controls]="open() ? menuId : null"
+  (click)="toggle()"
+  (keydown)="onButtonKeydown($event)"
+>
+  <span class="sr-only">{{ 'shell.menu.button' | transloco }}</span>
+  <span class="avatar" aria-hidden="true">{{ initial() }}</span>
+  <span class="plan-tag" [class.pro]="tag() !== 'FREE'">{{ 'plan.' + tag() | transloco }}</span>
+  <vd-icon name="chev" size="sm" />
+</button>
+
+@if (open()) {
+  <div class="menu">
+    <p class="who">
+      {{ 'shell.menu.signed_in_as' | transloco }}
+      <strong>{{ session.user()?.email }}</strong>
+    </p>
+    <ul
+      #menu
+      [id]="menuId"
+      role="menu"
+      tabindex="-1"
+      [attr.aria-label]="'shell.menu.button' | transloco"
+      (keydown)="onMenuKeydown($event)"
+    >
+      <li role="none">
+        <a role="menuitem" routerLink="/account" tabindex="-1" (click)="select()">
+          <vd-icon name="user" />{{ 'shell.menu.account' | transloco }}
+        </a>
+      </li>
+      <li role="none">
+        <a role="menuitem" routerLink="/account/saved" tabindex="-1" (click)="select()">
+          <vd-icon name="save" />{{ 'shell.menu.saved' | transloco }}
+        </a>
+      </li>
+      <li role="none">
+        <a role="menuitem" routerLink="/account/alerts" tabindex="-1" (click)="select()">
+          <vd-icon name="bell" />{{ 'shell.menu.alerts' | transloco }}
+        </a>
+      </li>
+      <li role="none">
+        <a role="menuitem" routerLink="/account/notifications" tabindex="-1" (click)="select()">
+          <vd-icon name="mail" />
+          <span class="grow">{{ 'shell.menu.notifications' | transloco }}</span>
+          @if ((unread.count() ?? 0) > 0) {
+            <span class="badge t-info">{{
+              'shell.menu.notifications_new' | transloco: { count: unread.count() }
+            }}</span>
+          }
+        </a>
+      </li>
+      @if (session.isAdmin()) {
+        <li role="none">
+          <a role="menuitem" routerLink="/admin" tabindex="-1" (click)="select()">
+            <vd-icon name="shield" />{{ 'shell.menu.admin' | transloco }}
+          </a>
+        </li>
+      }
+      <li role="separator" class="sep"></li>
+      <li role="none">
+        <button type="button" role="menuitem" tabindex="-1" (click)="logout()">
+          <vd-icon name="logout" />{{ 'shell.menu.logout' | transloco }}
+        </button>
+      </li>
+    </ul>
+  </div>
+}

@@ -1,0 +1,211 @@
+<section class="stack" aria-labelledby="users-title">
+  <h2 id="users-title" class="h2">{{ 'admin.users.title' | transloco }}</h2>
+
+  <form class="search" role="search" novalidate (submit)="search($event)">
+    <label class="sr-only" for="user-search">{{ 'admin.users.search_label' | transloco }}</label>
+    <input
+      #searchInput
+      id="user-search"
+      class="inp"
+      type="search"
+      autocomplete="off"
+      spellcheck="false"
+      [attr.placeholder]="'admin.users.search_placeholder' | transloco"
+      [value]="query()"
+      (input)="onSearchInput(searchInput.value)"
+    />
+    @let current = state();
+    @if (current.kind === 'ready') {
+      <span class="text-sm muted" aria-live="polite" data-total>{{
+        (current.page.meta.total === 1 ? 'admin.users.count_one' : 'admin.users.count')
+          | transloco: { count: format.integer(current.page.meta.total) }
+      }}</span>
+    }
+  </form>
+
+  <div class="live-region" aria-live="polite">
+    @if (message(); as m) {
+      <vd-notice tone="ok" data-user-message>
+        <p>{{ m.key | transloco: m.params }}</p>
+      </vd-notice>
+    }
+  </div>
+
+  @let s = state();
+  @if (s.kind === 'loading') {
+    <div class="tbl-wrap">
+      <vd-skeleton [rows]="5" [status]="'admin.users.loading' | transloco" />
+    </div>
+  } @else if (s.kind === 'error') {
+    <vd-problem-notice [problem]="s.problem" [retryable]="true" (retry)="load(page())" />
+  } @else if (s.page.items.length === 0) {
+    <div class="card">
+      <vd-empty-state icon="user" [heading]="'admin.users.empty' | transloco" />
+    </div>
+  } @else {
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <caption class="sr-only">
+          {{
+            'admin.users.caption' | transloco
+          }}
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col">{{ 'admin.users.col.email' | transloco }}</th>
+            <th scope="col">{{ 'admin.users.col.role' | transloco }}</th>
+            <th scope="col">{{ 'admin.users.col.plan' | transloco }}</th>
+            <th scope="col">{{ 'admin.users.col.verified' | transloco }}</th>
+            <th scope="col">{{ 'admin.users.col.status' | transloco }}</th>
+            <th scope="col">{{ 'admin.users.col.created' | transloco }}</th>
+            <th scope="col" class="r">{{ 'admin.users.col.actions' | transloco }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (user of s.page.items; track user.id) {
+            @let open = action();
+            <tr
+              [attr.data-user]="user.email"
+              [class.is-selected]="open?.userId === user.id && open?.kind === 'grant'"
+            >
+              <td>{{ user.email }}</td>
+              <td class="nowrap">
+                @if (user.role === 'ADMIN') {
+                  <vd-icon name="shield" size="sm" />
+                }
+                {{ 'admin.users.role.' + user.role | transloco }}
+              </td>
+              <td>
+                <span class="badge" [class.t-info]="user.plan === 'PRO'">{{
+                  'plan.' + user.plan | transloco
+                }}</span>
+              </td>
+              <td>
+                @if (user.emailVerified) {
+                  <span class="badge t-ok"
+                    ><vd-icon name="ok" />{{ 'admin.users.verified_yes' | transloco }}</span
+                  >
+                } @else {
+                  <span class="badge">{{ 'admin.users.verified_no' | transloco }}</span>
+                }
+              </td>
+              <td>
+                @if (user.status === 'DISABLED') {
+                  <span class="badge t-bad" data-status="DISABLED"
+                    ><vd-icon name="lock" />{{ 'admin.users.status.DISABLED' | transloco }}</span
+                  >
+                } @else {
+                  <span data-status="ACTIVE">{{ 'admin.users.status.ACTIVE' | transloco }}</span>
+                }
+              </td>
+              <td class="nowrap">{{ format.date(user.createdAt) }}</td>
+              <td class="r">
+                @if (isSelf(user)) {
+                  <span class="text-sm muted">{{ 'admin.users.self' | transloco }}</span>
+                } @else if (open?.userId === user.id && open?.kind === 'grant') {
+                  @let daysError = grantError();
+                  <form class="inline-form" novalidate (submit)="grant(user, $event)">
+                    <label class="sr-only" [for]="'grant-days-' + user.id">{{
+                      'admin.users.grant_days_label' | transloco: { email: user.email }
+                    }}</label>
+                    <input
+                      #daysInput
+                      class="inp num"
+                      inputmode="numeric"
+                      [id]="'grant-days-' + user.id"
+                      [value]="grantDays()"
+                      [attr.aria-invalid]="daysError ? 'true' : null"
+                      [attr.aria-describedby]="'grant-days-' + user.id + '-error'"
+                      (input)="grantDays.set(daysInput.value)"
+                    />
+                    <span class="text-xs muted">{{ 'admin.users.days' | transloco }}</span>
+                    <button
+                      type="submit"
+                      class="btn btn-primary btn-sm"
+                      [attr.aria-busy]="busy() === user.id"
+                    >
+                      {{ 'admin.users.grant' | transloco }}
+                    </button>
+                    <button type="button" class="btn btn-ghost btn-sm" (click)="action.set(null)">
+                      {{ 'common.cancel' | transloco }}
+                    </button>
+                    <span
+                      class="err-slot"
+                      aria-live="polite"
+                      [id]="'grant-days-' + user.id + '-error'"
+                    >
+                      @if (daysError) {
+                        <span class="err"><vd-icon name="warn" />{{ daysError | transloco }}</span>
+                      }
+                    </span>
+                  </form>
+                } @else {
+                  <span class="row-2 actions">
+                    <button type="button" class="btn btn-sm" (click)="openGrant(user)">
+                      {{ 'admin.users.grant_open' | transloco }}
+                    </button>
+                    @if (user.status === 'ACTIVE') {
+                      <button
+                        type="button"
+                        class="btn btn-danger btn-sm"
+                        [attr.aria-expanded]="open?.userId === user.id && open?.kind === 'disable'"
+                        (click)="action.set({ kind: 'disable', userId: user.id })"
+                      >
+                        {{ 'admin.users.disable' | transloco }}
+                      </button>
+                    } @else {
+                      <button
+                        type="button"
+                        class="btn btn-sm"
+                        [attr.aria-busy]="busy() === user.id"
+                        (click)="setStatus(user, 'ACTIVE')"
+                      >
+                        {{ 'admin.users.enable' | transloco }}
+                      </button>
+                    }
+                  </span>
+                }
+              </td>
+            </tr>
+            @if (open?.userId === user.id && open?.kind === 'disable') {
+              <tr class="confirm-row">
+                <td colspan="7">
+                  <div class="row-between">
+                    <p class="text-sm">
+                      {{ 'admin.users.confirm_disable' | transloco: { email: user.email } }}
+                    </p>
+                    <div class="row-2">
+                      <button
+                        type="button"
+                        class="btn btn-danger btn-sm"
+                        data-confirm
+                        [attr.aria-busy]="busy() === user.id"
+                        (click)="setStatus(user, 'DISABLED')"
+                      >
+                        {{ 'admin.users.disable_confirm' | transloco }}
+                      </button>
+                      <button type="button" class="btn btn-ghost btn-sm" (click)="action.set(null)">
+                        {{ 'common.cancel' | transloco }}
+                      </button>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            }
+            @if (rowProblems()[user.id]; as problem) {
+              <tr>
+                <td colspan="7"><vd-problem-notice [problem]="problem" /></td>
+              </tr>
+            }
+          }
+        </tbody>
+      </table>
+    </div>
+    <vd-pagination
+      [page]="s.page.meta.page"
+      [pageSize]="s.page.meta.pageSize"
+      [total]="s.page.meta.total"
+      (pageChange)="load($event)"
+    />
+  }
+</section>

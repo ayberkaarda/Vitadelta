@@ -1,0 +1,231 @@
+<section class="stack" aria-labelledby="promo-title">
+  <h2 id="promo-title" class="h2">{{ 'admin.promo.title' | transloco }}</h2>
+
+  <section class="card stack-3" aria-labelledby="promo-create-title">
+    <h3 id="promo-create-title" class="h4">{{ 'admin.promo.create_title' | transloco }}</h3>
+    @if (createProblem(); as p) {
+      <vd-problem-notice [problem]="p" (retry)="create()" />
+    }
+    <vd-error-summary [errors]="errors().summary" />
+    @let prefixError = errors().fields[ids.prefix];
+    @let planError = errors().fields[ids.plan];
+    @let durationError = errors().fields[ids.duration];
+    @let maxError = errors().fields[ids.max];
+    @let expiresError = errors().fields[ids.expires];
+    <form class="form-row" novalidate (submit)="create($event)">
+      <vd-field
+        [controlId]="ids.prefix"
+        [label]="'admin.promo.prefix' | transloco"
+        [error]="prefixError ? (prefixError | transloco) : null"
+      >
+        <input
+          #prefixInput
+          vdControl
+          class="inp mono"
+          autocomplete="off"
+          spellcheck="false"
+          maxlength="16"
+          [value]="prefix()"
+          (input)="prefix.set(prefixInput.value)"
+        />
+      </vd-field>
+      <vd-field
+        [controlId]="ids.plan"
+        [label]="'admin.promo.plan' | transloco"
+        [error]="planError ? (planError | transloco) : null"
+      >
+        <select vdControl class="sel">
+          <option value="PRO" selected>{{ 'plan.PRO' | transloco }}</option>
+        </select>
+      </vd-field>
+      <vd-field
+        [controlId]="ids.duration"
+        [label]="'admin.promo.duration' | transloco"
+        [error]="durationError ? (durationError | transloco) : null"
+      >
+        <input
+          #durationInput
+          vdControl
+          class="inp num"
+          inputmode="numeric"
+          [value]="duration()"
+          (input)="duration.set(durationInput.value)"
+        />
+      </vd-field>
+      <vd-field
+        [controlId]="ids.max"
+        [label]="'admin.promo.max' | transloco"
+        [error]="maxError ? (maxError | transloco) : null"
+      >
+        <input
+          #maxInput
+          vdControl
+          class="inp num"
+          inputmode="numeric"
+          [value]="maxRedemptions()"
+          (input)="maxRedemptions.set(maxInput.value)"
+        />
+      </vd-field>
+      <vd-field
+        [controlId]="ids.expires"
+        [label]="'admin.promo.expires' | transloco"
+        [hint]="'admin.promo.expires_hint' | transloco"
+        [error]="expiresError ? (expiresError | transloco) : null"
+      >
+        <input
+          #expiresInput
+          vdControl
+          class="inp"
+          type="date"
+          [value]="expires()"
+          (input)="expires.set(expiresInput.value)"
+          (change)="expires.set(expiresInput.value)"
+        />
+      </vd-field>
+      <div class="submit">
+        <button class="btn btn-primary" type="submit" [attr.aria-busy]="creating()">
+          {{ 'admin.promo.create' | transloco }}
+        </button>
+      </div>
+    </form>
+  </section>
+
+  <div class="live-region" aria-live="polite">
+    @if (created(); as code) {
+      <vd-notice tone="ok" [heading]="'admin.promo.created_title' | transloco" data-created>
+        <div class="created-code">
+          <span class="code-value" data-code>{{ code.code }}</span>
+          <button type="button" class="btn btn-sm" (click)="copy(code.code)">
+            <vd-icon name="copy" />{{ 'admin.promo.copy' | transloco }}
+          </button>
+          <span class="text-xs muted" role="status">
+            @if (copied() === code.code) {
+              {{ 'admin.promo.copied' | transloco }}
+            } @else if (copied() === '') {
+              {{ 'admin.promo.copy_failed' | transloco }}
+            }
+          </span>
+        </div>
+        <p>{{ 'admin.promo.created_text' | transloco }}</p>
+        <div vdNoticeActions>
+          <button type="button" class="btn btn-sm" (click)="created.set(null)">
+            {{ 'admin.promo.dismiss' | transloco }}
+          </button>
+        </div>
+      </vd-notice>
+    }
+  </div>
+
+  @if (listProblem(); as p) {
+    <vd-problem-notice [problem]="p" />
+  }
+
+  @let s = state();
+  @if (s.kind === 'loading') {
+    <div class="tbl-wrap">
+      <vd-skeleton [rows]="3" [status]="'admin.promo.loading' | transloco" />
+    </div>
+  } @else if (s.kind === 'error') {
+    <vd-problem-notice [problem]="s.problem" [retryable]="true" (retry)="load()" />
+  } @else if (s.items.length === 0) {
+    <div class="card">
+      <vd-empty-state icon="key" [heading]="'admin.promo.empty' | transloco" />
+    </div>
+  } @else {
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <caption class="sr-only">
+          {{
+            'admin.promo.caption' | transloco
+          }}
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col">{{ 'admin.promo.col.code' | transloco }}</th>
+            <th scope="col">{{ 'admin.promo.col.plan' | transloco }}</th>
+            <th scope="col" class="r">{{ 'admin.promo.col.days' | transloco }}</th>
+            <th scope="col" class="r">{{ 'admin.promo.col.redeemed' | transloco }}</th>
+            <th scope="col">{{ 'admin.promo.col.expires' | transloco }}</th>
+            <th scope="col">
+              <span class="sr-only">{{ 'admin.promo.col.actions' | transloco }}</span>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (code of s.items; track code.code) {
+            <tr [attr.data-code-row]="code.code">
+              <td>
+                <span class="row-2 nowrap">
+                  <span class="mono strong">{{ code.code }}</span>
+                  <button
+                    type="button"
+                    class="btn btn-sm btn-icon"
+                    [attr.aria-label]="'admin.promo.copy_aria' | transloco: { code: code.code }"
+                    (click)="copy(code.code)"
+                  >
+                    <vd-icon name="copy" />
+                  </button>
+                </span>
+              </td>
+              <td>{{ 'plan.' + code.planCode | transloco }}</td>
+              <td class="r">{{ format.integer(code.durationDays) }}</td>
+              <td class="r">
+                {{ format.integer(code.redeemedCount) }} / {{ format.integer(code.maxRedemptions) }}
+                @if (usedUp(code)) {
+                  <span class="badge">{{ 'admin.promo.used_up' | transloco }}</span>
+                }
+              </td>
+              <td class="nowrap">
+                @if (code.expiresAt) {
+                  {{ format.date(code.expiresAt) }}
+                } @else {
+                  <span class="muted">{{ 'admin.promo.never' | transloco }}</span>
+                }
+              </td>
+              <td class="r">
+                <button
+                  type="button"
+                  class="btn btn-sm btn-icon"
+                  [attr.aria-label]="'admin.promo.delete_aria' | transloco: { code: code.code }"
+                  [attr.aria-expanded]="confirming() === code.code"
+                  (click)="confirming.set(confirming() === code.code ? null : code.code)"
+                >
+                  <vd-icon name="trash" />
+                </button>
+              </td>
+            </tr>
+            @if (confirming() === code.code) {
+              <tr class="confirm-row">
+                <td colspan="6">
+                  <div class="row-between">
+                    <p class="text-sm">
+                      {{ 'admin.promo.confirm_delete' | transloco: { code: code.code } }}
+                    </p>
+                    <div class="row-2">
+                      <button
+                        type="button"
+                        class="btn btn-danger btn-sm"
+                        data-confirm
+                        [attr.aria-busy]="deleting()"
+                        (click)="remove(code)"
+                      >
+                        {{ 'admin.promo.delete' | transloco }}
+                      </button>
+                      <button
+                        type="button"
+                        class="btn btn-ghost btn-sm"
+                        (click)="confirming.set(null)"
+                      >
+                        {{ 'common.cancel' | transloco }}
+                      </button>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            }
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</section>

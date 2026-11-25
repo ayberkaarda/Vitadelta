@@ -1,0 +1,31 @@
+:host {
+  display: block;
+}
+
+.sbar {
+  display: grid;
+  grid-template-columns: 3.25rem minmax(4rem, 1fr);
+  align-items: center;
+  gap: 0 var(--vd-space-2);
+  min-width: 8.5rem;
+}
+
+.v {
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--vd-font-weight-semibold);
+  text-align: right;
+  font-size: var(--vd-font-size-sm);
+}
+
+svg {
+  display: block;
+  width: 100%;
+  overflow: visible;
+}
+
+.raw {
+  grid-column: 2;
+  font-size: 11px;
+  color: var(--vd-color-text-muted);
+  font-variant-numeric: tabular-nums;
+}

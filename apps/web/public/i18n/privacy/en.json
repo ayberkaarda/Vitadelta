@@ -1,0 +1,114 @@
+{
+  "page_title": "Privacy notice",
+  "eyebrow": "Privacy notice · KVKK (Law No. 6698) and GDPR",
+  "title": "How VitaDelta handles your data",
+  "updated": "Last updated: 25 November 2026",
+  "toc_label": "Sections of the privacy notice",
+  "intro": "This notice explains which personal data VitaDelta processes when you use the website, why, for how long, who receives it, and which rights you have under the Turkish Personal Data Protection Law No. 6698 (KVKK) and the EU General Data Protection Regulation (GDPR).",
+  "who": {
+    "title": "Who is responsible",
+    "text": "The data controller for your personal data is the operator of VitaDelta. You can reach the controller about anything on this page at:",
+    "copy": "Copy address",
+    "copied": "Address copied to the clipboard.",
+    "copy_failed": "Copying is not available here; select the address and copy it.",
+    "loading": "Loading the contact address…"
+  },
+  "data": {
+    "title": "Data we process",
+    "items": {
+      "account": "Your e-mail address and a hash of your password. The password itself is never stored.",
+      "prefs": "Your language, display currency and default country, and whether alert e-mails are switched on.",
+      "lists": "Products you save, alerts you create and the notifications we create for you, with their dates.",
+      "plan": "Your plan, the period of a PRO subscription and the promo codes you redeemed.",
+      "tokens": "One-time tokens for e-mail verification and password reset, and sign-in session tokens, each stored only as a hash.",
+      "anon": "For visitors without an account: a random identifier from the vd_anon cookie, stored only as a hash, and the number of free queries used.",
+      "ip": "IP addresses, held only in the server's memory to limit request rates; they are not written to the database."
+    },
+    "not_collected": "We do not ask for names, postal addresses, payment details or health information."
+  },
+  "purposes": {
+    "title": "Why, and on what basis",
+    "col": {
+      "purpose": "Purpose",
+      "data": "Data",
+      "basis": "Legal basis"
+    },
+    "rows": {
+      "account": {
+        "purpose": "Running your account and sign-in",
+        "data": "E-mail address, password hash, session tokens",
+        "basis": "Performance of a contract (KVKK Art. 5(2)(c); GDPR Art. 6(1)(b))"
+      },
+      "lists": {
+        "purpose": "Saved products, alerts and in-app notifications",
+        "data": "Saved products, alerts, notifications",
+        "basis": "Performance of a contract (KVKK Art. 5(2)(c); GDPR Art. 6(1)(b))"
+      },
+      "mail": {
+        "purpose": "Verification, password-reset, plan and alert e-mails",
+        "data": "E-mail address, language, notification content",
+        "basis": "Performance of a contract (KVKK Art. 5(2)(c); GDPR Art. 6(1)(b))"
+      },
+      "plan": {
+        "purpose": "Plan limits, PRO periods and promo codes",
+        "data": "Plan, subscription period, promo code redemptions",
+        "basis": "Performance of a contract (KVKK Art. 5(2)(c); GDPR Art. 6(1)(b))"
+      },
+      "quota": {
+        "purpose": "Free query limit for visitors without an account",
+        "data": "Hash of the vd_anon identifier, number of queries used",
+        "basis": "Legitimate interest (KVKK Art. 5(2)(f); GDPR Art. 6(1)(f))"
+      },
+      "security": {
+        "purpose": "Security and protection against abuse (rate limits, sign-in attempt limits)",
+        "data": "IP address in memory, e-mail address of a sign-in attempt",
+        "basis": "Legitimate interest (KVKK Art. 5(2)(f); GDPR Art. 6(1)(f))"
+      }
+    }
+  },
+  "retention": {
+    "title": "How long we keep it",
+    "items": {
+      "account": "Account data, saved products, alerts and notifications: until you delete your account.",
+      "unverified": "Accounts whose e-mail address was never verified and that never logged in: deleted after 30 days.",
+      "anon": "Identifiers of visitors without an account: deleted 180 days after the last visit; the vd_anon cookie also expires after 180 days.",
+      "tokens": "Verification links are valid for 24 hours and password-reset links for 1 hour; the stored tokens are deleted 7 days after they expired or were used.",
+      "sessions": "Sign-in sessions are valid for 30 days; their records are deleted 30 days after they expired or were ended.",
+      "outbox": "Internal delivery records of alert e-mails: deleted 30 days after processing; records of failed deliveries after 90 days.",
+      "ip": "IP addresses for rate limits: only in memory while a limit window is open, never on disk.",
+      "backups": "Encrypted database backups: kept for 14 days. A deleted account can therefore remain in backups for up to 14 days; after that it is gone."
+    }
+  },
+  "recipients": {
+    "title": "Who receives it",
+    "mail": "Our e-mail delivery provider receives your e-mail address and the content of the messages we send you (verification, password reset, plan changes and alerts) in order to deliver them.",
+    "fx": "The exchange-rate provider receives no personal data: the server only asks it for the reference rates of the European Central Bank.",
+    "none": "We do not sell personal data and do not share it for advertising."
+  },
+  "cookies": {
+    "title": "Cookies",
+    "text": "We set only two cookies, and both are strictly necessary for the service:",
+    "anon": "counts the free queries of visitors without an account. It holds a signed random identifier and expires after 180 days.",
+    "refresh": "keeps you signed in. It is sent only to the sign-in endpoints and expires after 30 days.",
+    "no_banner": "There are no analytics or marketing cookies, so there is no consent banner.",
+    "local_storage": "Your browser also keeps your choice of country, display currency and language in its local storage. This stays on your device and is not sent to us."
+  },
+  "rights": {
+    "title": "Your rights",
+    "intro": "Under KVKK Article 11 and GDPR Articles 15 to 22 you have the right to:",
+    "items": {
+      "access": "learn whether we process your data, and receive a copy of it and information about the processing;",
+      "rectify": "have incorrect or incomplete data corrected (you can change your preferences yourself under Account);",
+      "erase": "have your data erased;",
+      "restrict": "ask us to restrict the processing or object to it;",
+      "portability": "receive the data you gave us in a structured, machine-readable format;",
+      "complain": "complain to the Turkish Personal Data Protection Authority (KVKK) or to the data protection authority of your country in the EU."
+    },
+    "how_title": "How to exercise them",
+    "how_delete_prefix": "You can erase your account yourself at any time under",
+    "how_delete_link": "Account → Delete account",
+    "how_delete_suffix": ". This erases your data at once; only the encrypted backups keep a copy for up to 14 days.",
+    "how_contact": "For every other request, write to the controller address at the top of this page. We may ask you to confirm that the account is yours.",
+    "response": "We answer within 30 days (KVKK) or one month (GDPR)."
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "products": [
+    {
+      "code": "E2E-IMPORT-DAILY",
+      "brand": "Harbourlight Test Labs",
+      "name": "Import Check Daily",
+      "dosage_form": "TABLET",
+      "units_per_container": 100,
+      "units_per_serving": 1,
+      "servings_per_day": 1,
+      "source": "Synthetic end-to-end fixture (fictional brand and formulation)",
+      "synthetic": true,
+      "nutrients": [
+        {
+          "nutrient_code": "VIT_C",
+          "amount_per_serving": 90,
+          "unit": "mg",
+          "form_label": "ascorbic acid"
+        },
+        {
+          "nutrient_code": "VIT_D",
+          "amount_per_serving": 20,
+          "unit": "mcg",
+          "form_code": "D3_CHOLECALCIFEROL",
+          "form_label": "cholecalciferol (vitamin D3)"
+        },
+        {
+          "nutrient_code": "ZINC",
+          "amount_per_serving": 11,
+          "unit": "mg",
+          "form_code": "ZINC_GLUCONATE",
+          "form_label": "zinc gluconate"
+        }
+      ],
+      "availability": [{ "country_code": "US", "status": "AVAILABLE" }],
+      "offers": [
+        {
+          "country_code": "US",
+          "retailer": "Demo Store",
+          "price": 1.0,
+          "currency": "USD",
+          "in_stock": true,
+          "url": "https://demo-store.example/us/p/e2e-import-daily",
+          "checked_at": "2026-11-24T09:00:00Z"
+        }
+      ]
+    }
+  ]
+}

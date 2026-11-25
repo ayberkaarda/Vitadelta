@@ -1,0 +1,94 @@
+.back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--vd-space-1);
+  align-self: flex-start;
+}
+
+.pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: var(--vd-space-4);
+  align-items: stretch;
+}
+
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--vd-space-2);
+  min-width: 0;
+}
+
+.vs {
+  align-self: center;
+  font-size: var(--vd-font-size-xs);
+  font-weight: var(--vd-font-weight-bold);
+  color: var(--vd-color-text-muted);
+}
+
+.ab {
+  display: inline-grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: var(--vd-radius-sm);
+  background: var(--vd-color-text);
+  color: var(--vd-color-bg);
+  font-size: var(--vd-font-size-xs);
+  font-weight: 800;
+  flex: none;
+}
+
+.name {
+  color: var(--vd-color-text);
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr));
+  gap: var(--vd-space-3);
+  margin: var(--vd-space-2) 0 0;
+
+  dt {
+    font-size: var(--vd-font-size-xs);
+    color: var(--vd-color-text-muted);
+  }
+
+  dd {
+    margin: 0;
+  }
+
+  vd-money {
+    align-items: flex-start;
+
+    ::ng-deep .money-btn {
+      align-items: flex-start;
+      text-align: left;
+    }
+
+    ::ng-deep .amount {
+      font-size: var(--vd-font-size-lg);
+    }
+  }
+}
+
+.big {
+  font-size: var(--vd-font-size-lg);
+  font-weight: var(--vd-font-weight-bold);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 48rem) {
+  .pair {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .vs {
+    justify-self: center;
+  }
+}

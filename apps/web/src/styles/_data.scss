@@ -1,0 +1,312 @@
+// Badges, tables, notices, states and other data surfaces shared by every page.
+
+.badge {
+  --t: var(--vd-color-neutral);
+  --tb: var(--vd-color-neutral-bg);
+
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 1.5rem;
+  padding: 0 var(--vd-space-2) 0 6px;
+  border-radius: var(--vd-radius-sm);
+  background: var(--tb);
+  color: var(--t);
+  border: 1px solid color-mix(in srgb, var(--t) 28%, transparent);
+  font-size: var(--vd-font-size-xs);
+  font-weight: var(--vd-font-weight-semibold);
+  line-height: 1.2;
+  white-space: nowrap;
+  text-decoration: none;
+
+  .i {
+    width: 0.95rem;
+    height: 0.95rem;
+    stroke-width: 2;
+  }
+
+  &:where(a):hover {
+    color: var(--t);
+    text-decoration: underline;
+  }
+
+  &.t-warn {
+    --t: var(--vd-flag-warning);
+    --tb: var(--vd-flag-warning-bg);
+  }
+
+  &.t-info {
+    --t: var(--vd-color-accent);
+    --tb: var(--vd-color-accent-bg);
+  }
+
+  &.t-ok {
+    --t: var(--vd-color-success);
+    --tb: var(--vd-color-success-bg);
+  }
+
+  &.t-bad {
+    --t: var(--vd-color-danger);
+    --tb: var(--vd-color-danger-bg);
+  }
+
+  &.outline {
+    background: transparent;
+  }
+}
+
+.disclaimer {
+  display: flex;
+  gap: var(--vd-space-2);
+  align-items: flex-start;
+  font-size: var(--vd-font-size-sm);
+  color: var(--vd-color-text-muted);
+  padding: var(--vd-space-3) var(--vd-space-4);
+  border: 1px solid var(--vd-color-border);
+  border-radius: var(--vd-radius-md);
+  background: var(--vd-color-surface);
+}
+
+// Tables
+.tbl-wrap {
+  position: relative;
+  overflow-x: auto;
+  border: 1px solid var(--vd-color-border);
+  border-radius: var(--vd-radius-lg);
+  background: var(--vd-color-surface);
+}
+
+.tbl {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--vd-font-size-sm);
+
+  caption {
+    text-align: left;
+    padding: var(--vd-space-3) var(--vd-space-4);
+    font-weight: var(--vd-font-weight-semibold);
+  }
+
+  th {
+    text-align: left;
+    font-size: var(--vd-font-size-xs);
+    font-weight: var(--vd-font-weight-semibold);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--vd-color-text-muted);
+    padding: var(--vd-space-3);
+    border-bottom: 1px solid var(--vd-color-border);
+    white-space: nowrap;
+    background: var(--vd-color-surface);
+    vertical-align: bottom;
+
+    &[aria-sort] {
+      color: var(--vd-color-text);
+    }
+  }
+
+  td {
+    padding: var(--vd-space-3);
+    border-bottom: 1px solid var(--vd-color-border);
+    vertical-align: middle;
+    font-variant-numeric: tabular-nums;
+  }
+
+  tr:last-child td {
+    border-bottom: 0;
+  }
+
+  .r {
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  .c {
+    text-align: center;
+  }
+
+  tr.is-selected td {
+    background: color-mix(in srgb, var(--vd-color-accent-bg) 70%, transparent);
+  }
+
+  tr.is-hl td {
+    background: var(--vd-flag-warning-bg);
+  }
+
+  tfoot td {
+    font-weight: var(--vd-font-weight-bold);
+    border-top: 1px solid var(--vd-color-border-strong);
+    border-bottom: 0;
+  }
+}
+
+.rank {
+  display: inline-grid;
+  place-items: center;
+  min-width: 2rem;
+  height: 2rem;
+  padding: 0 var(--vd-space-1);
+  border-radius: var(--vd-radius-md);
+  background: var(--vd-color-surface-subtle);
+  font-weight: var(--vd-font-weight-bold);
+  font-variant-numeric: tabular-nums;
+}
+
+// Notices: tinted box with an icon in tone, bold title, small body and optional actions.
+.notice {
+  --t: var(--vd-color-accent);
+  --tb: var(--vd-color-accent-bg);
+
+  display: flex;
+  gap: var(--vd-space-3);
+  align-items: flex-start;
+  padding: var(--vd-space-4);
+  border-radius: var(--vd-radius-md);
+  background: var(--tb);
+  border: 1px solid color-mix(in srgb, var(--t) 30%, transparent);
+  color: var(--vd-color-text);
+  font-size: var(--vd-font-size-sm);
+
+  > .i {
+    color: var(--t);
+    margin-top: 1px;
+  }
+
+  .nt {
+    font-weight: var(--vd-font-weight-bold);
+  }
+
+  .body {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--vd-space-1);
+  }
+
+  .acts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--vd-space-2);
+    margin-top: var(--vd-space-2);
+  }
+
+  &.t-warn {
+    --t: var(--vd-color-warning);
+    --tb: var(--vd-color-warning-bg);
+  }
+
+  &.t-bad {
+    --t: var(--vd-color-danger);
+    --tb: var(--vd-color-danger-bg);
+  }
+
+  &.t-ok {
+    --t: var(--vd-color-success);
+    --tb: var(--vd-color-success-bg);
+  }
+
+  &.t-neutral {
+    --t: var(--vd-color-neutral);
+    --tb: var(--vd-color-neutral-bg);
+  }
+}
+
+// Empty, error and gate states.
+.state {
+  --t: var(--vd-color-text-muted);
+  --tb: var(--vd-color-surface-subtle);
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--vd-space-3);
+  padding: var(--vd-space-7) var(--vd-space-5);
+
+  .ic {
+    width: 3rem;
+    height: 3rem;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    background: var(--tb);
+    color: var(--t);
+
+    .i {
+      width: 1.5rem;
+      height: 1.5rem;
+    }
+  }
+
+  p {
+    max-width: 46ch;
+    color: var(--vd-color-text-muted);
+    font-size: var(--vd-font-size-sm);
+  }
+
+  .acts {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: var(--vd-space-2);
+    margin-top: var(--vd-space-2);
+  }
+
+  &.t-info {
+    --t: var(--vd-color-accent);
+    --tb: var(--vd-color-accent-bg);
+  }
+
+  &.t-warn {
+    --t: var(--vd-color-warning);
+    --tb: var(--vd-color-warning-bg);
+  }
+
+  &.t-bad {
+    --t: var(--vd-color-danger);
+    --tb: var(--vd-color-danger-bg);
+  }
+
+  &.t-ok {
+    --t: var(--vd-color-success);
+    --tb: var(--vd-color-success-bg);
+  }
+}
+
+.skel {
+  display: block;
+  height: 0.75rem;
+  border-radius: 4px;
+  background: var(--vd-color-surface-subtle);
+}
+
+// SVG marks used by the hand-written charts.
+.svg-track {
+  fill: var(--vd-bar-track);
+}
+
+.svg-fill {
+  fill: var(--vd-bar-fill);
+}
+
+.svg-fill-alt {
+  fill: var(--vd-bar-fill-alt);
+}
+
+.svg-gain {
+  fill: var(--vd-delta-gain);
+}
+
+.svg-loss {
+  fill: var(--vd-delta-loss);
+}
+
+.svg-warn {
+  fill: var(--vd-color-warning);
+}
+
+.svg-axis {
+  stroke: var(--vd-color-border-strong);
+  stroke-width: 1;
+}

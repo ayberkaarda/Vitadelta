@@ -1,0 +1,95 @@
+<div class="page medium">
+  <header class="stack-2">
+    <p class="eyebrow">{{ 'upgrade.eyebrow' | transloco }}</p>
+    <h1 class="h1">{{ 'upgrade.title' | transloco }}</h1>
+    <p class="lead">{{ 'upgrade.lead' | transloco }}</p>
+  </header>
+
+  @let s = state();
+  @if (s.kind === 'loading') {
+    <div class="card">
+      <vd-skeleton [rows]="4" [status]="'upgrade.loading' | transloco" />
+    </div>
+  } @else if (s.kind === 'error') {
+    <vd-problem-notice [problem]="s.problem" [retryable]="true" (retry)="reload()" />
+  } @else {
+    <vd-fx-notice [meta]="s.list.meta" />
+    <div class="plans">
+      @for (plan of s.list.items; track plan.code) {
+        <section
+          class="card plan stack"
+          [class.is-pro]="plan.code === 'PRO'"
+          [attr.data-plan]="plan.code"
+          [attr.aria-labelledby]="'plan-' + plan.code"
+        >
+          <div class="row-between">
+            <h2 class="h3" [id]="'plan-' + plan.code">{{ 'plan.' + plan.code | transloco }}</h2>
+            @if (currentPlan() === plan.code) {
+              <span class="badge t-ok" data-current
+                ><vd-icon name="ok" />{{ 'upgrade.your_plan' | transloco }}</span
+              >
+            }
+          </div>
+          <div class="price">
+            @if (plan.price; as price) {
+              <vd-money
+                [amount]="price.amount"
+                [currency]="price.currency"
+                [nativeAmount]="price.amountNative"
+                [nativeCurrency]="price.nativeCurrency"
+                [fx]="s.list.meta.fx"
+              />
+              <span class="per">{{ 'upgrade.per_month' | transloco }}</span>
+            } @else {
+              <span class="free-amount">{{ format.money(0, s.list.meta.currency) }}</span>
+            }
+          </div>
+          <dl class="rows">
+            <div class="feature">
+              <dt>{{ 'upgrade.rows.queries' | transloco }}</dt>
+              <dd>{{ 'upgrade.unlimited' | transloco }}</dd>
+            </div>
+            @for (row of rows(plan); track row.labelKey) {
+              <div class="feature">
+                <dt>{{ row.labelKey | transloco }}</dt>
+                <dd>
+                  @if (row.value === null) {
+                    {{ 'upgrade.unlimited' | transloco }}
+                  } @else {
+                    {{ format.integer(row.value) }}
+                  }
+                </dd>
+              </div>
+            }
+          </dl>
+          @if (plan.price) {
+            <p class="text-xs muted">{{ 'upgrade.price_note' | transloco }}</p>
+          }
+        </section>
+      }
+    </div>
+  }
+
+  <div class="plans">
+    <section class="card stack" aria-labelledby="how-title">
+      <h2 id="how-title" class="h4">{{ 'upgrade.how_title' | transloco }}</h2>
+      <p class="text-sm how">{{ 'upgrade.how_to_get_pro' | transloco }}</p>
+    </section>
+    @if (session.isAuthenticated()) {
+      <vd-promo-form headingKey="account.promo.title_redeem" />
+    } @else {
+      <section class="card stack" aria-labelledby="signin-title" data-signin>
+        <h2 id="signin-title" class="h4">{{ 'upgrade.signin_title' | transloco }}</h2>
+        <p class="text-sm">{{ 'upgrade.signin_text' | transloco }}</p>
+        <div class="row-2">
+          <a class="btn btn-primary" routerLink="/auth/register">{{
+            'upgrade.signin_register' | transloco
+          }}</a>
+          <a class="btn btn-ghost" routerLink="/auth/login" [queryParams]="loginParams">{{
+            'upgrade.signin_login' | transloco
+          }}</a>
+        </div>
+      </section>
+    }
+  </div>
+</div>

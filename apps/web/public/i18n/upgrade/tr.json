@@ -1,0 +1,23 @@
+{
+  "page_title": "Planlar",
+  "eyebrow": "Planlar",
+  "title": "FREE karşılaştırmayı kapsar. PRO takip sınırlarını kaldırır.",
+  "lead": "İki plan da ülkenizdeki her ürünü tam sonuçlarla sıralar. PRO, çok sayıda ürünü ve fiyatı izleyenler içindir.",
+  "loading": "Planlar yükleniyor…",
+  "your_plan": "Planınız",
+  "per_month": "aylık",
+  "unlimited": "Sınırsız",
+  "rows": {
+    "queries": "Sorgular ve tam sonuçlar",
+    "saved": "Kayıtlı ürünler",
+    "alerts": "Etkin alarmlar",
+    "notifications": "Aylık bildirim"
+  },
+  "price_note": "Fiyat bilgi amaçlıdır. Görüntüleme para birimi seçildiğinde tutar çevrilir ve yerel fiyat da yanında gösterilir.",
+  "how_title": "PRO'ya nasıl geçilir",
+  "how_to_get_pro": "Çevrimiçi ödeme henüz yok. PRO bir promosyon koduyla ya da talep üzerine VitaDelta ekibi tarafından etkinleştirilir. PRO dönemi bittiğinde hesabınız kendiliğinden FREE'ye döner; hiçbir şey silinmez.",
+  "signin_title": "Promosyon kodu kullanın",
+  "signin_text": "Promosyon kodları hesabınızda kullanılır. Kod girmek için ücretsiz bir hesap oluşturun veya giriş yapın.",
+  "signin_register": "Ücretsiz hesap oluştur",
+  "signin_login": "Giriş yap"
+}

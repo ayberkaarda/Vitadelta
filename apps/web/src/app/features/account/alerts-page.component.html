@@ -1,0 +1,188 @@
+<section class="stack" aria-labelledby="alerts-title">
+  <div class="list-head">
+    <h2 id="alerts-title" class="h2">{{ 'account.alerts.title' | transloco }}</h2>
+    @if (usage(); as u) {
+      <p class="usage text-sm" data-usage>
+        {{
+          (u.limit === null ? 'account.alerts.usage_unlimited' : 'account.alerts.usage')
+            | transloco: { used: u.used, limit: u.limit ?? '', plan: session.plan() ?? '' }
+        }}
+      </p>
+    }
+  </div>
+
+  <div aria-live="polite" class="sr-only">
+    @if (announcement(); as key) {
+      {{ key | transloco }}
+    }
+  </div>
+
+  @let s = state();
+  @if (s.kind === 'loading') {
+    <div class="tbl-wrap">
+      <vd-skeleton [rows]="3" [status]="'account.alerts.loading' | transloco" />
+    </div>
+  } @else if (s.kind === 'error') {
+    <vd-problem-notice [problem]="s.problem" [retryable]="true" (retry)="load()" />
+  } @else if (s.items.length === 0) {
+    <div class="card">
+      <vd-empty-state icon="bell" tone="info" [heading]="'account.alerts.empty_title' | transloco">
+        <p>{{ 'account.alerts.empty_text' | transloco }}</p>
+        <div vdStateActions>
+          <a class="btn btn-primary" routerLink="/account/saved">{{
+            'account.alerts.to_saved' | transloco
+          }}</a>
+        </div>
+      </vd-empty-state>
+    </div>
+  } @else {
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <caption class="sr-only">
+          {{
+            'account.alerts.caption' | transloco
+          }}
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col">{{ 'account.alerts.col.product' | transloco }}</th>
+            <th scope="col">{{ 'account.alerts.col.country' | transloco }}</th>
+            <th scope="col">{{ 'account.alerts.col.trigger' | transloco }}</th>
+            <th scope="col" class="r">{{ 'account.alerts.col.threshold' | transloco }}</th>
+            <th scope="col" class="r">{{ 'account.alerts.col.baseline' | transloco }}</th>
+            <th scope="col">{{ 'account.alerts.col.last_triggered' | transloco }}</th>
+            <th scope="col">{{ 'account.alerts.col.active' | transloco }}</th>
+            <th scope="col">
+              <span class="sr-only">{{ 'account.alerts.col.actions' | transloco }}</span>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (item of s.items; track item.id) {
+            <tr [attr.data-alert]="item.id" [class.is-pending]="pending().has(item.id)">
+              <td>
+                <div class="product">
+                  <span class="text-xs muted">{{ item.product.brand }}</span>
+                  <a
+                    class="name"
+                    [routerLink]="['/products', item.product.id]"
+                    [queryParams]="{ country: item.countryCode }"
+                    >{{ item.product.name }}</a
+                  >
+                  @if (item.product.availabilityStatus !== 'AVAILABLE') {
+                    <span
+                      ><vd-flag-badge
+                        code="UNAVAILABLE_IN_COUNTRY"
+                        [country]="countryName(item.countryCode)"
+                    /></span>
+                  }
+                </div>
+              </td>
+              <td>{{ countryName(item.countryCode) }}</td>
+              <td>{{ 'account.alerts.trigger.' + item.trigger | transloco }}</td>
+              <td class="r">
+                @if (item.trigger === 'PRICE_DROP') {
+                  @let thresholdError = thresholdErrors()[item.id];
+                  <span class="row-2 threshold-cell">
+                    <input
+                      #thresholdInput
+                      class="inp num inline-input"
+                      inputmode="decimal"
+                      [id]="'threshold-' + item.id"
+                      [value]="thresholdText(item.thresholdPercent)"
+                      [attr.aria-label]="
+                        'account.alerts.threshold_aria' | transloco: { name: item.product.name }
+                      "
+                      [attr.aria-invalid]="thresholdError ? 'true' : null"
+                      [attr.aria-describedby]="'threshold-' + item.id + '-error'"
+                      (change)="changeThreshold(item, thresholdInput.value)"
+                    />
+                    <span aria-hidden="true">%</span>
+                  </span>
+                  <span
+                    class="err-slot"
+                    aria-live="polite"
+                    [id]="'threshold-' + item.id + '-error'"
+                  >
+                    @if (thresholdError) {
+                      <span class="err"
+                        ><vd-icon name="warn" />{{ thresholdError | transloco }}</span
+                      >
+                    }
+                  </span>
+                } @else {
+                  <span class="muted">{{ 'common.none' | transloco }}</span>
+                }
+              </td>
+              <td class="r">
+                @if (item.baselinePrice !== null) {
+                  {{ format.money(item.baselinePrice, item.baselineCurrency) }}
+                } @else {
+                  <span class="muted">{{ 'common.none' | transloco }}</span>
+                }
+              </td>
+              <td class="nowrap">
+                @if (item.lastTriggeredAt) {
+                  {{ format.date(item.lastTriggeredAt) }}
+                } @else {
+                  <span class="muted">{{ 'account.alerts.never' | transloco }}</span>
+                }
+              </td>
+              <td>
+                <button
+                  type="button"
+                  class="switch"
+                  role="switch"
+                  [attr.aria-checked]="item.active"
+                  [attr.aria-label]="
+                    'account.alerts.active_aria'
+                      | transloco
+                        : {
+                            trigger: ('account.alerts.trigger.' + item.trigger | transloco),
+                            name: item.product.name,
+                          }
+                  "
+                  [disabled]="pending().has(item.id)"
+                  (click)="toggleActive(item)"
+                >
+                  <span class="track" aria-hidden="true"></span>
+                  <span class="sw-state" aria-hidden="true">{{
+                    (item.active ? 'common.on' : 'common.off') | transloco
+                  }}</span>
+                </button>
+              </td>
+              <td class="r">
+                <button
+                  type="button"
+                  class="btn btn-sm btn-icon"
+                  [attr.aria-label]="
+                    'account.alerts.delete'
+                      | transloco
+                        : {
+                            trigger: ('account.alerts.trigger.' + item.trigger | transloco),
+                            name: item.product.name,
+                          }
+                  "
+                  (click)="remove(item)"
+                >
+                  <vd-icon name="trash" />
+                </button>
+              </td>
+            </tr>
+            @if (rowProblems()[item.id]; as problem) {
+              <tr class="detail-row">
+                <td colspan="8">
+                  @if (problem.upgradeHint) {
+                    <vd-limit-notice [problem]="problem" />
+                  } @else {
+                    <vd-problem-notice [problem]="problem" />
+                  }
+                </td>
+              </tr>
+            }
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</section>

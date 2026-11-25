@@ -1,17 +1,364 @@
 {
+  "app": {
+    "name": "VitaDelta",
+    "title_with_page": "{{ page }} · {{ app }}"
+  },
   "shell": {
-    "title": "Vitadelta",
-    "tagline": "Takviyeleri günlük dozun sağladıklarına ve maliyetine göre karşılaştırın",
-    "health": {
-      "label": "API durumu",
-      "loading": "API durumu kontrol ediliyor…",
-      "unreachable": "API'ye ulaşılamıyor",
-      "retry": "Tekrar kontrol et",
-      "status": {
-        "UP": "Çalışıyor",
-        "DEGRADED": "Kısıtlı çalışıyor",
-        "DOWN": "Çalışmıyor"
-      }
+    "skip_link": "İçeriğe geç",
+    "home_link": "VitaDelta ana sayfa",
+    "nav": {
+      "label": "Ana menü",
+      "find": "Bul",
+      "pro": "PRO",
+      "saved": "Kaydedilenler",
+      "alerts": "Alarmlar",
+      "admin": "Yönetim"
+    },
+    "country": {
+      "label": "Ülke"
+    },
+    "currency": {
+      "label": "Para birimi",
+      "native": "yerel",
+      "native_option": "{{ currency }} (ülke para birimi)",
+      "as_of": "kur {{ date }}",
+      "stale": "{{ date }} · eski",
+      "unavailable": "kur yok · {{ currency }} gösteriliyor"
+    },
+    "language": {
+      "label": "Dil",
+      "en": "EN",
+      "tr": "TR",
+      "en_name": "English",
+      "tr_name": "Türkçe"
+    },
+    "notifications": {
+      "label": "Bildirimler",
+      "label_unread": "Bildirimler, {{ count }} okunmamış",
+      "overflow": "99+"
+    },
+    "auth": {
+      "login": "Giriş yap",
+      "register": "Hesap oluştur"
+    },
+    "menu": {
+      "button": "Hesap menüsü",
+      "open": "Menüyü aç",
+      "close": "Menüyü kapat",
+      "sheet_title": "Menü",
+      "signed_in_as": "Giriş yapan",
+      "account": "Hesap ve plan",
+      "saved": "Kaydedilen ürünler",
+      "alerts": "Alarmlar",
+      "notifications": "Bildirimler",
+      "notifications_new": "{{ count }} yeni",
+      "admin": "Yönetim",
+      "logout": "Çıkış yap"
+    },
+    "footer": {
+      "label": "Alt bilgi",
+      "data_note": "Ürün verisi: sentetik demo seti ve bir ABD etiket anlık görüntüsü · tüm fiyatlar demo değerlerdir"
     }
+  },
+  "plan": {
+    "FREE": "FREE",
+    "PRO": "PRO",
+    "ADMIN": "ADMIN"
+  },
+  "legal": {
+    "privacy": "Gizlilik bildirimi"
+  },
+  "disclaimer": {
+    "not_medical_advice": "Bu karşılaştırma etiket içeriklerine ve demo fiyatlara dayanır. Tıbbi tavsiye değildir ve ne kullanmanız gerektiğini söylemez.",
+    "footer": "VitaDelta takviye etiketlerini ve fiyatlarını karşılaştırır. Tıbbi tavsiye değildir; kullandıklarınızı bir sağlık uzmanıyla konuşun."
+  },
+  "quota": {
+    "label": "Ücretsiz sorgular",
+    "remaining": "{{ left }} / {{ limit }} ücretsiz sorgu kaldı",
+    "remaining_one": "{{ left }} / {{ limit }} ücretsiz sorgu kaldı",
+    "remaining_short": "{{ left }} / {{ limit }} kaldı",
+    "exhausted": "Ücretsiz sorgu kalmadı · Kaydol",
+    "exhausted_short": "Kaydol"
+  },
+  "limits": {
+    "saved_products_reached": "{{ limit }} üründen {{ used }} tanesini kaydettiniz. Listenizden birini çıkarın veya PRO'ya geçin.",
+    "alert_subscriptions_reached": "{{ limit }} alarmdan {{ used }} tanesi zaten etkin. Önce başka bir alarmı kapatın veya sınırsız alarm için PRO'ya geçin.",
+    "title": "Plan sınırına ulaşıldı",
+    "see_pro": "PRO'yu gör"
+  },
+  "auth": {
+    "register": {
+      "check_email": "Bu adres kaydedilebiliyorsa doğrulama bağlantısı yola çıktı."
+    },
+    "verify": {
+      "resent": "Bu adresin doğrulanması gerekiyorsa yeni bir bağlantı yola çıktı."
+    },
+    "forgot": {
+      "check_email": "Bu adrese ait bir hesap varsa sıfırlama bağlantısı gönderildi."
+    }
+  },
+  "problem": {
+    "request_id": "İstek kimliği {{ requestId }} · bize yazarsanız ekleyin",
+    "retry": "Tekrar dene",
+    "retry_in": "{{ seconds }} sn sonra tekrar dene",
+    "generic": {
+      "title": "Bir sorun oluştu",
+      "body": "İstek tamamlanamadı. Biraz sonra tekrar deneyin."
+    },
+    "network": {
+      "title": "Bağlantı yok",
+      "body": "Sunucuya ulaşılamadı. Bağlantınızı kontrol edip tekrar deneyin."
+    },
+    "not_found": {
+      "title": "Bulunamadı",
+      "body": "Bu kayıt yok veya artık kullanılamıyor."
+    },
+    "validation_failed": {
+      "title": "Girdilerinizi kontrol edin",
+      "body": "Bazı değerler geçerli değil. Aşağıdaki alanlar neyin değişmesi gerektiğini söylüyor."
+    },
+    "country_not_found": {
+      "title": "Bilinmeyen ülke",
+      "body": "Bu ülke desteklenmiyor. Başka bir ülke seçin."
+    },
+    "product_not_found": {
+      "title": "Ürün bulunamadı",
+      "body": "Bu ürün yok veya katalogdan kaldırıldı."
+    },
+    "product_not_available_in_country": {
+      "title": "Bu ülkede satılmıyor",
+      "body": "Bu ürün seçilen ülkede bulunmuyor."
+    },
+    "currency_mismatch": {
+      "title": "Para birimi uyuşmuyor",
+      "body": "Bir fiyat, ülkesinden farklı bir para birimi kullanıyor."
+    },
+    "scoring_unavailable": {
+      "title": "Sıralama geçici olarak kullanılamıyor",
+      "body": "Puanlama servisi zamanında yanıt vermedi. Ücretsiz sorgunuz sayılmadı. Biraz sonra tekrar deneyin."
+    },
+    "unauthorized": {
+      "title": "Lütfen giriş yapın",
+      "body": "Devam etmek için giriş yapın."
+    },
+    "forbidden": {
+      "title": "İzin verilmiyor",
+      "body": "Hesabınız bu işlemi yapamaz."
+    },
+    "invalid_credentials": {
+      "title": "Giriş başarısız",
+      "body": "E-posta veya parola doğru değil."
+    },
+    "account_disabled": {
+      "title": "Bu hesap devre dışı",
+      "body": "Bu hesapla giriş yapamazsınız. Bize nasıl ulaşacağınızı gizlilik bildiriminde bulabilirsiniz."
+    },
+    "email_not_verified": {
+      "title": "Önce e-postanızı doğrulayın",
+      "body": "E-posta adresinizi doğrulamak için gönderdiğimiz bağlantıyı açın, sonra tekrar deneyin."
+    },
+    "token_invalid": {
+      "title": "Bu bağlantı geçerli değil",
+      "body": "Bağlantı eksik veya daha önce kullanılmış. Yeni bir bağlantı isteyin."
+    },
+    "token_expired": {
+      "title": "Bu bağlantının süresi doldu",
+      "body": "Yeni bir bağlantı isteyin ve geçerlilik süresi içinde kullanın."
+    },
+    "refresh_reuse_detected": {
+      "title": "Oturumunuz sona erdi",
+      "body": "Güvenliğiniz için bu hesabın tüm oturumları kapatıldı. Tekrar giriş yapın."
+    },
+    "quota_exceeded": {
+      "title": "Ücretsiz sorgularınızı kullandınız",
+      "body": "Ürünleri sıralamaya devam etmek için ücretsiz bir hesap oluşturun."
+    },
+    "entitlement_exceeded": {
+      "title": "Plan sınırına ulaşıldı",
+      "body": "Planınız bunlardan daha fazlasına izin vermiyor. Birini kaldırın veya PRO'ya geçin."
+    },
+    "promo_invalid": {
+      "title": "Kod kabul edilmedi",
+      "body": "Bu kod geçerli değil veya süresi dolmuş."
+    },
+    "conflict_retry": {
+      "title": "Lütfen tekrar deneyin",
+      "body": "Aynı anda başka bir değişiklik kaydediliyordu. Tekrar deneyin."
+    },
+    "fx_unsupported_currency": {
+      "title": "Para birimi desteklenmiyor",
+      "body": "Fiyatlar bu para biriminde gösterilemiyor. Başka bir tane seçin."
+    },
+    "rate_limited": {
+      "title": "Çok fazla istek",
+      "body": "Tekrar denemeden önce lütfen biraz bekleyin."
+    },
+    "unsupported_iu_form": {
+      "title": "Birim desteklenmiyor",
+      "body": "IU yalnızca desteklenen bir besin formuyla kabul edilir."
+    },
+    "invalid_offer_url": {
+      "title": "Teklif bağlantısı kabul edilmedi",
+      "body": "Teklif bağlantıları tam http veya https adresleri olmalıdır."
+    },
+    "import_failed": {
+      "title": "İçe aktarma başarısız",
+      "body": "Dosya içe aktarılmadı. Hiçbir şey yazılmadı."
+    },
+    "internal_error": {
+      "title": "Bizim tarafımızda bir sorun oluştu",
+      "body": "İstek tamamlanamadı. Daha sonra tekrar deneyin."
+    }
+  },
+  "validation": {
+    "generic": "Bu değer geçerli değil.",
+    "required": "Bu alan zorunlu.",
+    "out_of_range": "Bu değer izin verilen aralığın dışında.",
+    "value_out_of_range": "Bu değer izin verilen aralığın dışında.",
+    "invalid_format": "Bu değer beklenen biçimde değil.",
+    "weights_all_zero": "En az bir besinin ağırlığı 0'ın üzerinde kalmalı.",
+    "unit_requires_form": "Bu birim bilinen bir besin formu gerektirir.",
+    "unknown_nutrient_code": "Bilinmeyen besin.",
+    "lambda_requires_custom": "İçerik-fiyat ağırlığı yalnızca Özel modda geçerlidir.",
+    "duplicate_nutrient": "Bu besin iki kez listelenmiş.",
+    "same_product": "İki farklı ürün seçin.",
+    "no_offer": "Bu ürünün seçilen ülkede teklifi yok.",
+    "no_stock": "Bu ürünün stokta teklifi yok.",
+    "threshold_not_allowed": "Eşik yalnızca fiyat düşüşü alarmlarında geçerlidir.",
+    "not_in_future": "Gelecekte bir tarih olmalı.",
+    "too_short": "En az 10 karakter kullanın.",
+    "breached_password": "Bu parola bilinen veri sızıntılarında geçiyor. Başka bir parola seçin.",
+    "summary_title": "Lütfen {{ count }} alanı düzeltin",
+    "summary_title_one": "Lütfen 1 alanı düzeltin"
+  },
+  "flag": {
+    "EXCEEDS_UL": "Üst sınırın üzerinde: {{ nutrients }}",
+    "UL_FORM_DEPENDENT": "Sınır forma bağlı: {{ nutrients }}",
+    "CONVERSION_ASSUMED": "IU dönüşümü varsayıldı: {{ nutrients }}",
+    "PRICE_STALE": "Fiyat güncel olmayabilir",
+    "OUT_OF_STOCK": "Stokta yok",
+    "MARKET_MEDIAN_REFERENCE_USED": "Piyasa medyanı referansı: {{ nutrients }}",
+    "PRESENCE_ONLY_NUTRIENTS": "Yalnızca varlık: {{ nutrients }}",
+    "BELOW_PRESENCE_FLOOR": "Varlık eşiğinin altında: {{ nutrients }}",
+    "FX_STALE": "Döviz kuru eski",
+    "FX_UNAVAILABLE": "{{ currency }} gösteriliyor, kur yok",
+    "UNAVAILABLE_IN_COUNTRY": "{{ country }} ülkesinde satılmıyor",
+    "method_notes": "{{ count }} yöntem notu",
+    "method_notes_one": "1 yöntem notu",
+    "list_label": "İşaretler"
+  },
+  "delta": {
+    "flag": {
+      "NEW_IN_B": "B'de yeni",
+      "REMOVED_IN_B": "B'de yok",
+      "DIMINISHING": "Azalan getiri",
+      "ABOVE_CEILING_NO_CREDIT": "Tavanın üzerinde, puan yok",
+      "ABOVE_UL_NO_CREDIT": "Üst sınırın üzerinde, puan yok"
+    }
+  },
+  "verdict": {
+    "WORTH_IT": "Değer",
+    "MARGINAL": "Sınırda",
+    "NOT_WORTH_IT": "Değmez",
+    "DOMINATES": "Aynı maliyete daha iyi",
+    "EQUIVALENT": "Eşdeğer",
+    "INSUFFICIENT_DATA": "Yeterli veri yok",
+    "caption": "B'nin A'ya göre değerlendirmesi · gösterge niteliğinde",
+    "indicative_note": "Değerlendirme gösterge niteliğindedir: etiket içeriğini maliyet birimi başına karşılaştırır; emilimi, kaliteyi veya kendi ihtiyaçlarınızı hesaba katmaz.",
+    "market_fallback": "Bu pazarda içeriği olan 3'ten az ürün olduğu için piyasa oranı burada A'nın içerik puanı başına kendi maliyetidir (pazar büyüklüğü {{ marketSize }})."
+  },
+  "explain": {
+    "verdict": {
+      "worth_it": "B günde {{ deltaCostPerDay }} {{ currency }} daha pahalı ve {{ deltaContent }} içerik puanı ekliyor. Bu ek, puan başına {{ marginalRate }} {{ currency }} tutuyor; {{ mRef }} {{ currency }} olan piyasa oranının {{ ratio }} katı: değer.",
+      "marginal": "B günde {{ deltaCostPerDay }} {{ currency }} daha pahalı ve {{ deltaContent }} içerik puanı ekliyor. Bu ek, puan başına {{ marginalRate }} {{ currency }} tutuyor; {{ mRef }} {{ currency }} olan piyasa oranının {{ ratio }} katı: sınırda.",
+      "not_worth_it": "B günde {{ deltaCostPerDay }} {{ currency }} daha pahalı ve {{ deltaContent }} içerik puanı ekliyor. Bu ek, puan başına {{ marginalRate }} {{ currency }} tutuyor; {{ mRef }} {{ currency }} olan piyasa oranının {{ ratio }} katı: değmez.",
+      "dominates": "B günlük olarak en fazla aynı maliyette ve daha fazla içeriğe sahip: {{ deltaContent }} içerik puanı fazla.",
+      "equivalent": "İki ürünün günlük maliyeti ve içeriği aynı.",
+      "insufficient_data": "B'nin ek maliyetinin değip değmediğini değerlendirmek için yeterli veri yok."
+    }
+  },
+  "results": {
+    "locked_label": "Kilitli sonuç",
+    "locked_row": "Sonuç {{ rank }}, kilitli",
+    "locked_more": "{{ from }}–{{ to }} · {{ count }} kilitli sonuç daha",
+    "locked_list_label": "Kilitli sonuçlar",
+    "locked_cta": "{{ locked }} sonuç daha kilitli",
+    "locked_cta_one": "1 sonuç daha kilitli",
+    "locked_text": "Sıralamanın tamamını görmek, ürün kaydetmek ve fiyat alarmları almak için ücretsiz bir hesap oluşturun. Sorgular sınırsız olur.",
+    "locked_register": "Ücretsiz hesap oluştur",
+    "locked_login": "Giriş yap"
+  },
+  "money": {
+    "per_day": "günlük",
+    "days_supply": "{{ price }} · {{ days }} gün",
+    "native": "{{ amount }}",
+    "tooltip": {
+      "price": "Fiyat",
+      "retailer": "Satıcı",
+      "demo_checked": "Demo fiyat, kontrol tarihi {{ date }}",
+      "native": "Yerel tutar",
+      "rate": "1 {{ base }} = {{ rate }} {{ quote }}, {{ date }} tarihli ECB kuru",
+      "stale": "Döviz kuru 5 günden eski.",
+      "unavailable": "Döviz kuru bulunmadığı için tutar {{ currency }} olarak kalıyor."
+    }
+  },
+  "fx": {
+    "unavailable_title": "Fiyatlar {{ currency }} olarak gösteriliyor",
+    "unavailable_body": "{{ base }} → {{ quote }} için henüz döviz kuru yok, bu yüzden tüm tutarlar {{ currency }} olarak kalıyor. Sıralama etkilenmez.",
+    "stale_body": "Fiyatlar {{ base }} üzerinden 1 {{ base }} = {{ rate }} {{ quote }} ile çevrildi, {{ date }} tarihli ECB kuru."
+  },
+  "provenance": {
+    "synthetic": "Sentetik demo ürün",
+    "label_snapshot": "ABD etiket anlık görüntüsü · {{ date }}",
+    "label_snapshot_undated": "ABD etiket anlık görüntüsü",
+    "identification_only": "Ürün adları yalnızca tanımlama içindir; herhangi bir bağlantı yoktur.",
+    "demo_price": "Demo fiyat",
+    "demo_prices": "Tüm fiyatlar demo değerlerdir"
+  },
+  "score": {
+    "content": "İçerik puanı",
+    "value": "Değer puanı",
+    "custom": "Özel puan",
+    "accessible": "{{ label }} 100 üzerinden {{ display }}, ham değer {{ raw }}",
+    "delta_accessible": "İçerik puanındaki değişim {{ value }}"
+  },
+  "category": {
+    "VITAMIN": "Vitamin",
+    "MINERAL": "Mineral",
+    "COENZYME": "Koenzim",
+    "OTHER": "Diğer"
+  },
+  "dosage": {
+    "TABLET": "Tablet",
+    "CAPSULE": "Kapsül",
+    "SOFTGEL": "Yumuşak kapsül",
+    "GUMMY": "Çiğneme tableti",
+    "POWDER": "Toz",
+    "LIQUID": "Sıvı"
+  },
+  "usage": {
+    "of": "{{ used }} / {{ limit }}",
+    "unlimited": "{{ used }} · sınırsız",
+    "limit_reached": "{{ used }} / {{ limit }} · sınıra ulaşıldı"
+  },
+  "common": {
+    "close": "Kapat",
+    "cancel": "Vazgeç",
+    "loading": "Yükleniyor…",
+    "on": "Açık",
+    "off": "Kapalı",
+    "none": "—"
+  },
+  "pagination": {
+    "label": "Sayfalama",
+    "showing": "{{ total }} kayıttan {{ from }}–{{ to }} gösteriliyor",
+    "previous": "Önceki",
+    "next": "Sonraki"
+  },
+  "not_found": {
+    "page_title": "Sayfa bulunamadı",
+    "title": "Bu sayfa yok",
+    "text": "Adres yanlış yazılmış olabilir ya da sayfa taşınmış olabilir.",
+    "home": "Başlangıç sayfasına git"
   }
 }

@@ -1,0 +1,92 @@
+{
+  "page_title": "Product",
+  "loading": "Loading the product…",
+  "loaded": "{{ name }} loaded",
+  "aside_label": "Price and alerts",
+  "crumbs": {
+    "label": "Breadcrumb",
+    "results": "Results",
+    "find": "Find"
+  },
+  "pack": {
+    "per_container": "{{ count }} per container",
+    "per_serving": "{{ count }} per serving",
+    "servings_day": "{{ count }} servings a day",
+    "servings_day_one": "1 serving a day",
+    "days": "{{ count }} days"
+  },
+  "actions": {
+    "group": "Product actions",
+    "create_alert": "Create alert",
+    "compare": "Compare with…"
+  },
+  "formulation": {
+    "title": "Formulation",
+    "units_note": "Canonical units · per serving and per day",
+    "caption": "Formulation of {{ name }}",
+    "nutrient": "Nutrient",
+    "form": "Form on label",
+    "per_serving": "Per serving",
+    "per_day": "Per day",
+    "exceeded": "Above the upper limit",
+    "conversion_assumed": "IU conversion assumed",
+    "empty": "No nutrients are listed for this product.",
+    "note": "Amounts above an upper limit are scored only up to the limit. The chemical form is shown for information; it changes the score only through form-specific upper limits and IU conversion."
+  },
+  "offers": {
+    "title": "Offers in {{ country }}",
+    "caption": "Demo prices, not real retailer data",
+    "retailer": "Retailer",
+    "price": "Price",
+    "stock": "Stock",
+    "checked": "Checked",
+    "link": "Link",
+    "used_for_cost": "used for cost",
+    "in_stock": "In stock",
+    "out_of_stock": "Out of stock",
+    "visit": "Visit",
+    "visit_label": "Visit {{ retailer }} (opens in a new tab)",
+    "empty": "There is no offer for this product in {{ country }}."
+  },
+  "price": {
+    "eyebrow": "Cost per day",
+    "effective": "Effective price",
+    "days": "Days supply",
+    "offer": "Offer",
+    "offer_value": "{{ retailer }} · {{ date }}",
+    "availability": "Availability",
+    "sold_in": "Sold in {{ country }}",
+    "not_sold_in": "Not sold in {{ country }}",
+    "no_offer": "No offer in {{ country }} yet, so there is no cost per day."
+  },
+  "alert": {
+    "title": "Alert me when",
+    "PRICE_DROP": "The price drops",
+    "BACK_IN_STOCK": "It is back in stock",
+    "PRICE_CHANGE": "The price changes",
+    "threshold_label": "By at least (percent)",
+    "threshold_error": "Enter a value from 0.01 to 99.99 with at most two decimals.",
+    "from_price": "from today's {{ price }}",
+    "usage": "E-mail and inbox. You are using {{ used }} of {{ limit }} alerts on {{ plan }}.",
+    "usage_unlimited": "E-mail and inbox. You have {{ used }} active alerts on {{ plan }}, without a limit.",
+    "submit": "Create alert",
+    "created": "Alert created. You get an e-mail and an inbox message when it fires.",
+    "existing": "Your alerts for this product",
+    "active": "active",
+    "paused": "paused",
+    "trigger": {
+      "PRICE_DROP": "Price drop",
+      "BACK_IN_STOCK": "Back in stock",
+      "PRICE_CHANGE": "Any price change"
+    }
+  },
+  "not_found": {
+    "title": "Product not found",
+    "text": "This product does not exist or was removed from the catalog.",
+    "find": "Go to Find"
+  },
+  "not_available": {
+    "title": "Not sold in {{ country }}",
+    "text": "This product is not available in {{ country }}. Choose another country in the header or start a new search."
+  }
+}

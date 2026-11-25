@@ -1,0 +1,156 @@
+:host {
+  display: contents;
+}
+
+.controls {
+  display: contents;
+}
+
+.ctl {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--vd-space-2);
+  min-height: var(--vd-control-height);
+  padding: 0 var(--vd-space-3);
+  border: 1px solid var(--vd-color-border-strong);
+  border-radius: var(--vd-radius-md);
+  background: var(--vd-color-surface);
+  font-size: var(--vd-font-size-sm);
+
+  &:focus-within {
+    outline: var(--vd-focus-ring-width) solid var(--vd-color-focus);
+    outline-offset: var(--vd-focus-ring-offset);
+  }
+
+  select {
+    appearance: none;
+    border: 0;
+    background: transparent;
+    color: var(--vd-color-text);
+    padding: 0 1.25rem 0 0;
+    min-height: calc(var(--vd-control-height) - 2px);
+    font-weight: var(--vd-font-weight-semibold);
+    cursor: pointer;
+    background-image:
+      linear-gradient(45deg, transparent 50%, currentColor 50%),
+      linear-gradient(135deg, currentColor 50%, transparent 50%);
+    background-position:
+      right 0.45rem center,
+      right 0.15rem center;
+    background-size: 0.3rem 0.3rem;
+    background-repeat: no-repeat;
+
+    &:focus-visible {
+      outline: none;
+    }
+
+    option {
+      background: var(--vd-color-surface);
+      color: var(--vd-color-text);
+    }
+  }
+}
+
+.ctl-lbl {
+  color: var(--vd-color-text-muted);
+  font-size: var(--vd-font-size-xs);
+  font-weight: var(--vd-font-weight-semibold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.ctl-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: var(--vd-font-size-xs);
+  color: var(--vd-color-text-muted);
+  white-space: nowrap;
+
+  &.is-stale {
+    color: var(--vd-color-warning);
+    font-weight: var(--vd-font-weight-semibold);
+  }
+}
+
+.lang-row {
+  display: contents;
+}
+
+.lang-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.lang {
+  display: inline-flex;
+  border: 1px solid var(--vd-color-border-strong);
+  border-radius: var(--vd-radius-md);
+  overflow: hidden;
+
+  button {
+    min-height: calc(var(--vd-control-height) - 2px);
+    min-width: 2.5rem;
+    border: 0;
+    background: var(--vd-color-surface);
+    font-size: var(--vd-font-size-sm);
+    font-weight: var(--vd-font-weight-semibold);
+    color: var(--vd-color-text-muted);
+    cursor: pointer;
+
+    &[aria-pressed='true'] {
+      background: var(--vd-color-accent-bg);
+      color: var(--vd-color-accent);
+    }
+
+    &:focus-visible {
+      outline-offset: -3px;
+    }
+  }
+}
+
+// Header bar: labels visually hidden.
+.controls:not(.sheet) .ctl-lbl {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+// Mobile menu sheet: full-width rows with visible labels.
+.controls.sheet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--vd-space-3);
+
+  .ctl {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .currency select {
+    margin-right: auto;
+  }
+
+  .lang-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: var(--vd-font-size-sm);
+    font-weight: var(--vd-font-weight-semibold);
+  }
+
+  .lang-label {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip: auto;
+  }
+}

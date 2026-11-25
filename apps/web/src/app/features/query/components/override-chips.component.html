@@ -1,0 +1,108 @@
+<ul role="list" class="chips" [attr.aria-describedby]="describedBy()">
+  @for (chip of chips(); track chip.code) {
+    <li class="chip" [class.is-editing]="editing() === chip.code">
+      @if (editing() === chip.code) {
+        <span class="ncode" aria-hidden="true">{{ chip.code }}</span>
+        <input
+          class="edit"
+          type="number"
+          inputmode="decimal"
+          [id]="'q-o-' + chip.code"
+          [min]="min()"
+          [max]="max()"
+          step="0.1"
+          [value]="chip.value"
+          [attr.aria-label]="
+            'query.overrides.edit_label' | transloco: { name: chip.name, min: min(), max: max() }
+          "
+          (keydown.enter)="$event.preventDefault(); commit(chip.code, edit.value)"
+          (keydown.escape)="cancelEdit(chip.code)"
+          (blur)="commit(chip.code, edit.value)"
+          #edit
+        />
+      } @else {
+        <button
+          type="button"
+          class="main"
+          [id]="'q-o-btn-' + chip.code"
+          [attr.aria-label]="
+            'query.overrides.chip_label'
+              | transloco: { name: chip.name, value: multiplier(chip.value) }
+          "
+          (click)="startEdit(chip.code)"
+        >
+          <span class="ncode">{{ chip.code }}</span>
+          <span class="val" [class.zero]="chip.value === 0">{{ multiplier(chip.value) }}</span>
+          @if (chip.value === 0) {
+            <span class="text-xs muted">{{ 'query.overrides.not_scored' | transloco }}</span>
+          }
+        </button>
+      }
+      <button
+        type="button"
+        class="rm"
+        [attr.aria-label]="'query.overrides.remove' | transloco: { name: chip.name }"
+        (click)="remove(chip.code)"
+      >
+        <vd-icon name="close" size="sm" />
+      </button>
+    </li>
+  }
+  <li class="add-item">
+    @if (adding()) {
+      <div class="combo">
+        <input
+          id="q-overrides-search"
+          class="inp"
+          type="text"
+          role="combobox"
+          autocomplete="off"
+          aria-autocomplete="list"
+          aria-expanded="true"
+          aria-controls="q-overrides-listbox"
+          [attr.aria-activedescendant]="
+            options().length > 0 ? 'q-overrides-opt-' + options()[active()].code : null
+          "
+          [attr.aria-label]="'query.overrides.search_label' | transloco"
+          [attr.placeholder]="'query.overrides.search_placeholder' | transloco"
+          [value]="search()"
+          (input)="onSearch($any($event.target).value)"
+          (keydown)="onComboKey($event)"
+        />
+        <ul
+          id="q-overrides-listbox"
+          role="listbox"
+          class="listbox"
+          [attr.aria-label]="'query.overrides.options_label' | transloco"
+        >
+          @for (option of options(); track option.code; let i = $index) {
+            <li
+              role="option"
+              [id]="'q-overrides-opt-' + option.code"
+              [attr.aria-selected]="i === active()"
+              [class.active]="i === active()"
+              tabindex="-1"
+              (mousedown)="$event.preventDefault()"
+              (click)="pick(option.code)"
+              (keydown.enter)="pick(option.code)"
+            >
+              <span class="ncode">{{ option.code }}</span>
+              <span class="text-xs muted">{{ option.nameEn }}</span>
+            </li>
+          } @empty {
+            <li class="none text-xs muted" role="presentation">
+              {{ 'query.overrides.no_match' | transloco }}
+            </li>
+          }
+        </ul>
+        <button type="button" class="btn btn-sm btn-ghost" (click)="closeAdd()">
+          {{ 'common.cancel' | transloco }}
+        </button>
+      </div>
+    } @else {
+      <button type="button" id="q-overrides-add" class="chip add" (click)="openAdd()">
+        <vd-icon name="plus" size="sm" />{{ 'query.overrides.add' | transloco }}
+      </button>
+    }
+  </li>
+</ul>

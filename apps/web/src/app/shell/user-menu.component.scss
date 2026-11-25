@@ -1,0 +1,109 @@
+:host {
+  position: relative;
+  display: inline-flex;
+}
+
+.user {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--vd-space-2);
+  min-height: var(--vd-control-height);
+  padding: 0 var(--vd-space-2) 0 var(--vd-space-1);
+  border: 1px solid var(--vd-color-border);
+  border-radius: var(--vd-radius-pill);
+  background: var(--vd-color-surface);
+  color: var(--vd-color-text);
+  font-size: var(--vd-font-size-sm);
+  font-weight: var(--vd-font-weight-semibold);
+  cursor: pointer;
+
+  &:hover {
+    background: var(--vd-color-surface-subtle);
+  }
+}
+
+.avatar {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--vd-color-accent-bg);
+  color: var(--vd-color-accent);
+  font-size: var(--vd-font-size-xs);
+  font-weight: var(--vd-font-weight-bold);
+}
+
+.plan-tag {
+  font-size: 11px;
+  font-weight: var(--vd-font-weight-bold);
+  letter-spacing: 0.06em;
+  padding: 1px 6px;
+  border-radius: var(--vd-radius-sm);
+  background: var(--vd-color-neutral-bg);
+  color: var(--vd-color-neutral);
+
+  &.pro {
+    background: var(--vd-color-accent);
+    color: var(--vd-color-on-accent);
+  }
+}
+
+.menu {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 6px);
+  right: 0;
+  width: 15rem;
+  padding: var(--vd-space-2);
+  border: 1px solid var(--vd-color-border);
+  border-radius: var(--vd-radius-lg);
+  background: var(--vd-color-surface);
+  box-shadow: var(--vd-shadow-overlay);
+
+  ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  a,
+  button {
+    display: flex;
+    align-items: center;
+    gap: var(--vd-space-2);
+    width: 100%;
+    min-height: 2.5rem;
+    padding: 0 var(--vd-space-3);
+    border: 0;
+    border-radius: var(--vd-radius-md);
+    background: transparent;
+    color: var(--vd-color-text);
+    text-decoration: none;
+    font-size: var(--vd-font-size-sm);
+    text-align: left;
+    cursor: pointer;
+
+    &:hover,
+    &:focus {
+      background: var(--vd-color-surface-subtle);
+    }
+  }
+}
+
+.who {
+  padding: var(--vd-space-2) var(--vd-space-3);
+  font-size: var(--vd-font-size-xs);
+  color: var(--vd-color-text-muted);
+  overflow-wrap: anywhere;
+
+  strong {
+    color: var(--vd-color-text);
+  }
+}
+
+.sep {
+  height: 1px;
+  margin: var(--vd-space-1) var(--vd-space-2);
+  background: var(--vd-color-border);
+}

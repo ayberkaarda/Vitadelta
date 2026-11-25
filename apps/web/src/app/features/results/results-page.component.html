@@ -1,0 +1,160 @@
+@let m = meta();
+<div class="page">
+  <div class="page-head">
+    <div class="stack-1">
+      <p class="eyebrow">
+        {{
+          'results.eyebrow'
+            | transloco
+              : {
+                  country: countryName(),
+                  mode: ('results.mode.' + mode() | transloco),
+                }
+        }}
+      </p>
+      <h1 class="h1">
+        @if (status() === 'ready' && m) {
+          {{
+            (m.total === 1 ? 'results.title_one' : 'results.title') | transloco: { total: m.total }
+          }}
+        } @else {
+          {{ 'results.page_title' | transloco }}
+        }
+      </h1>
+      @if (status() === 'ready') {
+        <p class="text-sm muted summary">
+          @for (part of summary(); track part.key; let last = $last) {
+            <span>{{ part.key | transloco: part.params }}</span>
+            @if (!last) {
+              <span aria-hidden="true"> · </span>
+            }
+          }
+        </p>
+      }
+    </div>
+    <a class="btn" routerLink="/" [queryParams]="linkParams()">
+      <vd-icon name="sliders" />{{ 'results.edit_query' | transloco }}
+    </a>
+  </div>
+
+  <p class="sr-only" role="status">
+    @switch (status()) {
+      @case ('loading') {
+        {{ 'results.loading' | transloco }}
+      }
+      @case ('ready') {
+        {{ 'results.announce' | transloco: { total: m?.total ?? 0, page: m?.page ?? 1 } }}
+      }
+      @case ('error') {
+        {{ (problem()?.messageKey ?? 'problem.generic') + '.title' | transloco }}
+      }
+    }
+  </p>
+
+  @switch (status()) {
+    @case ('loading') {
+      <div class="tbl-wrap">
+        <vd-skeleton [rows]="6" [status]="'results.loading' | transloco" />
+      </div>
+    }
+    @case ('error') {
+      @if (problem(); as p) {
+        @if (p.code === 'quota_exceeded') {
+          <vd-quota-exhausted [problem]="p" [loginParams]="loginParams()" />
+        } @else {
+          <vd-results-error [problem]="p" [editParams]="linkParams()" (retry)="retry()" />
+        }
+      }
+    }
+    @case ('ready') {
+      @if (m) {
+        @if (m.fx.status === 'UNAVAILABLE') {
+          <vd-fx-notice [meta]="m" />
+        }
+        @if (m.total === 0) {
+          <vd-results-empty
+            [excluded]="m.excluded"
+            [countryName]="countryName()"
+            [inStockOnly]="inStockOnly()"
+            [editParams]="linkParams()"
+            (includeOutOfStock)="includeOutOfStock()"
+          />
+        } @else {
+          <div class="toolbar">
+            @if (m.fx.stale) {
+              <vd-fx-notice [meta]="m" />
+              <span class="sep" aria-hidden="true"></span>
+            }
+            @if (m.mRef !== null) {
+              <span data-market-rate>
+                <vd-emphasized-text
+                  [text]="
+                    'results.market_rate'
+                      | transloco
+                        : {
+                            amount: emphasize(format.money(m.mRef, m.currency)),
+                            count: m.marketSize,
+                          }
+                  "
+                />
+              </span>
+              <span class="sep" aria-hidden="true"></span>
+            }
+            <vd-provenance kind="demo-prices" />
+            <span class="sep" aria-hidden="true"></span>
+            <span class="muted">{{ 'results.select_hint' | transloco }}</span>
+          </div>
+
+          @if (items().length > 0) {
+            <vd-results-table
+              [items]="items()"
+              [meta]="m"
+              [mode]="mode()"
+              [states]="states()"
+              [selected]="selectedIds()"
+              [linkParams]="linkParams()"
+              (toggleSelect)="toggleSelect($event)"
+              (breakdown)="drawer.set($event)"
+            />
+          }
+
+          <vd-locked-results [visibility]="m.visibility" [returnUrl]="router.url" />
+
+          @if (m.visibility.locked === 0 && m.total > m.pageSize) {
+            <vd-pagination
+              [page]="m.page"
+              [pageSize]="m.pageSize"
+              [total]="m.total"
+              (pageChange)="goToPage($event)"
+            />
+          }
+        }
+        <vd-disclaimer />
+      }
+    }
+  }
+
+  <p class="sr-only" role="status">
+    @if (selectionNote(); as name) {
+      {{ 'results.selection.replaced' | transloco: { name } }}
+    }
+  </p>
+  <vd-compare-bar
+    [selection]="selection()"
+    (remove)="removeSelected($event)"
+    (compare)="compare()"
+  />
+</div>
+
+@if (m) {
+  <vd-breakdown-drawer
+    [item]="drawerItem()"
+    [meta]="m"
+    [country]="country()"
+    [engine]="reference.engine()"
+    [state]="drawerState()"
+    [highlight]="drawer()?.codes ?? []"
+    [linkParams]="linkParams()"
+    (closed)="drawer.set(null)"
+  />
+}

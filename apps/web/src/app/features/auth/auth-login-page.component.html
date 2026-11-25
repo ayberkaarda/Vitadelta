@@ -1,0 +1,81 @@
+<div class="auth">
+  <section class="auth-card" aria-labelledby="login-title">
+    @if (disabled()) {
+      <span class="ic-well t-bad" aria-hidden="true"><vd-icon name="lock" /></span>
+      <h1 id="login-title" class="h2" tabindex="-1" vdFocusOnInit>
+        {{ 'problem.account_disabled.title' | transloco }}
+      </h1>
+      <p class="body-text" role="alert">{{ 'auth.login.disabled_body' | transloco }}</p>
+      <a class="btn btn-block" routerLink="/privacy">{{ 'legal.privacy' | transloco }}</a>
+    } @else {
+      @if (reason() === 'session_expired') {
+        <vd-notice tone="neutral" icon="lock" data-notice="session-ended">
+          <p>{{ 'auth.login.session_ended' | transloco }}</p>
+        </vd-notice>
+      }
+      @if (reset() === 'done') {
+        <vd-notice tone="ok" live="status" data-notice="password-changed">
+          <p>{{ 'auth.login.password_changed' | transloco }}</p>
+        </vd-notice>
+      }
+      <h1 id="login-title" class="h2">{{ 'auth.login.title' | transloco }}</h1>
+
+      @if (problem(); as p) {
+        <vd-problem-notice [problem]="p" (retry)="submit()" />
+      }
+      <vd-error-summary [errors]="errors().summary" />
+
+      @let emailError = errors().fields[ids.email];
+      @let passwordError = errors().fields[ids.password];
+      <form class="stack" novalidate (submit)="submit($event)">
+        <vd-field
+          [controlId]="ids.email"
+          [label]="'auth.fields.email' | transloco"
+          [error]="emailError ? (emailError | transloco) : null"
+        >
+          <input
+            #emailInput
+            vdControl
+            class="inp"
+            type="email"
+            name="email"
+            autocomplete="username"
+            spellcheck="false"
+            [value]="email()"
+            (input)="email.set(emailInput.value)"
+          />
+        </vd-field>
+        <div class="with-link">
+          <vd-field
+            [controlId]="ids.password"
+            [label]="'auth.fields.password' | transloco"
+            [error]="passwordError ? (passwordError | transloco) : null"
+          >
+            <input
+              #passwordInput
+              vdControl
+              class="inp"
+              type="password"
+              name="password"
+              autocomplete="current-password"
+              [value]="password()"
+              (input)="password.set(passwordInput.value)"
+            />
+          </vd-field>
+          <a class="aside-link" routerLink="/auth/forgot">{{ 'auth.login.forgot' | transloco }}</a>
+        </div>
+        <button class="btn btn-primary btn-block" type="submit" [attr.aria-busy]="busy()">
+          @if (busy()) {
+            <vd-icon name="refresh" [spin]="true" />{{ 'auth.login.busy' | transloco }}
+          } @else {
+            {{ 'auth.login.submit' | transloco }}
+          }
+        </button>
+      </form>
+      <p class="alt">
+        {{ 'auth.login.new_here' | transloco }}
+        <a routerLink="/auth/register">{{ 'auth.login.register_link' | transloco }}</a>
+      </p>
+    }
+  </section>
+</div>

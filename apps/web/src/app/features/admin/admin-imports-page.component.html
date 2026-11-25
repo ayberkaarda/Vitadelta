@@ -1,0 +1,259 @@
+<section class="stack" aria-labelledby="imports-title">
+  <h2 id="imports-title" class="h2">{{ 'admin.imports.title' | transloco }}</h2>
+
+  <div class="grid-2">
+    @for (slot of slots; track slot.kind) {
+      @let file = chosen()[slot.kind];
+      @let problem = uploadProblems()[slot.kind];
+      <section class="card stack-3" [attr.data-slot]="slot.kind">
+        <h3 class="h4">{{ 'admin.imports.' + slot.kind + '.title' | transloco }}</h3>
+        <p class="text-sm muted">{{ 'admin.imports.' + slot.kind + '.text' | transloco }}</p>
+        <label
+          class="drop"
+          [for]="slot.inputId"
+          [class.is-active]="dragOver() === slot.kind || uploading() === slot.kind"
+          (dragover)="onDragOver(slot.kind, $event)"
+          (dragleave)="dragOver.set(null)"
+          (drop)="onDrop(slot.kind, $event)"
+        >
+          <input
+            #fileInput
+            class="sr-only"
+            type="file"
+            [id]="slot.inputId"
+            [accept]="slot.accept"
+            [disabled]="uploading() !== null"
+            [attr.aria-describedby]="slot.inputId + '-hint'"
+            (change)="onFileInput(slot.kind, fileInput)"
+          />
+          @if (file) {
+            <vd-icon name="list" />
+            <span class="text-sm"
+              ><span class="strong">{{ file.name }}</span> ·
+              {{ size(file.size).key | transloco: { size: size(file.size).size } }}</span
+            >
+            <span class="text-xs muted" aria-live="polite">
+              @if (uploading() === slot.kind) {
+                {{ 'admin.imports.uploading' | transloco }}
+              } @else {
+                {{ 'admin.imports.choose_another' | transloco }}
+              }
+            </span>
+          } @else {
+            <vd-icon name="upload" />
+            <span class="text-sm"
+              ><span class="strong">{{
+                'admin.imports.' + slot.kind + '.choose' | transloco
+              }}</span>
+              {{ 'admin.imports.or_drop' | transloco }}</span
+            >
+          }
+          <span class="text-xs muted" [id]="slot.inputId + '-hint'">{{
+            'admin.imports.size_hint' | transloco
+          }}</span>
+        </label>
+        @if (tooLarge(file)) {
+          <vd-notice tone="warn" data-size-warning>
+            <p>{{ 'admin.imports.too_large' | transloco }}</p>
+          </vd-notice>
+        }
+        @if (problem) {
+          <vd-problem-notice [problem]="problem" />
+        }
+      </section>
+    }
+  </div>
+
+  <section class="card tight stack-3" aria-labelledby="jobs-title">
+    <h3 id="jobs-title" class="h4">{{ 'admin.imports.jobs_title' | transloco }}</h3>
+    @if (jobs().length === 0) {
+      <vd-empty-state
+        icon="upload"
+        headingLevel="3"
+        [heading]="'admin.imports.no_jobs' | transloco"
+      >
+        <p>{{ 'admin.imports.no_jobs_text' | transloco }}</p>
+      </vd-empty-state>
+    } @else {
+      <div class="tbl-wrap flat">
+        <table class="tbl">
+          <caption class="sr-only">
+            {{
+              'admin.imports.jobs_title' | transloco
+            }}
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col">{{ 'admin.imports.col.kind' | transloco }}</th>
+              <th scope="col">{{ 'admin.imports.col.status' | transloco }}</th>
+              <th scope="col">{{ 'admin.imports.col.started' | transloco }}</th>
+              <th scope="col">{{ 'admin.imports.col.finished' | transloco }}</th>
+              <th scope="col">{{ 'admin.imports.col.summary' | transloco }}</th>
+              <th scope="col">
+                <span class="sr-only">{{ 'admin.imports.col.details' | transloco }}</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (tracked of jobs(); track tracked.job.id) {
+              @let job = tracked.job;
+              <tr
+                [attr.data-job]="job.id"
+                [attr.data-status]="job.status"
+                [class.is-selected]="openJob()?.job?.id === job.id"
+              >
+                <td>
+                  <span class="mono strong">{{ job.kind }}</span>
+                  <span class="block text-xs muted">{{ tracked.fileName }}</span>
+                </td>
+                <td>
+                  @switch (job.status) {
+                    @case ('RUNNING') {
+                      <span class="badge t-info"
+                        ><vd-icon name="refresh" [spin]="true" />{{
+                          'admin.imports.status.RUNNING' | transloco
+                        }}</span
+                      >
+                    }
+                    @case ('SUCCEEDED') {
+                      <span class="badge t-ok"
+                        ><vd-icon name="ok" />{{
+                          'admin.imports.status.SUCCEEDED' | transloco
+                        }}</span
+                      >
+                    }
+                    @case ('FAILED') {
+                      <span class="badge t-bad"
+                        ><vd-icon name="nok" />{{ 'admin.imports.status.FAILED' | transloco }}</span
+                      >
+                    }
+                  }
+                </td>
+                <td class="nowrap">{{ format.dateTime(job.createdAt) }}</td>
+                <td class="nowrap">
+                  {{
+                    job.finishedAt ? format.dateTime(job.finishedAt) : ('common.none' | transloco)
+                  }}
+                </td>
+                <td>
+                  @let parts = summary(job);
+                  @if (parts.length === 0) {
+                    <span class="muted">{{ 'common.none' | transloco }}</span>
+                  } @else {
+                    @for (part of parts; track part.key; let last = $last) {
+                      <span class="nowrap">{{
+                        'admin.imports.summary.' + part.key | transloco: { count: part.count }
+                      }}</span>
+                      @if (!last) {
+                        <span aria-hidden="true"> · </span>
+                      }
+                    }
+                    @if (job.status === 'FAILED') {
+                      <span aria-hidden="true"> · </span
+                      ><span>{{ 'admin.imports.summary.nothing_written' | transloco }}</span>
+                    }
+                  }
+                  @if (tracked.problem; as p) {
+                    <div class="stack-1 poll-problem">
+                      <vd-problem-notice
+                        [problem]="p"
+                        [retryable]="true"
+                        (retry)="retryPoll(job.id)"
+                      />
+                    </div>
+                  }
+                </td>
+                <td class="r">
+                  <button
+                    type="button"
+                    class="btn btn-sm"
+                    aria-controls="job-errors"
+                    [attr.aria-expanded]="openJob()?.job?.id === job.id"
+                    (click)="toggleDetails(job.id)"
+                  >
+                    {{ 'admin.imports.details' | transloco }}
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </section>
+
+  <div id="job-errors" class="live-region" aria-live="polite">
+    @if (openJob(); as tracked) {
+      @let job = tracked.job;
+      @let errors = errorsOf(job);
+      <section class="card stack-3" aria-labelledby="job-errors-title" data-job-errors>
+        <div class="row-between">
+          <h3 id="job-errors-title" class="h4">
+            {{
+              'admin.imports.errors_title'
+                | transloco: { kind: job.kind, date: format.dateTime(job.createdAt) }
+            }}
+          </h3>
+          @if (job.status !== 'RUNNING') {
+            <p class="text-sm muted">
+              {{
+                (errors.length === 1
+                  ? 'admin.imports.error_count_one'
+                  : 'admin.imports.error_count'
+                ) | transloco: { count: errors.length }
+              }}
+              @if (job.status === 'FAILED') {
+                · {{ 'admin.imports.summary.nothing_written' | transloco }}
+              }
+            </p>
+          }
+        </div>
+        @if (job.status === 'RUNNING') {
+          <p class="text-sm muted">{{ 'admin.imports.still_running' | transloco }}</p>
+        } @else if (errors.length === 0) {
+          <p class="text-sm muted">{{ 'admin.imports.no_errors' | transloco }}</p>
+        } @else {
+          <div class="tbl-wrap">
+            <table class="tbl">
+              <caption class="sr-only">
+                {{
+                  'admin.imports.errors_caption' | transloco
+                }}
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col" class="r">{{ 'admin.imports.col.row' | transloco }}</th>
+                  <th scope="col">{{ 'admin.imports.col.code' | transloco }}</th>
+                  <th scope="col">{{ 'admin.imports.col.field' | transloco }}</th>
+                  <th scope="col">{{ 'admin.imports.col.problem' | transloco }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (error of errors; track $index) {
+                  <tr>
+                    <td class="r">{{ format.integer(error.rowNumber) }}</td>
+                    <td>
+                      <span class="mono">{{ error.code ?? '—' }}</span>
+                    </td>
+                    <td>
+                      <span class="mono">{{ error.field ?? '—' }}</span>
+                    </td>
+                    <td class="message">{{ error.key | transloco }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+          <p class="text-xs muted">
+            {{
+              (job.kind === 'OFFERS_CSV'
+                ? 'admin.imports.rows_note_csv'
+                : 'admin.imports.rows_note_json'
+              ) | transloco
+            }}
+          </p>
+        }
+      </section>
+    }
+  </div>
+</section>

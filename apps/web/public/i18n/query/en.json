@@ -1,0 +1,125 @@
+{
+  "page_title": "Find a multivitamin",
+  "title": "Find the multivitamin that makes sense for you",
+  "lead": "Every product is normalised to cost per day and nutrients per day, then scored against the reference values of your country.",
+  "market": {
+    "title": "Market",
+    "caption": "Reference set {{ reference }} · upper limits {{ ul }} · prices in {{ currency }}",
+    "country": "Country",
+    "country_hint": "Only products sold in this country are ranked."
+  },
+  "stock": {
+    "label": "Stock",
+    "IN_STOCK_ONLY": "In stock only",
+    "INCLUDE_OUT_OF_STOCK": "Include out of stock"
+  },
+  "ranking": {
+    "title": "Ranking",
+    "caption": "How products are ordered"
+  },
+  "mode": {
+    "PRICE": {
+      "title": "Price",
+      "desc": "Lowest cost per day first"
+    },
+    "RICHNESS": {
+      "title": "Richness",
+      "desc": "Highest content score first"
+    },
+    "VALUE": {
+      "title": "Value",
+      "desc": "Content per unit of cost (default)"
+    },
+    "CUSTOM": {
+      "title": "Custom",
+      "desc": "Blend content and price"
+    }
+  },
+  "lambda": {
+    "label": "Content vs price (λ)",
+    "price_only": "Price only",
+    "content_only": "Content only",
+    "hint": "0 ranks by price alone, 1 by content alone. Default {{ value }}."
+  },
+  "weights": {
+    "title": "What matters to you",
+    "defaults": "Defaults",
+    "customised": "Customised",
+    "intro": "Weights change how much each nutrient counts in the content score.",
+    "reset": "Reset to defaults",
+    "categories": "Category weights",
+    "range": "({{ min }}–{{ max }})",
+    "unavailable": "The weight settings could not be loaded. The defaults of the server apply.",
+    "category": {
+      "VITAMIN": "Vitamins",
+      "MINERAL": "Minerals",
+      "COENZYME": "Coenzymes",
+      "OTHER": "Other"
+    }
+  },
+  "overrides": {
+    "title": "Per-nutrient weights",
+    "range": "(×{{ min }}–{{ max }}, default ×{{ value }})",
+    "hint": "×0 removes a nutrient from the score; it still shows in the breakdown. If every nutrient ends up at 0, the ranking cannot be computed.",
+    "chip_label": "Weight for {{ name }}: {{ value }}. Edit",
+    "edit_label": "Weight for {{ name }}, {{ min }} to {{ max }}",
+    "remove": "Remove the override for {{ name }}",
+    "not_scored": "not scored",
+    "add": "Add nutrient",
+    "search_label": "Find a nutrient to weight",
+    "search_placeholder": "Code or name",
+    "options_label": "Nutrients",
+    "no_match": "No nutrient matches."
+  },
+  "required": {
+    "title": "Required nutrients",
+    "caption": "Products without them are left out",
+    "nutrient": "Nutrient",
+    "min": "Minimum per day (optional)",
+    "unit": "Unit",
+    "nutrient_label": "Required nutrient {{ index }}",
+    "min_label": "Minimum per day of {{ name }}",
+    "min_placeholder": "Present is enough",
+    "unit_label": "Unit of the minimum of {{ name }}",
+    "unit_placeholder": "Unit",
+    "remove": "Remove {{ name }} from the required nutrients",
+    "add": "Add required nutrient",
+    "hint": "IU is accepted only for vitamin D. A minimum needs a unit; without one the nutrient only has to be present."
+  },
+  "safety": {
+    "title": "Safety",
+    "label": "Leave out products above an upper limit",
+    "hint_off": "Off: they stay in the list with a warning badge. Upper limits come from {{ ul }}.",
+    "hint_on": "On: products above an upper limit are left out. Upper limits come from {{ ul }}."
+  },
+  "summary": {
+    "title": "Your query",
+    "country": "Country",
+    "stock": "Stock",
+    "mode": "Mode",
+    "lambda": "λ {{ value }}",
+    "weights": "Weights",
+    "overrides": "{{ count }} nutrient overrides",
+    "overrides_one": "1 nutrient override",
+    "required": "Required",
+    "required_none": "None",
+    "required_count": "{{ count }} nutrients",
+    "required_one": "1 nutrient",
+    "ul": "Upper limit",
+    "ul_keep": "Keep, with warning",
+    "ul_exclude": "Leave out"
+  },
+  "submit": "Rank products",
+  "quota": {
+    "note": "This uses 1 of your {{ left }} remaining free queries.",
+    "note_one": "This uses your last free query.",
+    "visible": "Without an account you see the top {{ visible }} results of each query.",
+    "exhausted": "You have no free queries left.",
+    "register": "Create a free account to keep ranking."
+  },
+  "errors": {
+    "min_positive": "Must be greater than 0.",
+    "unit_required": "Choose a unit.",
+    "iu_only_vit_d": "IU is accepted only for vitamin D."
+  }
+}

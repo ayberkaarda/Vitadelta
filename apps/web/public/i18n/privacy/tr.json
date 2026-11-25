@@ -1,0 +1,114 @@
+{
+  "page_title": "Gizlilik bildirimi",
+  "eyebrow": "Gizlilik bildirimi · KVKK (6698 sayılı Kanun) ve GDPR",
+  "title": "VitaDelta verilerinizi nasıl işler",
+  "updated": "Son güncelleme: 25 Kasım 2026",
+  "toc_label": "Gizlilik bildiriminin bölümleri",
+  "intro": "Bu bildirim, web sitesini kullandığınızda VitaDelta'nın hangi kişisel verileri, hangi amaçla ve ne kadar süreyle işlediğini, bunları kimlerin aldığını ve 6698 sayılı Kişisel Verilerin Korunması Kanunu (KVKK) ile AB Genel Veri Koruma Tüzüğü (GDPR) kapsamındaki haklarınızı açıklar.",
+  "who": {
+    "title": "Veri sorumlusu",
+    "text": "Kişisel verilerinizin veri sorumlusu VitaDelta'nın işletmecisidir. Bu sayfadaki her konuda veri sorumlusuna şu adresten ulaşabilirsiniz:",
+    "copy": "Adresi kopyala",
+    "copied": "Adres panoya kopyalandı.",
+    "copy_failed": "Burada kopyalama kullanılamıyor; adresi seçip kopyalayın.",
+    "loading": "İletişim adresi yükleniyor…"
+  },
+  "data": {
+    "title": "İşlediğimiz veriler",
+    "items": {
+      "account": "E-posta adresiniz ve parolanızın özeti (hash). Parolanın kendisi hiçbir zaman saklanmaz.",
+      "prefs": "Diliniz, görüntüleme para biriminiz, varsayılan ülkeniz ve alarm e-postalarının açık olup olmadığı.",
+      "lists": "Kaydettiğiniz ürünler, oluşturduğunuz alarmlar ve sizin için oluşturduğumuz bildirimler, tarihleriyle birlikte.",
+      "plan": "Planınız, bir PRO aboneliğin dönemi ve kullandığınız promosyon kodları.",
+      "tokens": "E-posta doğrulama ve parola sıfırlama için tek kullanımlık anahtarlar ile oturum anahtarları; her biri yalnızca özet (hash) olarak saklanır.",
+      "anon": "Hesabı olmayan ziyaretçiler için: vd_anon çerezindeki rastgele bir tanımlayıcı (yalnızca özeti saklanır) ve kullanılan ücretsiz sorgu sayısı.",
+      "ip": "IP adresleri; yalnızca istek sınırlaması için sunucunun belleğinde tutulur ve veritabanına yazılmaz."
+    },
+    "not_collected": "Ad, posta adresi, ödeme bilgisi veya sağlık bilgisi istemiyoruz."
+  },
+  "purposes": {
+    "title": "Amaçlar ve hukuki sebepler",
+    "col": {
+      "purpose": "Amaç",
+      "data": "Veriler",
+      "basis": "Hukuki sebep"
+    },
+    "rows": {
+      "account": {
+        "purpose": "Hesabınızın ve oturum açmanın yürütülmesi",
+        "data": "E-posta adresi, parola özeti, oturum anahtarları",
+        "basis": "Sözleşmenin kurulması veya ifası (KVKK md. 5/2-c; GDPR md. 6/1-b)"
+      },
+      "lists": {
+        "purpose": "Kayıtlı ürünler, alarmlar ve uygulama içi bildirimler",
+        "data": "Kayıtlı ürünler, alarmlar, bildirimler",
+        "basis": "Sözleşmenin kurulması veya ifası (KVKK md. 5/2-c; GDPR md. 6/1-b)"
+      },
+      "mail": {
+        "purpose": "Doğrulama, parola sıfırlama, plan ve alarm e-postaları",
+        "data": "E-posta adresi, dil, bildirim içeriği",
+        "basis": "Sözleşmenin kurulması veya ifası (KVKK md. 5/2-c; GDPR md. 6/1-b)"
+      },
+      "plan": {
+        "purpose": "Plan sınırları, PRO dönemleri ve promosyon kodları",
+        "data": "Plan, abonelik dönemi, promosyon kodu kullanımları",
+        "basis": "Sözleşmenin kurulması veya ifası (KVKK md. 5/2-c; GDPR md. 6/1-b)"
+      },
+      "quota": {
+        "purpose": "Hesabı olmayan ziyaretçiler için ücretsiz sorgu sınırı",
+        "data": "vd_anon tanımlayıcısının özeti, kullanılan sorgu sayısı",
+        "basis": "Meşru menfaat (KVKK md. 5/2-f; GDPR md. 6/1-f)"
+      },
+      "security": {
+        "purpose": "Güvenlik ve kötüye kullanıma karşı koruma (istek ve giriş denemesi sınırları)",
+        "data": "Bellekteki IP adresi, giriş denemesindeki e-posta adresi",
+        "basis": "Meşru menfaat (KVKK md. 5/2-f; GDPR md. 6/1-f)"
+      }
+    }
+  },
+  "retention": {
+    "title": "Saklama süreleri",
+    "items": {
+      "account": "Hesap verileri, kayıtlı ürünler, alarmlar ve bildirimler: hesabınızı silene kadar.",
+      "unverified": "E-posta adresi hiç doğrulanmamış ve hiç giriş yapılmamış hesaplar: 30 gün sonra silinir.",
+      "anon": "Hesabı olmayan ziyaretçilerin tanımlayıcıları: son ziyaretten 180 gün sonra silinir; vd_anon çerezinin süresi de 180 gün sonra dolar.",
+      "tokens": "Doğrulama bağlantıları 24 saat, parola sıfırlama bağlantıları 1 saat geçerlidir; saklanan anahtarlar süresi dolduktan veya kullanıldıktan 7 gün sonra silinir.",
+      "sessions": "Oturumlar 30 gün geçerlidir; kayıtları süresi dolduktan veya sonlandırıldıktan 30 gün sonra silinir.",
+      "outbox": "Alarm e-postalarının iç teslim kayıtları: işlendikten 30 gün sonra, başarısız teslimlerin kayıtları 90 gün sonra silinir.",
+      "ip": "İstek sınırları için IP adresleri: yalnızca bir sınır penceresi açıkken bellekte tutulur, diske hiç yazılmaz.",
+      "backups": "Şifreli veritabanı yedekleri: 14 gün saklanır. Bu nedenle silinen bir hesap yedeklerde en fazla 14 gün kalabilir; sonra tamamen silinir."
+    }
+  },
+  "recipients": {
+    "title": "Verilerin aktarıldığı taraflar",
+    "mail": "E-posta gönderim hizmeti sağlayıcımız, size gönderdiğimiz mesajları (doğrulama, parola sıfırlama, plan değişiklikleri ve alarmlar) teslim etmek için e-posta adresinizi ve mesaj içeriğini alır.",
+    "fx": "Döviz kuru sağlayıcısı hiçbir kişisel veri almaz: sunucu ondan yalnızca Avrupa Merkez Bankası referans kurlarını ister.",
+    "none": "Kişisel verileri satmıyoruz ve reklam amacıyla paylaşmıyoruz."
+  },
+  "cookies": {
+    "title": "Çerezler",
+    "text": "Yalnızca iki çerez kullanıyoruz ve ikisi de hizmet için zorunludur:",
+    "anon": "hesabı olmayan ziyaretçilerin ücretsiz sorgularını sayar. İmzalı rastgele bir tanımlayıcı taşır ve 180 gün sonra sona erer.",
+    "refresh": "oturumunuzu açık tutar. Yalnızca oturum uç noktalarına gönderilir ve 30 gün sonra sona erer.",
+    "no_banner": "Analiz veya pazarlama çerezi yoktur; bu nedenle onay penceresi de yoktur.",
+    "local_storage": "Tarayıcınız ayrıca ülke, görüntüleme para birimi ve dil seçiminizi yerel depolamasında tutar. Bu bilgi cihazınızda kalır ve bize gönderilmez."
+  },
+  "rights": {
+    "title": "Haklarınız",
+    "intro": "KVKK madde 11 ve GDPR madde 15–22 kapsamında şu haklara sahipsiniz:",
+    "items": {
+      "access": "verilerinizin işlenip işlenmediğini öğrenmek, bir kopyasını ve işleme hakkında bilgi almak;",
+      "rectify": "eksik veya yanlış verilerin düzeltilmesini istemek (tercihlerinizi Hesap bölümünde kendiniz değiştirebilirsiniz);",
+      "erase": "verilerinizin silinmesini istemek;",
+      "restrict": "işlemenin kısıtlanmasını istemek veya işlemeye itiraz etmek;",
+      "portability": "bize verdiğiniz verileri yapılandırılmış, makinece okunabilir bir biçimde almak;",
+      "complain": "Kişisel Verileri Koruma Kurumu'na veya AB'deki ülkenizin veri koruma otoritesine şikâyette bulunmak."
+    },
+    "how_title": "Haklarınızı nasıl kullanırsınız",
+    "how_delete_prefix": "Hesabınızı istediğiniz zaman kendiniz silebilirsiniz:",
+    "how_delete_link": "Hesap → Hesabı sil",
+    "how_delete_suffix": ". Bu işlem verilerinizi hemen siler; yalnızca şifreli yedeklerde en fazla 14 gün bir kopya kalır.",
+    "how_contact": "Diğer tüm talepleriniz için bu sayfanın başındaki veri sorumlusu adresine yazın. Hesabın size ait olduğunu doğrulamanızı isteyebiliriz.",
+    "response": "Taleplerinizi en geç 30 gün (KVKK) veya bir ay (GDPR) içinde yanıtlarız."
+  }
+}
