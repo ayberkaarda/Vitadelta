@@ -1,5 +1,6 @@
 package com.vitadelta.api.entitlement;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
@@ -20,9 +21,12 @@ public record PriceConversion(String nativeCurrency, String currency, Fx fx) {
       String quote,
       BigDecimal rate,
       LocalDate asOf,
-      String source,
+      @Schema(allowableValues = SOURCE_FRANKFURTER) String source,
       boolean stale,
-      String status) {}
+      @Schema(allowableValues = {OK, UNAVAILABLE}) String status) {}
+
+  /** The only {@code FxMeta.source} value (rates stored by the FX refresh job). */
+  public static final String SOURCE_FRANKFURTER = "FRANKFURTER";
 
   /** {@code FxMeta.status} values. */
   public static final String OK = "OK";

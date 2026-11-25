@@ -6,6 +6,7 @@ import com.vitadelta.api.identity.CurrentUser;
 import com.vitadelta.api.identity.DisplayCurrencyPolicy;
 import com.vitadelta.api.identity.UserAccount;
 import com.vitadelta.api.identity.UserRepository;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Pattern;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -51,7 +52,7 @@ public class PlanController {
 
   /** Contract schema {@code Plan}; {@code price} is {@code null} for FREE. */
   public record PlanView(
-      String code,
+      @Schema(allowableValues = {"FREE", "PRO"}) String code,
       String name,
       Integer savedProductsLimit,
       Integer alertSubscriptionsLimit,
@@ -64,7 +65,7 @@ public class PlanController {
       BigDecimal amountNative,
       String currency,
       String nativeCurrency,
-      String billingPeriod) {}
+      @Schema(allowableValues = "MONTHLY") String billingPeriod) {}
 
   @GetMapping("/api/v1/plans")
   PlanList list(
