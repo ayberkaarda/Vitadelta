@@ -1,0 +1,65 @@
+:host {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.money-btn {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: inherit;
+  cursor: help;
+  text-align: right;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+
+  > span {
+    white-space: nowrap;
+  }
+}
+
+.amount {
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--vd-font-weight-bold);
+  border-bottom: 1px dotted var(--vd-color-border-strong);
+}
+
+.sub {
+  font-size: var(--vd-font-size-xs);
+  font-weight: var(--vd-font-weight-medium);
+  color: var(--vd-color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.tip {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 6px);
+  right: 0;
+  width: 17rem;
+  padding: var(--vd-space-3);
+  border-radius: var(--vd-radius-md);
+  background: var(--vd-color-text);
+  color: var(--vd-color-bg);
+  font-size: var(--vd-font-size-xs);
+  font-weight: var(--vd-font-weight-regular);
+  line-height: 1.45;
+  text-align: left;
+  box-shadow: var(--vd-shadow-overlay);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+
+  &[hidden] {
+    display: none;
+  }
+
+  .k {
+    opacity: 0.78;
+    margin-right: var(--vd-space-1);
+  }
+}

@@ -1,0 +1,57 @@
+@if (locked() > 0) {
+  <ol role="list" class="locked-list" [attr.aria-label]="'results.locked_list_label' | transloco">
+    @for (row of rows(); track row.rank; let index = $index) {
+      <li
+        class="locked-row"
+        [class.wide-only]="index >= compactRows"
+        [attr.aria-label]="'results.locked_row' | transloco: { rank: row.rank }"
+      >
+        <span class="rank" aria-hidden="true">{{ row.rank }}</span>
+        <span class="lockcell" aria-hidden="true">
+          <vd-icon name="lock" size="sm" />
+          {{ 'results.locked_label' | transloco }}
+        </span>
+        <span class="ghost" aria-hidden="true"></span>
+      </li>
+    }
+    @if (tail(); as t) {
+      <li class="locked-row tail wide-only">
+        <span class="lockcell">
+          <vd-icon name="lock" size="sm" />
+          {{ 'results.locked_more' | transloco: t }}
+        </span>
+      </li>
+    }
+    @if (compactTail(); as t) {
+      <li class="locked-row tail narrow-only">
+        <span class="lockcell">
+          <vd-icon name="lock" size="sm" />
+          {{ 'results.locked_more' | transloco: t }}
+        </span>
+      </li>
+    }
+  </ol>
+
+  <section class="cta" [attr.aria-labelledby]="titleId">
+    <div class="cta-text">
+      <vd-icon name="lock" />
+      <div class="stack-1">
+        <h2 [id]="titleId" class="h4">
+          {{
+            (locked() === 1 ? 'results.locked_cta_one' : 'results.locked_cta')
+              | transloco: { locked: locked() }
+          }}
+        </h2>
+        <p class="text-sm muted">{{ 'results.locked_text' | transloco }}</p>
+      </div>
+    </div>
+    <div class="row-2">
+      <a class="btn btn-primary" routerLink="/auth/register">{{
+        'results.locked_register' | transloco
+      }}</a>
+      <a class="btn" routerLink="/auth/login" [queryParams]="loginParams()">{{
+        'results.locked_login' | transloco
+      }}</a>
+    </div>
+  </section>
+}
