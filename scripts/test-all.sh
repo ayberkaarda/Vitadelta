@@ -111,6 +111,8 @@ if begin_suite data-tools scripts/dsld/tests uv; then
   suite_broken=false
   run_step data-tools "pytest security tools" "$ROOT" \
     uv run --no-project --with pytest==9.2.0 pytest scripts/security/tests -q -p no:cacheprovider
+  suite_broken=false
+  run_step data-tools "security-scan self-tests" "$ROOT" bash scripts/security/selftest-security-scan.sh
 fi
 
 # security (scripts/security-scan.sh, section 15.3): secret scan, tracked .env files, SQL built
