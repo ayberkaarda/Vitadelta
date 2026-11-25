@@ -224,16 +224,19 @@ class RecommendationUnitTest {
     assertThatThrownBy(() ->
             new ScoringProperties("http://s", Duration.ofMillis(500), Duration.ofSeconds(2), 0))
         .hasMessageContaining("max-concurrent-calls");
-    assertThatThrownBy(() -> new RecommendationProperties(Duration.ofMinutes(10), 0, 100, 10))
+    assertThatThrownBy(
+            () -> new RecommendationProperties(Duration.ofMinutes(10), 0, 100, 10, 30, 2))
         .isInstanceOf(IllegalArgumentException.class);
-    assertThatThrownBy(() -> new RecommendationProperties(Duration.ZERO, 500, 100_000, 10))
+    assertThatThrownBy(() -> new RecommendationProperties(Duration.ZERO, 500, 100_000, 10, 30, 2))
         .isInstanceOf(IllegalArgumentException.class);
-    assertThatThrownBy(() -> new RecommendationProperties(Duration.ofMinutes(10), 500, 499, 10))
+    assertThatThrownBy(
+            () -> new RecommendationProperties(Duration.ofMinutes(10), 500, 499, 10, 30, 2))
         .hasMessageContaining("cache-max-ranked-items");
-    assertThatThrownBy(() -> new RecommendationProperties(Duration.ofMinutes(10), 500, 500, 0))
+    assertThatThrownBy(
+            () -> new RecommendationProperties(Duration.ofMinutes(10), 500, 500, 0, 30, 2))
         .hasMessageContaining("max-products-per-country");
     assertThat(
-            new RecommendationProperties(Duration.ofMinutes(10), 500, 100_000, 10)
+            new RecommendationProperties(Duration.ofMinutes(10), 500, 100_000, 10, 30, 2)
                 .minimumRankingWeight())
         .isEqualTo(200);
   }

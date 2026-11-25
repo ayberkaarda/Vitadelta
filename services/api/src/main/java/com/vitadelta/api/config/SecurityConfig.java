@@ -1,7 +1,10 @@
 package com.vitadelta.api.config;
 
+import static org.springframework.security.authorization.AuthorityAuthorizationManager.hasRole;
+
 import com.vitadelta.api.common.problem.ProblemSecurityHandlers;
 import com.vitadelta.api.common.web.ApiHeaders;
+import com.vitadelta.api.identity.ActiveAdminAuthorization;
 import jakarta.servlet.DispatcherType;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
@@ -9,6 +12,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.authorization.AuthorizationManager;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -19,6 +23,7 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtGra
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
+import org.springframework.security.web.access.intercept.RequestAuthorizationContext;
 import org.springframework.security.web.firewall.RequestRejectedHandler;
 import org.springframework.security.web.header.writers.DelegatingRequestMatcherHeaderWriter;
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
@@ -99,11 +104,16 @@ public class SecurityConfig {
   SecurityFilterChain apiSecurityFilterChain(
       HttpSecurity http,
       ObjectProvider<JwtDecoder> jwtDecoder,
+      ObjectProvider<ActiveAdminAuthorization> adminAuthorization,
       CorsConfigurationSource corsConfigurationSource,
       ManagementEndpointRequestMatcher managementEndpoints)
       throws Exception {
     AuthenticationEntryPoint entryPoint = ProblemSecurityHandlers.authenticationEntryPoint();
     AccessDeniedHandler deniedHandler = ProblemSecurityHandlers.accessDeniedHandler();
+    AuthorizationManager<RequestAuthorizationContext> adminManager =
+        adminAuthorization.getIfAvailable() != null
+            ? adminAuthorization.getObject()
+            : hasRole("ADMIN");
     http.csrf(AbstractHttpConfigurer::disable)
         .formLogin(AbstractHttpConfigurer::disable)
         .httpBasic(AbstractHttpConfigurer::disable)
@@ -142,7 +152,7 @@ public class SecurityConfig {
                 .requestMatchers(API + "/me/**")
                 .authenticated()
                 .requestMatchers(API + "/admin/**")
-                .hasRole("ADMIN")
+                .access(adminManager)
                 .anyRequest()
                 .denyAll());
     JwtDecoder decoder = jwtDecoder.getIfUnique();

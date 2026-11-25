@@ -114,6 +114,15 @@ public class LoginThrottle {
     }
   }
 
+  /**
+   * Forgets all back-off state of {@code email}. Called after the owner proved control of the
+   * mailbox through a password-reset token, so an attacker's failed guesses cannot keep the
+   * rightful owner locked out.
+   */
+  public void reset(String email) {
+    states.invalidate(email);
+  }
+
   private static void prune(State state, Instant now) {
     Instant windowStart = now.minus(WINDOW);
     while (!state.failures.isEmpty() && !state.failures.peekFirst().isAfter(windowStart)) {

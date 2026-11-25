@@ -40,7 +40,7 @@ public class PlanUsageProvider implements AccountUsageProvider {
         subscriptions
             .findActive(userId)
             .orElseThrow(() -> new IllegalStateException("user has no ACTIVE subscription"));
-    Plan plan = plans.get(active.planCode());
+    Plan plan = entitlements.effectivePlan(active);
     LocalDate month = entitlements.currentPeriodMonth();
     return new AccountPlanSummary(
         plan.limits(),

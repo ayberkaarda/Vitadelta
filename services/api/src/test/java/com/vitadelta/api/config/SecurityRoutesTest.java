@@ -21,6 +21,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.web.server.LocalManagementPort;
@@ -62,6 +63,8 @@ class SecurityRoutesTest extends PostgresIntegrationTest {
 
   @LocalServerPort private int port;
   @LocalManagementPort private int managementPort;
+
+  @Autowired private org.springframework.jdbc.core.simple.JdbcClient jdbc;
 
   private RestTestClient client;
 
@@ -169,9 +172,13 @@ class SecurityRoutesTest extends PostgresIntegrationTest {
   }
 
   private static String token(String role, Instant expires) {
+    return token(role, UUID.randomUUID(), expires);
+  }
+
+  private static String token(String role, UUID subject, Instant expires) {
     JwtClaimsSet claims =
         JwtClaimsSet.builder()
-            .subject(UUID.randomUUID().toString())
+            .subject(subject.toString())
             .claim("role", role)
             .claim("email_verified", true)
             .id(UUID.randomUUID().toString())
@@ -248,8 +255,28 @@ class SecurityRoutesTest extends PostgresIntegrationTest {
         get("/api/v1/admin/test-admin", validToken("USER")),
         403,
         ProblemCode.TYPE_PREFIX + "forbidden");
-    assertThat(get("/api/v1/admin/test-admin", validToken("ADMIN")).getStatus().value())
-        .isEqualTo(200);
+    // A well-signed ADMIN token of an account that is not an active admin in the database is
+    // refused (the role is re-read on every admin request).
+    assertProblem(
+        get("/api/v1/admin/test-admin", validToken("ADMIN")),
+        403,
+        ProblemCode.TYPE_PREFIX + "forbidden");
+    UUID adminId = UUID.randomUUID();
+    jdbc.sql(
+            "INSERT INTO app_user (id, email, password_hash, role, status, created_at, updated_at)"
+                + " VALUES (?, ?, 'x', 'ADMIN', 'ACTIVE', now(), now())")
+        .param(adminId)
+        .param("routes-admin-" + adminId + "@example.org")
+        .update();
+    try {
+      String adminToken = token("ADMIN", adminId, Instant.now().plusSeconds(600));
+      assertThat(get("/api/v1/admin/test-admin", adminToken).getStatus().value()).isEqualTo(200);
+      jdbc.sql("UPDATE app_user SET status = 'DISABLED' WHERE id = ?").param(adminId).update();
+      assertProblem(
+          get("/api/v1/admin/test-admin", adminToken), 403, ProblemCode.TYPE_PREFIX + "forbidden");
+    } finally {
+      jdbc.sql("DELETE FROM app_user WHERE id = ?").param(adminId).update();
+    }
   }
 
   @Test

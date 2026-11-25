@@ -184,4 +184,34 @@ class AccountIntegrationTest extends IdentityIntegrationTest {
     assertProblem(
         delete(session.accessToken(), body(Map.of("password", PASSWORD))), 401, "unauthorized");
   }
+
+  @Test
+  void failedDeletionsAreThrottledSoTheEndpointIsNotAPasswordOracle() {
+    String email = uniqueEmail();
+    UUID id = registerVerified(email);
+    Login session = login(email, PASSWORD);
+    String wrong = body(Map.of("password", "not-the-password"));
+    for (int i = 0; i < LoginThrottle.MAX_FAILURES; i++) {
+      assertProblem(delete(session.accessToken(), wrong), 401, "invalid_credentials");
+    }
+    EntityExchangeResult<String> locked = delete(session.accessToken(), wrong);
+    assertProblem(locked, 429, "rate_limited");
+    assertThat(locked.getResponseHeaders().getFirst(HttpHeaders.RETRY_AFTER)).isNotNull();
+
+    // The correct password is not even checked while the account is locked.
+    assertProblem(
+        delete(session.accessToken(), body(Map.of("password", PASSWORD))), 429, "rate_limited");
+    assertThat(
+            jdbc.sql("SELECT count(*) FROM app_user WHERE id = ?")
+                .param(id)
+                .query(Long.class)
+                .single())
+        .isEqualTo(1L);
+
+    // The failures count toward the shared account throttle, so login is locked as well.
+    assertProblem(
+        post("/api/v1/auth/login", body(Map.of("email", email, "password", PASSWORD))),
+        429,
+        "rate_limited");
+  }
 }

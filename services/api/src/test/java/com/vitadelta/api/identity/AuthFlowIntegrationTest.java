@@ -217,6 +217,57 @@ class AuthFlowIntegrationTest extends IdentityIntegrationTest {
   }
 
   @Test
+  void requestsForAddressesThatReceiveNoMailDoNotConsumeTheRecipientSlot() {
+    String email = uniqueEmail();
+    // Nothing is sent for an unknown address, so a third party cannot use up its mail slots.
+    assertThat(
+            post("/api/v1/auth/forgot-password", body(Map.of("email", email))).getStatus().value())
+        .isEqualTo(202);
+    UUID id = registerVerified(email);
+    // A verified account gets no verification mail either.
+    assertThat(
+            post("/api/v1/auth/resend-verification", body(Map.of("email", email)))
+                .getStatus()
+                .value())
+        .isEqualTo(202);
+
+    int before = mail().to(email).size();
+    assertThat(
+            post("/api/v1/auth/forgot-password", body(Map.of("email", email))).getStatus().value())
+        .isEqualTo(202);
+    assertThat(mail().awaitToken(email, before + 1)).isNotBlank();
+    assertThat(id).isNotNull();
+  }
+
+  @Test
+  void aSuccessfulPasswordResetClearsTheAccountLoginLock() {
+    String email = uniqueEmail();
+    UUID id = registerVerified(email);
+    for (int i = 0; i < LoginThrottle.MAX_FAILURES; i++) {
+      ip = randomIp(); // the per-IP login limit is separate from the per-account lock
+      assertProblem(
+          post(
+              "/api/v1/auth/login",
+              body(Map.of("email", email, "password", "wrong-password-" + i))),
+          401,
+          "invalid_credentials");
+    }
+    assertProblem(
+        post("/api/v1/auth/login", body(Map.of("email", email, "password", PASSWORD))),
+        429,
+        "rate_limited");
+
+    String token = issueResetToken(id);
+    EntityExchangeResult<String> reset =
+        post(
+            "/api/v1/auth/reset-password",
+            body(Map.of("token", token, "newPassword", "another-long-password-2")));
+    assertThat(reset.getStatus().value()).as(reset.getResponseBody()).isEqualTo(204);
+
+    login(email, "another-long-password-2");
+  }
+
+  @Test
   void resetPasswordRevokesFamiliesAndInvalidatesOlderResetTokens() {
     String email = uniqueEmail();
     UUID id = registerVerified(email);

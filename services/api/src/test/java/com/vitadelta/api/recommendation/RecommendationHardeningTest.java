@@ -191,7 +191,7 @@ class RecommendationHardeningTest {
     when(entitlements.reserveAnonymousQuery("id-hash")).thenReturn(1);
     when(entitlements.anonymousQueryLimit()).thenReturn(3);
     RecommendationProperties properties =
-        new RecommendationProperties(Duration.ofMinutes(10), 500, 100_000, 5000);
+        new RecommendationProperties(Duration.ofMinutes(10), 500, 100_000, 5000, 30, 2);
     RecommendationService service =
         new RecommendationService(
             catalog,
@@ -205,6 +205,7 @@ class RecommendationHardeningTest {
             mock(ScoringGateway.class),
             (userId, country, ids) -> java.util.Map.of(),
             new RecommendationCaches(properties, new SimpleMeterRegistry()),
+            new UserRequestLimiter(mock(RateLimiter.class), properties),
             properties,
             new SimpleMeterRegistry());
     return new Harness(service, entitlements, catalog);
@@ -401,7 +402,7 @@ class RecommendationHardeningTest {
   void theRankingCacheIsBoundedByTheRankedProductsItHolds() {
     RecommendationCaches caches =
         new RecommendationCaches(
-            new RecommendationProperties(Duration.ofMinutes(10), 2, 10, 100),
+            new RecommendationProperties(Duration.ofMinutes(10), 2, 10, 100, 30, 2),
             new SimpleMeterRegistry());
     for (String key : List.of("a", "b", "c")) {
       caches.putRanking(key, ranking(8));
@@ -415,7 +416,7 @@ class RecommendationHardeningTest {
     assertThat(caches.rankingWeight()).isLessThanOrEqualTo(10);
     RecommendationCaches small =
         new RecommendationCaches(
-            new RecommendationProperties(Duration.ofMinutes(10), 2, 10, 100),
+            new RecommendationProperties(Duration.ofMinutes(10), 2, 10, 100, 30, 2),
             new SimpleMeterRegistry());
     for (String key : List.of("a", "b", "c", "d")) {
       small.putRanking(key, ranking(1));
