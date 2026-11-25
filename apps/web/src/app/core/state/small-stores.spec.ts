@@ -1,6 +1,6 @@
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { of, throwError } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 
 import { ApiClient } from '../api/api-client';
 import { ApiProblem } from '../api/api-problem';
@@ -10,17 +10,37 @@ import { UnreadCountStore } from './unread-count.store';
 
 describe('UnreadCountStore', () => {
   const authenticated = signal(true);
+  const generation = signal(1);
   const getUnreadNotificationCount = vi.fn();
 
   beforeEach(() => {
     authenticated.set(true);
+    generation.set(1);
     getUnreadNotificationCount.mockReset();
     TestBed.configureTestingModule({
       providers: [
         { provide: ApiClient, useValue: { getUnreadNotificationCount } },
-        { provide: SessionStore, useValue: { isAuthenticated: authenticated } },
+        { provide: SessionStore, useValue: { isAuthenticated: authenticated, generation } },
       ],
     });
+  });
+
+  it('never shows a count of a previous session', async () => {
+    const late = new Subject<{ unreadCount: number }>();
+    getUnreadNotificationCount.mockReturnValue(of({ unreadCount: 2 }));
+    const store = TestBed.inject(UnreadCountStore);
+    await store.refresh();
+    expect(store.count()).toBe(2);
+
+    getUnreadNotificationCount.mockReturnValue(late.asObservable());
+    const refreshing = store.refresh();
+    // Another account signs in: the old count disappears at once.
+    generation.set(2);
+    expect(store.count()).toBeNull();
+    late.next({ unreadCount: 7 });
+    late.complete();
+    await refreshing;
+    expect(store.count()).toBeNull();
   });
 
   it('loads the count for signed-in users', async () => {

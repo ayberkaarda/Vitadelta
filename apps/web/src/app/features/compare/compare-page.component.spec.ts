@@ -17,6 +17,7 @@ import { FIXTURE_COUNTRIES } from '../../testing/api-fixtures';
 import { EN, translocoTesting } from '../../testing/transloco-testing';
 import {
   FIXTURE_DEFAULTS,
+  FIXTURE_NUTRIENTS,
   GOLD_A_ID,
   GOLD_B_ID,
   goldenCompare,
@@ -52,6 +53,7 @@ describe('ComparePageComponent', () => {
           useValue: {
             compareProducts: compare,
             getDefaultWeights: vi.fn(() => of(FIXTURE_DEFAULTS)),
+            listNutrients: vi.fn(() => of(FIXTURE_NUTRIENTS)),
           },
         },
         { provide: SessionStore, useValue: { whenReady: () => Promise.resolve() } },
@@ -62,6 +64,8 @@ describe('ComparePageComponent', () => {
             intlLocale: signal('en-US'),
             countryCode: signal('TR'),
             countries: signal(FIXTURE_COUNTRIES),
+            loadCountries: vi.fn(async () => undefined),
+            setCountry: vi.fn(),
           },
         },
       ],

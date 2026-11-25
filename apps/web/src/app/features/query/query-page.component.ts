@@ -120,8 +120,15 @@ export class QueryPageComponent {
 
   constructor() {
     void this.reference.load();
+    // Restored values are validated against the contract and the registries loaded so far; the
+    // results page validates again against both registries before it sends anything.
     const subscription = this.route.queryParamMap.subscribe((params) =>
-      this.fill(this.store.restore(params)),
+      this.fill(
+        this.store.restore(
+          params,
+          this.reference.nutrients().map((nutrient) => nutrient.code),
+        ),
+      ),
     );
     inject(DestroyRef).onDestroy(() => subscription.unsubscribe());
     const serverErrors = readFieldErrors(

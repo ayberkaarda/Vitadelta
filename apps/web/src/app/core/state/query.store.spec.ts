@@ -3,6 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { convertToParamMap } from '@angular/router';
 
 import { DEFAULT_QUERY, QueryState, QueryStore, parseQuery, serializeQuery } from './query.store';
+import { FIXTURE_COUNTRIES } from '../../testing/api-fixtures';
 import { RegionStore } from './region.store';
 
 const FULL: QueryState = {
@@ -68,8 +69,38 @@ describe('query URL serialisation', () => {
       categories: { MINERAL: 1.5 },
       overrides: { VIT_E: 0.5 },
       required: [{ code: 'VIT_C' }, { code: 'ZINC', minAmountPerDay: 5, unit: 'mcg' }],
-      pageSize: 100,
     });
+  });
+
+  it('drops values outside the contract bounds, patterns and int32 paging', () => {
+    const code41 = `A${'B'.repeat(40)}`;
+    const state = parseQuery({
+      country: 'TR',
+      mode: 'CUSTOM',
+      lambda: '-1',
+      w: 'VITAMIN:99,MINERAL:-0.5,OTHER:2,COENZYME:1e1',
+      o: `ZINC:4,IRON:-1,VIT_C:3,${code41}:1,VIT_D:0x2`,
+      req: `VIT_D:25,VIT_C:0:mg,ZINC:5:mcg:extra,${code41},MAGNESIUM:200:mg,VIT_A:400:IU`,
+      page: '1e100',
+      size: '1000',
+    });
+    expect(state).toEqual({
+      ...DEFAULT_QUERY,
+      country: 'TR',
+      mode: 'CUSTOM',
+      lambda: null,
+      categories: { OTHER: 2 },
+      overrides: { VIT_C: 3 },
+      required: [{ code: 'MAGNESIUM', minAmountPerDay: 200, unit: 'mg' }],
+      page: 1,
+      pageSize: 20,
+    });
+    expect(parseQuery({ page: '2147483647' }).page).toBe(2147483647);
+    expect(parseQuery({ page: '2147483648' }).page).toBe(1);
+    expect(parseQuery({ mode: 'CUSTOM', lambda: '1' }).lambda).toBe(1);
+    expect(parseQuery({ req: 'VIT_D:10:IU' }).required).toEqual([
+      { code: 'VIT_D', minAmountPerDay: 10, unit: 'IU' },
+    ]);
   });
 
   it('accepts a plain params object', () => {
@@ -93,6 +124,7 @@ describe('QueryStore', () => {
           provide: RegionStore,
           useValue: {
             countryCode: regionCountry,
+            countries: signal(FIXTURE_COUNTRIES),
             setCountry: (code: string) => regionCountry.set(code),
           },
         },
@@ -111,6 +143,14 @@ describe('QueryStore', () => {
   it('restores state from the URL', () => {
     store.restore(convertToParamMap(serializeQuery(FULL)));
     expect(store.state()).toEqual(parseQuery(serializeQuery(FULL)));
+  });
+
+  it('drops a country or nutrient that is not in the registries', () => {
+    store.restore({ country: 'ZZ', o: 'VIT_C:1,BORON:2', req: 'ZINC,BORON' }, ['VIT_C', 'ZINC']);
+    expect(store.state().country).toBeNull();
+    expect(store.state().overrides).toEqual({ VIT_C: 1 });
+    expect(store.state().required).toEqual([{ code: 'ZINC' }]);
+    expect(regionCountry()).toBe('DE');
   });
 
   it('makes the country of a restored link the visitor country', () => {

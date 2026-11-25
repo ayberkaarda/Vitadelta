@@ -146,7 +146,12 @@ export class ComparePageComponent {
   });
 
   constructor() {
-    void this.session.whenReady().then(() => this.ready.set(true));
+    // The URL is validated against the country and nutrient registries before any request.
+    void Promise.all([
+      this.session.whenReady(),
+      this.region.loadCountries(),
+      this.reference.loadNutrients(),
+    ]).then(() => this.ready.set(true));
     void this.reference.loadDefaults();
     inject(DestroyRef).onDestroy(() => this.stopTimer());
 
@@ -158,11 +163,14 @@ export class ComparePageComponent {
       const candidate = this.candidateId();
       this.query.country();
       untracked(() => {
-        if (map) {
-          this.query.restore(map);
-        }
-        if (!ready) {
+        if (!ready || this.region.countries().length === 0) {
           return;
+        }
+        if (map) {
+          this.query.restore(
+            map,
+            this.reference.nutrients().map((nutrient) => nutrient.code),
+          );
         }
         const request = this.query.toCompareRequest(baseline, candidate, currency);
         if (!request) {

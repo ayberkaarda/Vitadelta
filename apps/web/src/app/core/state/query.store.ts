@@ -63,28 +63,93 @@ const STOCK_TOKENS: Readonly<Record<StockFilter, string>> = {
   IN_STOCK_ONLY: 'in',
   INCLUDE_OUT_OF_STOCK: 'all',
 };
+/** `CountryCode` of the contract. */
 const COUNTRY_PATTERN = /^[A-Z]{2}$/;
-const CODE_PATTERN = /^[A-Z][A-Z0-9_]{0,63}$/;
-const MAX_PAGE_SIZE = 100;
+/** `NutrientCode` of the contract. */
+const CODE_PATTERN = /^[A-Z][A-Z0-9_]{0,39}$/;
+/** Plain decimal as written by {@link serializeQuery} (no exponent, hex or infinity). */
+const DECIMAL_PATTERN = /^-?\d{1,12}(\.\d{1,12})?$/;
+const INTEGER_PATTERN = /^\d{1,10}$/;
+/** Bounds of the contract (`Ranking.lambda`, `CategoryWeights`, `NutrientOverrides`, paging). */
+export const QUERY_BOUNDS = {
+  lambda: { min: 0, max: 1 },
+  category: { min: 0, max: 2 },
+  override: { min: 0, max: 3 },
+  page: { min: 1, max: 2_147_483_647 },
+  pageSize: { min: 1, max: 100 },
+} as const;
+/** `InputUnit`: IU is accepted only for vitamin D. */
+const IU_NUTRIENT = 'VIT_D';
+
+/** Registries a restored query is checked against; `null` when that registry is not loaded. */
+export interface QueryRegistry {
+  readonly countries: ReadonlySet<string> | null;
+  readonly nutrients: ReadonlySet<string> | null;
+}
+
+const NO_REGISTRY: QueryRegistry = { countries: null, nutrients: null };
 
 function formatNumber(value: number): string {
   return String(value);
 }
 
 function parseNumber(raw: string | undefined | null): number | null {
-  if (raw === undefined || raw === null || raw.trim() === '') {
+  if (raw === undefined || raw === null) {
     return null;
   }
-  const value = Number(raw);
+  const text = raw.trim();
+  if (!DECIMAL_PATTERN.test(text)) {
+    return null;
+  }
+  const value = Number(text);
   return Number.isFinite(value) ? value : null;
 }
 
-function parsePositiveInt(raw: string | null, fallback: number, max?: number): number {
-  const value = parseNumber(raw);
-  if (value === null || !Number.isInteger(value) || value < 1) {
+function inRange(value: number | null, range: { readonly min: number; readonly max: number }) {
+  return value !== null && value >= range.min && value <= range.max ? value : null;
+}
+
+function parseInteger(
+  raw: string | null,
+  fallback: number,
+  range: { readonly min: number; readonly max: number },
+): number {
+  const text = raw?.trim() ?? '';
+  if (!INTEGER_PATTERN.test(text)) {
     return fallback;
   }
-  return max !== undefined ? Math.min(value, max) : value;
+  return inRange(Number(text), range) ?? fallback;
+}
+
+function knownCode(code: string, registry: ReadonlySet<string> | null): boolean {
+  return CODE_PATTERN.test(code) && (registry === null || registry.has(code));
+}
+
+/**
+ * One `req` entry: `CODE` (present only) or `CODE:amount:unit` with an amount above 0 and a
+ * contract unit (IU only for vitamin D). Any other shape is dropped as a whole.
+ */
+function parseRequired(
+  entry: string,
+  nutrients: ReadonlySet<string> | null,
+): RequiredNutrient | null {
+  const parts = entry.split(':').map((part) => part.trim());
+  const code = parts[0] ?? '';
+  if (!knownCode(code, nutrients)) {
+    return null;
+  }
+  if (parts.length === 1) {
+    return { code };
+  }
+  if (parts.length !== 3) {
+    return null;
+  }
+  const amount = parseNumber(parts[1]);
+  const unit = INPUT_UNITS.find((candidate) => candidate === parts[2]) as InputUnit | undefined;
+  if (amount === null || !(amount > 0) || !unit || (unit === 'IU' && code !== IU_NUTRIENT)) {
+    return null;
+  }
+  return { code, minAmountPerDay: amount, unit };
 }
 
 function parsePairs(raw: string | null): [string, string][] {
@@ -148,10 +213,14 @@ export function serializeQuery(state: QueryState): Record<string, string> {
 }
 
 /**
- * Restores a query from URL parameters. Malformed parts are dropped (the default applies);
- * value ranges are left to the server, which answers `validation_failed` with field errors.
+ * Restores a query from URL parameters. Every part is checked against the contract (patterns,
+ * numeric bounds, int32 paging, complete required-nutrient tuples) and, when given, against the
+ * country and nutrient registries; an invalid part is dropped and its default applies.
  */
-export function parseQuery(source: ParamMap | Params): QueryState {
+export function parseQuery(
+  source: ParamMap | Params,
+  registry: QueryRegistry = NO_REGISTRY,
+): QueryState {
   const map =
     'get' in source && typeof source.get === 'function'
       ? (source as ParamMap)
@@ -169,7 +238,7 @@ export function parseQuery(source: ParamMap | Params): QueryState {
   const categories: Partial<Record<NutrientCategory, number>> = {};
   for (const [key, raw] of parsePairs(get(QUERY_PARAM.categories))) {
     const category = NUTRIENT_CATEGORIES.find((entry) => entry === key);
-    const value = parseNumber(raw);
+    const value = inRange(parseNumber(raw), QUERY_BOUNDS.category);
     if (category && value !== null) {
       categories[category] = value;
     }
@@ -177,8 +246,8 @@ export function parseQuery(source: ParamMap | Params): QueryState {
 
   const overrides: Record<string, number> = {};
   for (const [code, raw] of parsePairs(get(QUERY_PARAM.overrides))) {
-    const value = parseNumber(raw);
-    if (CODE_PATTERN.test(code) && value !== null) {
+    const value = inRange(parseNumber(raw), QUERY_BOUNDS.override);
+    if (knownCode(code, registry.nutrients) && value !== null) {
       overrides[code] = value;
     }
   }
@@ -186,28 +255,49 @@ export function parseQuery(source: ParamMap | Params): QueryState {
   const required: RequiredNutrient[] = [];
   const seen = new Set<string>();
   for (const entry of (get(QUERY_PARAM.required) ?? '').split(',')) {
-    const [code, amountRaw, unitRaw] = entry.split(':').map((part) => part.trim());
-    if (!code || !CODE_PATTERN.test(code) || seen.has(code)) {
-      continue;
+    const parsed = parseRequired(entry, registry.nutrients);
+    if (parsed && !seen.has(parsed.code)) {
+      seen.add(parsed.code);
+      required.push(parsed);
     }
-    seen.add(code);
-    const amount = parseNumber(amountRaw);
-    const unit = INPUT_UNITS.find((candidate) => candidate === unitRaw) as InputUnit | undefined;
-    required.push(amount !== null && unit ? { code, minAmountPerDay: amount, unit } : { code });
   }
 
+  const countryValid =
+    country !== null &&
+    COUNTRY_PATTERN.test(country) &&
+    (registry.countries === null || registry.countries.has(country));
   return {
-    country: country && COUNTRY_PATTERN.test(country) ? country : null,
+    country: countryValid ? country : null,
     stockFilter,
     mode,
-    lambda: mode === 'CUSTOM' ? parseNumber(get(QUERY_PARAM.lambda)) : null,
+    lambda:
+      mode === 'CUSTOM' ? inRange(parseNumber(get(QUERY_PARAM.lambda)), QUERY_BOUNDS.lambda) : null,
     categories,
     overrides,
     required,
     excludeExceedingUl: get(QUERY_PARAM.ul) === 'exclude',
-    page: parsePositiveInt(get(QUERY_PARAM.page), DEFAULT_QUERY.page),
-    pageSize: parsePositiveInt(get(QUERY_PARAM.pageSize), DEFAULT_QUERY.pageSize, MAX_PAGE_SIZE),
+    page: parseInteger(get(QUERY_PARAM.page), DEFAULT_QUERY.page, QUERY_BOUNDS.page),
+    pageSize: parseInteger(
+      get(QUERY_PARAM.pageSize),
+      DEFAULT_QUERY.pageSize,
+      QUERY_BOUNDS.pageSize,
+    ),
   };
+}
+
+/**
+ * Whether `params` carries exactly the query parameters `serializeQuery(state)` writes, i.e. the
+ * URL needs no normalisation. Parameters outside {@link QUERY_PARAM} are not compared.
+ */
+export function isNormalized(params: ParamMap | Params, state: QueryState): boolean {
+  const map =
+    'get' in params && typeof params.get === 'function'
+      ? (params as ParamMap)
+      : convertToParamMap(params);
+  const expected = serializeQuery(state);
+  return Object.values(QUERY_PARAM).every(
+    (name) => (map.get(name) ?? undefined) === expected[name],
+  );
 }
 
 function weightsOf(state: QueryState): RecommendationQueryRequest['weights'] {
@@ -243,14 +333,24 @@ export class QueryStore {
   );
 
   /**
-   * Replaces the state with the one encoded in `params` and returns it. A country in the URL
+   * Replaces the state with the one encoded in `params` and returns it. Values are validated
+   * against the contract, the country registry (once `/countries` is loaded) and the nutrient
+   * registry `nutrients` (when given); invalid parts are dropped. A registered country in the URL
    * (a shared results or comparison link) also becomes the visitor's selected country, so the
    * header, the native display currency and number formatting follow the market on screen.
    */
-  restore(params: ParamMap | Params): QueryState {
-    const state = parseQuery(params);
+  restore(params: ParamMap | Params, nutrients: readonly string[] | null = null): QueryState {
+    const countries = this.region.countries();
+    const state = parseQuery(params, {
+      countries: countries.length > 0 ? new Set(countries.map((country) => country.code)) : null,
+      nutrients: nutrients && nutrients.length > 0 ? new Set(nutrients) : null,
+    });
     this.stateSignal.set(state);
-    if (state.country !== null && state.country !== this.region.countryCode()) {
+    if (
+      state.country !== null &&
+      countries.length > 0 &&
+      state.country !== this.region.countryCode()
+    ) {
       this.region.setCountry(state.country);
     }
     return state;
