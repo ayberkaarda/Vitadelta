@@ -2,6 +2,7 @@ name: ci
 
 on:
   push:
+    branches: [main]
   pull_request:
 
 permissions:
@@ -22,6 +23,10 @@ jobs:
         with:
           distribution: temurin
           java-version: "25"
+          cache: gradle
+          cache-dependency-path: |
+            services/api/*.gradle.kts
+            services/api/gradle/wrapper/gradle-wrapper.properties
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -56,6 +61,10 @@ jobs:
         with:
           distribution: temurin
           java-version: "25"
+          cache: gradle
+          cache-dependency-path: |
+            services/api/*.gradle.kts
+            services/api/gradle/wrapper/gradle-wrapper.properties
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:

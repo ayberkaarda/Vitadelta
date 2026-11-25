@@ -7,7 +7,7 @@
 #   docker build --build-context contracts=contracts services/api
 FROM eclipse-temurin:25.0.5.1_2-jdk-noble@sha256:c7eef3dfeb81468533ea48c67bddaa8c7ca916454259e4d0d734d12bcff8e125 AS build
 WORKDIR /workspace/services/api
-COPY gradlew settings.gradle.kts build.gradle.kts ./
+COPY gradlew settings.gradle.kts build.gradle.kts gradle.properties ./
 COPY gradle ./gradle
 RUN chmod +x gradlew && ./gradlew --no-daemon --quiet help
 COPY --from=contracts scoring-api.openapi.yaml /workspace/contracts/scoring-api.openapi.yaml
