@@ -54,13 +54,13 @@
 
 .acts {
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
   gap: var(--vd-space-2);
 
   vd-product-action-buttons {
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
   }
 }
 

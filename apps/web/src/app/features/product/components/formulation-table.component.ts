@@ -230,6 +230,8 @@ export function nutrientRowId(code: string): string {
     }
     .conv {
       margin-left: var(--vd-space-2);
+      /* The note may wrap inside its column instead of widening the table. */
+      white-space: normal;
     }
     tr:focus-visible {
       outline-offset: -3px;

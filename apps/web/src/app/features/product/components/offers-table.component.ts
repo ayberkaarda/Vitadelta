@@ -122,7 +122,7 @@ import { webUrl } from '../../../shared/text/web-url';
     }
     /* A long retailer name breaks inside the cell instead of widening the table. */
     .retailer {
-      max-width: 16rem;
+      max-width: 12rem;
     }
     .offer-url {
       display: inline-block;

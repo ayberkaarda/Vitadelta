@@ -118,6 +118,7 @@
   .meta {
     grid-column: 3;
     flex-direction: row;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
   }
