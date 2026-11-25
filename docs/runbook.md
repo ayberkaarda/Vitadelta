@@ -17,13 +17,41 @@ from the repository root.
   dc() { docker compose --env-file .env -f infra/docker-compose.yml "$@"; }
   ```
 
-- PostgreSQL has no client on the host; SQL runs through the database container:
+- PostgreSQL is not published on the host and has no client there; SQL runs through the
+  database container:
 
   ```bash
   dc exec -T postgres psql -U vitadelta -d vitadelta
   ```
 
   The user name is the value of `VITADELTA_DB_USERNAME` (`vitadelta` in the local stack).
+- Secrets never appear in a command's arguments (visible to every local user in the process list)
+  or in the shell history. Values are read from a hidden prompt (`read -rs`), from `.env`, or
+  generated, and are handed over through standard input or a file of mode `0600`: SQL that
+  carries a secret is piped into `psql`, request bodies are piped into `curl --data-binary @-`,
+  the `Authorization` header is read from a header file (`curl -H @file`), and `.env` is changed
+  with an editor or with `env_set` below. `printf` and `read` are shell builtins, so their
+  arguments never reach the process list.
+- `env_set NAME` removes the line `NAME=...` from `.env` and appends `NAME=<value>`, with the
+  value read from standard input, or from a hidden prompt when standard input is a terminal; the
+  file is rewritten with mode `0600`. Define it once per shell:
+
+  ```bash
+  env_set() {
+    local name="$1" value line
+    if [ -t 0 ]; then read -rs -p "$name: " value; echo >&2; else IFS= read -r value || true; fi
+    (
+      umask 077
+      while IFS= read -r line || [ -n "$line" ]; do
+        case "$line" in
+          "$name="*) ;;
+          *) printf '%s\n' "$line" ;;
+        esac
+      done < .env > .env.new
+      printf '%s=%s\n' "$name" "$value" >> .env.new
+    ) && mv .env.new .env
+  }
+  ```
 - An environment variable set in the shell overrides the value in `.env` for one compose command,
   for example `VITADELTA_JOBS_ENABLED=false dc up -d api`.
 - Changes to `.env` reach a running container only when it is recreated: use `dc up -d <service>`
@@ -50,18 +78,23 @@ bash scripts/seed.sh
   root and Mailpit. An existing `.env` is never overwritten.
 - `--bootstrap-admin` gives an empty `VITADELTA_BOOTSTRAP_ADMIN_EMAIL` the address
   `admin@vitadelta.localhost` and an empty `VITADELTA_BOOTSTRAP_ADMIN_PASSWORD` a generated
-  password, stored in `.env` only. Values that are already set are kept. The end-to-end suites
-  sign in with this account.
+  password, stored in `.env`. A newly generated password is shown once, on the terminal only
+  (written to `/dev/tty`, never to standard output or standard error, so a pipe, a log file or a
+  CI log never receives it). Without a terminal, or when `CI` is set, it is not shown at all and
+  the script names the `.env` entry to open in an editor instead. Values that are already set are
+  kept and never printed. The end-to-end suites sign in with this account.
 - `scripts/dev-down.sh` stops the stack and keeps the database volume; `--volumes` also deletes
   the volume and with it all local data.
 
 | Endpoint | Address | Exposure |
 |---|---|---|
 | Web app and API (nginx) | http://localhost:8080 | all interfaces; the only public entry point |
-| Mailpit inbox and API | http://127.0.0.1:8025 | loopback only |
-| Mailpit SMTP | 127.0.0.1:1025 | loopback only |
-| PostgreSQL | 127.0.0.1:54320 | loopback only |
+| Mailpit inbox and HTTP API | http://127.0.0.1:8025 | loopback only |
+| Mailpit SMTP (`mailpit:1025`), PostgreSQL (`postgres:5432`) | not published | compose network only; SQL through `dc exec -T postgres psql` (section 1) |
 | API, scoring service, Actuator | not published | reachable inside the compose networks only |
+
+nginx runs as the unprivileged `nginx` user (master and workers), listens on 8080 and keeps its
+pid and temporary files under `/tmp` of its container.
 
 **Production:** TLS is terminated at nginx or at an edge in front of it. Set `VITADELTA_TLS=true`
 in that environment so that nginx adds `Strict-Transport-Security: max-age=63072000;
@@ -91,24 +124,37 @@ profile `seed`.
 
 ## 4. Admin imports
 
-Imports need an administrator access token. Sign in as the bootstrap administrator:
+Imports need an administrator access token. Sign in as the bootstrap administrator; the password
+is typed at a hidden prompt, the request body goes to `curl` through standard input, and the token
+is written to a header file of mode `0600` that the calls below read with `-H @"$ADMIN_AUTH"`:
 
 ```bash
 API=http://localhost:8080/api/v1
-ADMIN_EMAIL=$(sed -n 's/^VITADELTA_BOOTSTRAP_ADMIN_EMAIL=//p' .env)
-ADMIN_PASSWORD=$(sed -n 's/^VITADELTA_BOOTSTRAP_ADMIN_PASSWORD=//p' .env)
-ADMIN=$(curl -s -X POST "$API/auth/login" -H 'Content-Type: application/json' \
-  -d "{\"email\": \"$ADMIN_EMAIL\", \"password\": \"$ADMIN_PASSWORD\"}" \
-  | grep -o '"accessToken":"[^"]*"' | cut -d'"' -f4)
+ADMIN_AUTH=$(mktemp)    # mode 0600; remove it when done: rm -f "$ADMIN_AUTH"
+admin_login() {
+  local email password token
+  email=$(sed -n 's/^VITADELTA_BOOTSTRAP_ADMIN_EMAIL=//p' .env)
+  read -rs -p 'Administrator password: ' password; echo >&2
+  token=$(printf '{"email": "%s", "password": "%s"}' "$email" "$password" |
+    curl -s -X POST "$API/auth/login" -H 'Content-Type: application/json' --data-binary @- |
+    sed -n 's/.*"accessToken":"\([^"]*\)".*/\1/p')
+  [ -n "$token" ] || { echo 'sign-in failed' >&2; return 1; }
+  printf 'Authorization: Bearer %s\n' "$token" > "$ADMIN_AUTH"
+}
+admin_login
 ```
 
-The access token is valid for 15 minutes; sign in again when a call answers `401`.
+On the local stack the password is the `VITADELTA_BOOTSTRAP_ADMIN_PASSWORD` value of `.env`
+(shown once by `dev-up.sh --bootstrap-admin`, otherwise open `.env` in an editor); to read it from
+there instead of the prompt, replace the `read` line with
+`password=$(sed -n 's/^VITADELTA_BOOTSTRAP_ADMIN_PASSWORD=//p' .env)`. The access token is valid for
+15 minutes; run `admin_login` again when a call answers `401`.
 
 Products (JSON document, schema `contracts/schemas/import-products.schema.json`, products upserted
 by `code`):
 
 ```bash
-curl -s -X POST "$API/admin/imports/products" -H "Authorization: Bearer $ADMIN" \
+curl -s -X POST "$API/admin/imports/products" -H @"$ADMIN_AUTH" \
   -H 'Content-Type: application/json' --data-binary @data/fixtures/products.synthetic.json
 ```
 
@@ -116,14 +162,14 @@ Offers (CSV, multipart field `file`; for every product and country in the file, 
 retailers absent from the file are deleted):
 
 ```bash
-curl -s -X POST "$API/admin/imports/offers" -H "Authorization: Bearer $ADMIN" \
+curl -s -X POST "$API/admin/imports/offers" -H @"$ADMIN_AUTH" \
   -F "file=@data/fixtures/offers.price-drop.synthetic.csv;type=text/csv"
 ```
 
 Both answer `202` with the job and its URL in `Location`. Read the status, summary and row errors:
 
 ```bash
-curl -s "$API/admin/imports/<jobId from the 202 answer>" -H "Authorization: Bearer $ADMIN"
+curl -s "$API/admin/imports/<jobId from the 202 answer>" -H @"$ADMIN_AUTH"
 ```
 
 An import is validated as a whole: any error fails the job, nothing is written, the catalog version
@@ -162,11 +208,23 @@ of `VITADELTA_JWT_SECRET_PREVIOUS`, selected by `kid`; tokens with any other `ki
 Refresh tokens are random values stored as hashes and are not affected.
 
 1. Put the current value of `VITADELTA_JWT_SECRET` into `VITADELTA_JWT_SECRET_PREVIOUS` and a new
-   value into `VITADELTA_JWT_SECRET` in `.env` (or in the environment's configuration).
+   value into `VITADELTA_JWT_SECRET` (`env_set`, section 1; neither value appears in an argument):
+
+   ```bash
+   sed -n 's/^VITADELTA_JWT_SECRET=//p' .env | env_set VITADELTA_JWT_SECRET_PREVIOUS
+   openssl rand -hex 48 | env_set VITADELTA_JWT_SECRET
+   ```
+
+   On another environment change the same two values in its configuration.
 2. Recreate the API: `dc up -d --wait api`. New tokens carry the new `kid`; tokens issued before
    stay valid until they expire.
 3. Wait at least 15 minutes (the access-token lifetime).
-4. Empty `VITADELTA_JWT_SECRET_PREVIOUS` and recreate the API again: `dc up -d --wait api`.
+4. Empty `VITADELTA_JWT_SECRET_PREVIOUS` and recreate the API again:
+
+   ```bash
+   printf '\n' | env_set VITADELTA_JWT_SECRET_PREVIOUS
+   dc up -d --wait api
+   ```
 
 Nobody is signed out: browsers renew their access token with the refresh cookie. After step 4 a
 token signed with the old secret answers `401`.
@@ -174,7 +232,8 @@ token signed with the old secret answers `401`.
 ### 6.2 Cookie secret
 
 `VITADELTA_COOKIE_SECRET` signs the anonymous `vd_anon` cookie and encrypts the 20-second refresh
-grace successors. It has no "previous" slot: after a change (new value, `dc up -d --wait api`)
+grace successors. It has no "previous" slot: after a change
+(`openssl rand -hex 48 | env_set VITADELTA_COOKIE_SECRET`, then `dc up -d --wait api`)
 every anonymous visitor gets a new identity and a fresh trial quota, and a refresh that races the
 restart within its 20-second grace window is answered `401`, after which the user signs in again.
 Rotate it at a quiet time.
@@ -182,20 +241,24 @@ Rotate it at a quiet time.
 ### 6.3 Database password
 
 `POSTGRES_PASSWORD` initialises the database only when its volume is created, so change the role
-first, then the configuration:
+first, then the configuration. The new password travels through standard input only: the SQL is
+piped into `psql` (statement logging is switched off for that session) and the value into
+`env_set`:
 
 ```bash
 NEW_DB_PASSWORD=$(openssl rand -hex 24)
-dc exec -T postgres psql -U vitadelta -d vitadelta -c "ALTER ROLE vitadelta PASSWORD '$NEW_DB_PASSWORD'"
-sed -i "s/^VITADELTA_DB_PASSWORD=.*/VITADELTA_DB_PASSWORD=$NEW_DB_PASSWORD/" .env
+printf "SET log_statement = 'none';\nALTER ROLE vitadelta PASSWORD '%s';\n" "$NEW_DB_PASSWORD" |
+  dc exec -T postgres psql -X -q -v ON_ERROR_STOP=1 -U vitadelta -d vitadelta
+printf '%s\n' "$NEW_DB_PASSWORD" | env_set VITADELTA_DB_PASSWORD
+unset NEW_DB_PASSWORD
 dc up -d --wait
 ```
 
 ### 6.4 SMTP credentials and other settings
 
 Change `VITADELTA_SMTP_USERNAME` / `VITADELTA_SMTP_PASSWORD` at the provider, update the
-configuration and recreate the API (`dc up -d --wait api`). The same applies to every other
-`VITADELTA_*` value.
+configuration (`env_set VITADELTA_SMTP_PASSWORD` prompts for the value without echoing it) and
+recreate the API (`dc up -d --wait api`). The same applies to every other `VITADELTA_*` value.
 
 ### 6.5 Backup key
 
@@ -206,17 +269,19 @@ Create a new key pair on the machine that holds backup keys (never on the backup
 
 ## 7. Promo codes
 
-Promo codes grant PRO for a number of days. All calls below need the `ADMIN` token of section 4.
+Promo codes grant PRO for a number of days. All calls below need the administrator header file
+`$ADMIN_AUTH` of section 4. nginx never writes a promo code to its access log: the path after
+`/promo-codes/` is logged as `<redacted>` (section 14).
 
 ```bash
 # create: the server generates the code (optional prefix, then 16 Crockford base32 characters)
-curl -s -X POST "$API/admin/promo-codes" -H "Authorization: Bearer $ADMIN" \
+curl -s -X POST "$API/admin/promo-codes" -H @"$ADMIN_AUTH" \
   -H 'Content-Type: application/json' \
   -d '{"prefix": "LAUNCH", "planCode": "PRO", "durationDays": 30, "maxRedemptions": 100, "expiresAt": "2027-01-31T23:59:59Z"}'
 # list (newest first, with redeemedCount)
-curl -s "$API/admin/promo-codes" -H "Authorization: Bearer $ADMIN"
+curl -s "$API/admin/promo-codes" -H @"$ADMIN_AUTH"
 # delete (case-insensitive; existing redemptions stay valid)
-curl -s -X DELETE "$API/admin/promo-codes/LAUNCH-7K3M9QXT2B4N6PRW" -H "Authorization: Bearer $ADMIN"
+curl -s -X DELETE "$API/admin/promo-codes/LAUNCH-7K3M9QXT2B4N6PRW" -H @"$ADMIN_AUTH"
 ```
 
 Users redeem a code with `POST /api/v1/me/subscription/promo` (`{"code": "..."}`) after verifying
@@ -228,12 +293,12 @@ To grant or revoke manually:
 
 ```bash
 # find the user id
-curl -s "$API/admin/users?q=someone@example.com" -H "Authorization: Bearer $ADMIN"
+curl -s "$API/admin/users?q=someone@example.com" -H @"$ADMIN_AUTH"
 # grant PRO for 30 days
-curl -s -X POST "$API/admin/users/<user id>/subscription" -H "Authorization: Bearer $ADMIN" \
+curl -s -X POST "$API/admin/users/<user id>/subscription" -H @"$ADMIN_AUTH" \
   -H 'Content-Type: application/json' -d '{"planCode": "PRO", "durationDays": 30}'
 # disable an account (revokes all of its sessions); "ACTIVE" enables it again
-curl -s -X POST "$API/admin/users/<user id>/status" -H "Authorization: Bearer $ADMIN" \
+curl -s -X POST "$API/admin/users/<user id>/status" -H @"$ADMIN_AUTH" \
   -H 'Content-Type: application/json' -d '{"status": "DISABLED"}'
 ```
 
@@ -259,8 +324,8 @@ one to three days around weekends and holidays; that is normal.
 Run the refresh immediately (returns the number of upserted rates, or the failure per base):
 
 ```bash
-curl -s -X POST "$API/admin/fx/refresh" -H "Authorization: Bearer $ADMIN"
-curl -s "$API/admin/health" -H "Authorization: Bearer $ADMIN"   # components.fx: newestAsOf, rateAgeDays, stale
+curl -s -X POST "$API/admin/fx/refresh" -H @"$ADMIN_AUTH"
+curl -s "$API/admin/health" -H @"$ADMIN_AUTH"   # components.fx: newestAsOf, rateAgeDays, stale
 ```
 
 **Unpublished currencies.** `VITADELTA_FX_EXTRA_CURRENCIES` accepts any ISO 4217 code, but only the
@@ -286,7 +351,7 @@ after 2, 4, 8 and 16 minutes; the fifth failure marks it `DEAD_LETTER` (metric
 Inspect:
 
 ```bash
-curl -s "$API/admin/outbox/stats" -H "Authorization: Bearer $ADMIN"   # pending, failed, deadLetter, oldestPendingAt
+curl -s "$API/admin/outbox/stats" -H @"$ADMIN_AUTH"   # pending, failed, deadLetter, oldestPendingAt
 dc exec -T postgres psql -U vitadelta -d vitadelta -c \
   "SELECT id, event_type, aggregate_id, attempts, last_error, processed_at
      FROM outbox_event WHERE outcome = 'DEAD_LETTER' ORDER BY processed_at DESC LIMIT 50"
@@ -403,7 +468,12 @@ starts the scoring service and the API against it with fresh random secrets, eve
 disabled, e-mail going to a sink Mailpit and the FX provider unreachable. It then runs the
 read-only smoke subset: public health, row counts per table (catalog tables must not be empty) and
 `POST /recommendations/compare` of GOLD-A vs GOLD-B in TR. Nothing registers users, imports data or
-triggers alerts. The stack keeps running for inspection; remove it with:
+triggers alerts. Every compose command of the script names the project `vitadelta-restore` and
+its file explicitly and clears `COMPOSE_PROJECT_NAME`, `COMPOSE_FILE`, `COMPOSE_PROFILES` and
+`COMPOSE_ENV_FILES` first, so settings exported in the shell for the live stack cannot redirect it;
+before touching anything it checks that the resolved project is `vitadelta-restore`, is not the
+live project, and has no container created from `infra/docker-compose.yml`, and refuses to run
+otherwise. The stack keeps running for inspection; remove it with:
 
 ```bash
 bash scripts/restore.sh --down
@@ -414,47 +484,97 @@ at least once a month and after every change to the backup scripts or the databa
 
 ### 11.5 Restore into the live stack (recovery)
 
-Verify the dump with section 11.4 first. Then, on the host whose database is lost or damaged:
+A restore brings back every account that was deleted after the dump was taken, so the deletions
+since then must be re-run before the restored database serves anyone. **The only record of those
+deletions is the API log**, and it does not survive a teardown:
 
-1. Stop the application and remove the damaged database volume. **This deletes the live
-   database**; continue only when it is lost anyway or a verified dump replaces it.
+- `DELETE /api/v1/me` writes one INFO line `Account deleted (userId=<uuid>)` (never the e-mail
+  address) to the API container's standard output. There is no deletion table (it would be lost
+  with the database being replaced) and no log file; Docker keeps that output only while the API
+  container exists. `scripts/dev-down.sh`, `dc down` and every recreation of the container (for
+  example `dc up` after a configuration change) discard it, and a size limit of the Docker
+  log driver, if the daemon has one, rotates old lines out.
+- Unverified accounts purged by `HousekeepingJob` are only counted in the log, not listed. They
+  need no record: the restored rows are older than the TTL and the next housekeeping run purges
+  them again.
+- **Production:** without central log shipping (a Docker logging driver or collector that keeps
+  the API's standard output outside the host) there is no durable deletion ledger. Until one
+  exists, the procedure below captures the record from the running container first and stops
+  when that record cannot be shown to cover the time since the dump.
+
+Verify the dump with section 11.4 first. Then, on the host whose database is lost or damaged,
+in this order; nothing is stopped or removed before step 3 has succeeded.
+
+1. Stop public traffic only, so that nobody can delete an account after the record is taken. The
+   API container, and with it its log, stays:
 
    ```bash
-   bash scripts/dev-down.sh --volumes
+   dc stop web
    ```
 
-2. Start PostgreSQL alone on the empty volume (the API must not start before the restore, or it
+2. Capture the deletion record into a directory of mode `0700` outside the repository (it holds
+   user ids):
+
+   ```bash
+   umask 077
+   RECOVERY_DIR=/secure/path/vitadelta-recovery-$(date -u +%Y%m%dT%H%M%SZ)
+   mkdir -p "$RECOVERY_DIR"
+   DUMP_TIME=2026-11-25T11:33:13Z    # the UTC timestamp of the dump file name, as ISO 8601
+   dc logs --no-color --no-log-prefix --timestamps api > "$RECOVERY_DIR/api.log"
+   docker inspect --format '{{.Created}}' "$(dc ps -a -q api)" > "$RECOVERY_DIR/api-container-created.txt"
+   grep -o 'Account deleted (userId=[0-9a-f-]*)' "$RECOVERY_DIR/api.log" |
+     sed 's/.*userId=\([0-9a-f-]*\))/\1/' | sort -u > "$RECOVERY_DIR/deleted-user-ids.txt"
+   ```
+
+3. Check that the record is complete: it must reach back to the dump time.
+
+   ```bash
+   echo "dump taken:        $DUMP_TIME"
+   echo "container created: $(cat "$RECOVERY_DIR/api-container-created.txt")"
+   echo "first log line:    $(head -n 1 "$RECOVERY_DIR/api.log" | cut -d' ' -f1)"
+   echo "deleted accounts:  $(wc -l < "$RECOVERY_DIR/deleted-user-ids.txt")"
+   ```
+
+   Continue only when both the container creation time and the first log line are earlier than
+   the dump time. Ids from before the dump do no harm (deleting an absent id changes nothing).
+   If either is later, the record is incomplete (the container was recreated or its log rotated
+   after the dump): take the missing period from the central log store, if the deployment has
+   one, and add those ids to `deleted-user-ids.txt`. Without such a source **stop here**: the
+   restored database cannot tell which of its accounts were deleted after the dump. Keep the
+   current state (do not run step 4), bring in the owner, and continue only once the missing
+   deletions are known from another source (support requests, the privacy contact's records) or
+   the owner has decided how to handle the gap. Copy `$RECOVERY_DIR` to the machine that keeps the
+   backup keys before continuing.
+
+4. Stop the application and remove the damaged database volume. **This deletes the live database
+   and the API container with its log**; the record of step 2 is the copy that remains.
+
+   ```bash
+   test -s "$RECOVERY_DIR/api.log" && bash scripts/dev-down.sh --volumes
+   ```
+
+5. Start PostgreSQL alone on the empty volume (the API must not start before the restore, or it
    would create an empty schema and the bootstrap administrator):
 
    ```bash
    dc up -d --wait postgres
    ```
 
-3. Restore (plaintext streamed, never stored):
+6. Restore (plaintext streamed, never stored):
 
    ```bash
    age --decrypt --identity /secure/path/vitadelta-backup.key backups/vitadelta-<timestamp>.dump.age \
      | dc exec -T postgres pg_restore --no-owner --no-acl --exit-on-error --single-transaction -U vitadelta -d vitadelta
    ```
 
-4. Start the API with every scheduler off and without public traffic (nginx stays down):
+7. Re-run the account deletions of the record, before the API starts. The foreign keys cascade
+   the rest of each account (sessions, tokens, subscriptions, saved products, alerts,
+   notifications, usage counters, promo redemptions), exactly like `DELETE /me`; pending
+   notification e-mails of the account are removed with it:
 
    ```bash
-   VITADELTA_JOBS_ENABLED=false dc up -d --wait api
-   ```
-
-   **Production:** also point `VITADELTA_SMTP_HOST` / `VITADELTA_SMTP_PORT` at a sink for this
-   step (for example the compose `mailpit` service: `VITADELTA_SMTP_HOST=mailpit
-   VITADELTA_SMTP_PORT=1025 VITADELTA_JOBS_ENABLED=false dc up -d --wait api`).
-
-5. Re-run the account deletions made after the dump time. The API logs each deletion as
-   `Account deleted (userId=<uuid>)` (never the e-mail address). Collect the ids from the log store
-   for the period from the dump timestamp until the failure (on the same host:
-   `dc logs --since <dump timestamp, e.g. 2026-11-25T11:33:13Z> api | grep 'Account deleted'`),
-   then for each id:
-
-   ```bash
-   dc exec -T postgres psql -U vitadelta -d vitadelta -v ON_ERROR_STOP=1 -v id='<user id>' <<'SQL'
+   while IFS= read -r id <&3; do
+     dc exec -T postgres psql -X -q -v ON_ERROR_STOP=1 -U vitadelta -d vitadelta -v id="$id" <<'SQL'
    BEGIN;
    DELETE FROM outbox_event
     WHERE processed_at IS NULL AND event_type = 'NOTIFICATION_CREATED'
@@ -462,24 +582,41 @@ Verify the dump with section 11.4 first. Then, on the host whose database is los
    DELETE FROM app_user WHERE id = :'id';
    COMMIT;
    SQL
+   done 3< "$RECOVERY_DIR/deleted-user-ids.txt"
+   # must print 0
+   { printf 'SELECT count(*) FROM app_user WHERE id IN (NULL'; sed "s/.*/, '&'/" "$RECOVERY_DIR/deleted-user-ids.txt"; printf ');\n'; } |
+     dc exec -T postgres psql -X -A -t -U vitadelta -d vitadelta
    ```
 
-   The foreign keys cascade the rest of the account (sessions, tokens, subscriptions, saved
-   products, alerts, notifications, usage counters, promo redemptions), exactly like `DELETE /me`.
+8. Start the API with every scheduler off and without public traffic (nginx stays down), and
+   check it:
 
-6. Start everything with the normal configuration (e-mail and jobs enabled again):
+   ```bash
+   VITADELTA_JOBS_ENABLED=false dc up -d --wait api
+   ```
+
+   **Production:** also point `VITADELTA_SMTP_HOST` / `VITADELTA_SMTP_PORT` at a sink for this
+   step (for example the compose `mailpit` service on the compose network: `VITADELTA_SMTP_HOST=mailpit
+   VITADELTA_SMTP_PORT=1025 VITADELTA_JOBS_ENABLED=false dc up -d --wait api`).
+
+9. Start everything with the normal configuration (e-mail and jobs enabled again):
 
    ```bash
    dc up -d --wait
    ```
 
+10. Remove the recovery record once the restore is confirmed (it holds user ids):
+    `rm -rf "$RECOVERY_DIR"`, and the copy made in step 3 likewise.
+
 ### 11.6 Restore drill transcript
 
 The drill was performed on 2026-11-25 on the local stack: start, seed, create a user with a saved
 product and a price alert through the API, back up, delete the volumes, restore into the isolated
-stack, verify, then recover the live stack with section 11.5. The identity file and the user's
-password are shown as placeholders in angle brackets, `dc` is the function of section 1, host paths
-are shown relative to the repository root, and compose progress lines are trimmed.
+stack, verify, then recover the live stack with section 11.5. The identity file and the file
+holding the user's login body are shown as placeholders in angle brackets, `dc` is the function of
+section 1, host paths are shown relative to the repository root, and compose progress lines are
+trimmed. The drill had no account deletions after the dump, so the deletion record of section 11.5
+steps 1 to 3 is not shown.
 
 ```console
 $ bash scripts/dev-down.sh --volumes
@@ -559,7 +696,7 @@ $ bash scripts/restore.sh --identity <identity file> backups/vitadelta-20261125T
 [restore] inspect: docker compose --project-name vitadelta-restore exec api curl -s http://127.0.0.1:8080/api/v1/health
 [restore] remove:  scripts/restore.sh --down
 $ # drill only (writes a session row into the throwaway database): the restored account signs in
-$ docker compose --project-name vitadelta-restore exec -T api curl -s -o /dev/null -w '%{http_code}\n' -X POST http://127.0.0.1:8080/api/v1/auth/login -H 'Content-Type: application/json' -d '{"email": "drill-user@example.com", "password": "<password>"}'
+$ docker compose --project-name vitadelta-restore exec -T api curl -s -o /dev/null -w '%{http_code}\n' -X POST http://127.0.0.1:8080/api/v1/auth/login -H 'Content-Type: application/json' --data-binary @- < <login body file, mode 0600>
 200
 $ # same request with a wrong password
 {"type":"https://vitadelta.dev/problems/invalid_credentials","title":"Invalid credentials","status":401,"detail":"The e-mail address or password is incorrect.","instance":"/api/v1/auth/login","requestId":"c1a8d797-7f37-489a-9a45-bea0f51ac324"}
@@ -582,7 +719,7 @@ $ dc exec -T postgres psql -U vitadelta -d vitadelta -A -t -c "SELECT count(*) F
 1
 $ dc up -d --wait
  Container vitadelta-web-1 Healthy
-$ curl -s -o /dev/null -w '%{http_code}\n' -X POST http://localhost:8080/api/v1/auth/login -H 'Content-Type: application/json' -d '{"email": "drill-user@example.com", "password": "<password>"}'
+$ curl -s -o /dev/null -w '%{http_code}\n' -X POST http://localhost:8080/api/v1/auth/login -H 'Content-Type: application/json' --data-binary @- < <login body file, mode 0600>
 200
 $ dc exec -T api printenv VITADELTA_JOBS_ENABLED
 true
@@ -602,26 +739,39 @@ with gitleaks installed and the full history checked out. It exits non-zero on a
 
 | Check | What it does |
 |---|---|
-| `secrets-history` | gitleaks 8.30.1 over the full history of every ref with `.gitleaks.toml` (default rules plus an allowlist of reviewed synthetic test values, matched exactly) |
-| `secrets-tree` | gitleaks over the tracked files and the untracked files that are not ignored |
+| `secrets-history` | gitleaks 8.30.1 over the full history of every ref with `.gitleaks.toml` (default rules plus an allowlist of reviewed synthetic test values, matched exactly); fails first when any object of the history cannot be read |
+| `secrets-tree` | gitleaks over a copy of the tracked files and the untracked files that are not ignored; fails when the listing, the copy or any single file cannot be read |
 | `env-files` | no `.env*` file other than `.env.example` is tracked; `.env` and `backups/` are ignored |
 | `sql-concat` | no string-built SQL in `services/api/src/main` (JPA and JDBC calls whose SQL is not made of literals and literal constants: `+` with a variable, `String.format`, `formatted`, `concat`, `StringBuilder`), no f-string, `.format` or `%` SQL in `services/scoring` |
 | `npm-audit` | `npm audit --omit=dev --audit-level=high` in `apps/web` |
 | `pip-audit` | pip-audit 2.10.1 over every locked package of `services/scoring` (`uv export --locked --all-groups`) |
 | `dependency-check` | OWASP Dependency-Check Gradle plugin in `services/api`, failing at CVSS >= 7 |
-| `dependabot` | `.github/dependabot.yml` covers npm, uv, gradle and github-actions weekly |
+| `dependabot` | `.github/dependabot.yml` covers npm, uv, gradle, github-actions, docker and docker-compose weekly |
+| `actions-pinned` | every action in `.github/workflows` is pinned by a full commit SHA with its version in a comment |
 
 Results are `PASS`, `FAIL`, `DEGRADED` (ran in a reduced mode) or `SKIPPED(reason)`. A degraded or
 skipped check is never shown as `PASS`; the last line then reads `RESULT: OK WITH <n> CHECK(S)
 SKIPPED OR DEGRADED`. `--strict` turns that into exit status 3; `--no-fallback` turns a missing
-gitleaks into a failure (used by CI).
+gitleaks into a failure (used by CI). Each check runs in its own subshell: a check that fails or
+stops on an error is recorded as `FAIL` and the remaining checks still run.
+
+The script's own behaviour is tested in throwaway repositories (planted secret in the tree, secret
+only in the history, hyphen-joined password, allowlisted value exact and as a substring,
+unreadable file, missing history object, string-built SQL), with and without gitleaks:
+
+```bash
+bash scripts/security/selftest-security-scan.sh
+```
 
 Degradation modes:
 
-- **No gitleaks on the `PATH`:** both secret checks fall back to a `git grep` pattern set (private
-  key headers, AWS access keys, GitHub and Slack tokens, JWTs, key/token/secret/password
-  assignments with random-looking values) over the same files and history, honour the same
-  allowlist, and report `DEGRADED`. Install gitleaks 8.30.1 to get the full rule set.
+- **No gitleaks on the `PATH`:** both secret checks fall back to a pattern set (private key
+  headers, AWS access keys, GitHub and Slack tokens, JWTs, key/token/secret/password assignments
+  with values of 16 or more characters): `grep` over the same copy of the working tree, and
+  `git grep` over every revision of every ref (an execution error is a failure, never "no
+  match"). A match is suppressed only when its credential value equals one of the reviewed values
+  of `.gitleaks.toml` exactly; the checks report `DEGRADED`. Install gitleaks 8.30.1 to get the
+  full rule set.
 - **No `NVD_API_KEY`:** `dependency-check` reports `SKIPPED(no NVD_API_KEY)`. Without an NVD API key
   the initial NVD download is rate limited to the point of taking well over 25 minutes, so the
   check does not run. To enable it, request a key at https://nvd.nist.gov/developers/request-an-api-key,
@@ -677,7 +827,10 @@ dc logs -f web          # nginx access log
 - Scoring service: `timestamp`, `level`, `logger`, `message`, `request_id`, `method`, `path`,
   `status`, `duration_ms`.
 - nginx: `$remote_addr [time] "METHOD path PROTOCOL" status bytes seconds "user agent"
-  request_id="..."`. The path is logged without its query string and without the referrer.
+  request_id="..."`. The path is logged without its query string and without the referrer, and
+  sanitised: everything after a `/promo-codes/` segment and everything from the first token-like
+  segment on (32 or more base64url characters that are not a UUID, or a JWT) is replaced by
+  `<redacted>`. Application routes served by the single-page app are logged as `/index.html`.
 - Request ids: a client `X-Request-Id` matching `^[A-Za-z0-9-]{1,64}$` is passed through nginx and
   used by the API and the scoring service; any other value is dropped and a new id is generated.
   Every problem response carries `requestId`, so a user's error report leads to the log lines.
@@ -703,14 +856,22 @@ RUN_E2E=1 bash scripts/test-all.sh               # also nginx routing check and 
 For a second run on the same stack, restart the API first (`dc restart api`) or start from section
 2 again. `RUN_SECURITY_SCAN=0` leaves the security scan out of `test-all.sh` (CI runs it in its own
 job). The nginx check alone: `bash infra/nginx/check-routing.sh` (needs `npm run build` in
-`apps/web` first).
+`apps/web` first; it builds the `runtime` stage of `infra/nginx/Dockerfile`, so it checks the
+pinned image, the configuration and the unprivileged user exactly as shipped).
+
+In CI the browser suites run with trace capture off (`--trace off`): a Playwright trace holds
+request and response bodies, cookies and typed input, and the administrator flows type the
+generated password. A failed run uploads only the JUnit reports, scrubbed of every secret value of
+`.env` and of token-shaped strings, and the failure screenshots
+(`scripts/ci/collect-e2e-artifacts.sh`); the generated secrets of `.env` are masked in the job log
+(`scripts/ci/mask-env-secrets.sh`).
 
 ## 16. Common failures
 
 | Symptom | Cause | Fix |
 |---|---|---|
 | `docker daemon is not reachable` | Docker is not running | start Docker Desktop or the daemon |
-| `Bind for 0.0.0.0:8080 failed: port is already allocated` (or 54320, 1025, 8025) | another process or a second stack uses the port | stop it; only one VitaDelta stack runs per host |
+| `Bind for 0.0.0.0:8080 failed: port is already allocated` (or 8025) | another process or a second stack uses the port | stop it; only one VitaDelta stack runs per host |
 | `Pool overlaps with other one on this network` | another Docker network uses `172.30.80.0/24` | remove that network or the other stack (`docker network ls`) |
 | compose: `VITADELTA_... must be set in .env` | `.env` predates a new variable in `.env.example` | add the variable from `.env.example` to `.env` with a value, or move `.env` away and run `scripts/dev-up.sh` to create a new one |
 | API container restarts, log `Failed to bind properties` or a `VITADELTA_` name | a required setting is missing or invalid (JWT secret shorter than 32 bytes, non-https base URL outside dev, missing privacy contact) | fix `.env` and `dc up -d --wait api` |
