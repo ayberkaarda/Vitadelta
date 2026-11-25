@@ -169,20 +169,68 @@ class AlertEvaluatorIntegrationTest extends AlertsIntegrationTest {
     assertThat(notifications(other)).isEmpty();
   }
 
+  private long boundary(UUID subscription) {
+    return jdbc.sql("SELECT catalog_version_boundary FROM alert_subscription WHERE id = ?")
+        .param(subscription)
+        .query(Long.class)
+        .single();
+  }
+
+  private void redeliver(UUID event) {
+    jdbc.sql("UPDATE outbox_event SET processed_at = NULL, outcome = NULL WHERE id = ?")
+        .param(event)
+        .update();
+  }
+
   @Test
-  void aRedeliveredEventIsDedupedThroughAlertDelivery() {
+  void aRedeliveredEventIsRejectedByTheVersionBoundary() {
     TestUser user = user();
     UUID sub = subscription(user, goldA(), "TR", AlertTrigger.PRICE_CHANGE, null, null);
+    long boundaryBefore = boundary(sub);
     offersChanged(goldA(), "TR", state("800.00", true), state("700.00", true));
     UUID event = (UUID) events().getFirst().get("id");
     processor.processDue();
     assertThat(notifications(user)).hasSize(1);
+    // The firing moved the boundary to the event's catalog version.
+    assertThat(boundary(sub)).isGreaterThan(boundaryBefore);
     // At-least-once: the same event is handed out again (for example after a lost finish).
-    jdbc.sql("UPDATE outbox_event SET processed_at = NULL, outcome = NULL WHERE id = ?")
-        .param(event)
-        .update();
+    redeliver(event);
     processor.processDue();
     assertThat(notifications(user)).hasSize(1);
+    assertThat(
+            jdbc.sql("SELECT count(*) FROM alert_delivery WHERE subscription_id = ?")
+                .param(sub)
+                .query(Long.class)
+                .single())
+        .isEqualTo(1);
+    assertThat(
+            events().stream()
+                .filter(e -> e.get("id").equals(event))
+                .findFirst()
+                .orElseThrow()
+                .get("outcome"))
+        .isEqualTo("DELIVERED");
+  }
+
+  @Test
+  void aRedeliveredEventIsDedupedThroughAlertDelivery() {
+    TestUser user = user();
+    UUID sub = subscription(user, goldA(), "TR", AlertTrigger.PRICE_CHANGE, null, null);
+    long boundaryBefore = boundary(sub);
+    offersChanged(goldA(), "TR", state("800.00", true), state("700.00", true));
+    UUID event = (UUID) events().getFirst().get("id");
+    processor.processDue();
+    assertThat(notifications(user)).hasSize(1);
+    UUID first = (UUID) notifications(user).getFirst().get("id");
+    // The redelivery must pass the version boundary so that only the alert_delivery row can stop
+    // the second firing: the boundary is put back to its value before the event.
+    jdbc.sql("UPDATE alert_subscription SET catalog_version_boundary = ? WHERE id = ?")
+        .params(boundaryBefore, sub)
+        .update();
+    redeliver(event);
+    processor.processDue();
+    assertThat(notifications(user)).hasSize(1);
+    assertThat(notifications(user).getFirst().get("id")).isEqualTo(first);
     assertThat(
             jdbc.sql("SELECT count(*) FROM alert_delivery WHERE subscription_id = ?")
                 .param(sub)
