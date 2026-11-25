@@ -212,14 +212,19 @@ public class AuthService {
   public void resetPassword(String token, String newPassword) {
     passwordPolicy.check(newPassword, "newPassword");
     String passwordHash = hasher.hash(newPassword);
-    transactions.executeWithoutResult(status -> {
-      Instant now = clock.instant();
-      UUID userId = consumed(emailTokens.consume(token, Kind.RESET_PASSWORD, now));
-      users.findByIdForUpdate(userId);
-      users.updatePassword(userId, passwordHash, now);
-      emailTokens.invalidateAll(userId, Kind.RESET_PASSWORD, now);
-      refreshTokens.revokeAllForUser(userId);
-    });
+    String email =
+        transactions.execute(status -> {
+          Instant now = clock.instant();
+          UUID userId = consumed(emailTokens.consume(token, Kind.RESET_PASSWORD, now));
+          Optional<UserAccount> locked = users.findByIdForUpdate(userId);
+          users.updatePassword(userId, passwordHash, now);
+          emailTokens.invalidateAll(userId, Kind.RESET_PASSWORD, now);
+          refreshTokens.revokeAllForUser(userId);
+          return locked.map(UserAccount::email).orElse(null);
+        });
+    if (email != null) {
+      throttle.reset(Emails.normalize(email));
+    }
   }
 
   private static UUID consumed(Consumption consumption) {
