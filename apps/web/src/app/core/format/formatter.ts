@@ -51,6 +51,18 @@ export function formatPercent(locale: string, ratio: number): string {
   );
 }
 
+/**
+ * A value that already is a percentage (100 = 100 %) in the locale's own style ("400%", "%400"),
+ * without dividing it: whole numbers from 10 up, one decimal at most below 10 ("2.5%").
+ */
+export function formatPercentValue(locale: string, value: number): string {
+  return new Intl.NumberFormat(locale, {
+    style: 'unit',
+    unit: 'percent',
+    maximumFractionDigits: Math.abs(value) >= 10 ? 0 : 1,
+  }).format(value);
+}
+
 /** Number with at most `digits` decimals and no padding ("1.5", "7.25", "60"). */
 export function formatPlain(locale: string, value: number, digits: number): string {
   return new Intl.NumberFormat(locale, { maximumFractionDigits: digits }).format(value);
@@ -162,6 +174,11 @@ export class Formatter {
   /** Coverage or other ratio as an integer percent. */
   percent(ratio: number): string {
     return formatPercent(this.locale(), ratio);
+  }
+
+  /** A server percentage (100 = 100 %), see {@link formatPercentValue}. */
+  percentValue(value: number): string {
+    return formatPercentValue(this.locale(), value);
   }
 
   plain(value: number, digits = 2): string {
