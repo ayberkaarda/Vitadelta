@@ -7,6 +7,7 @@ import {
   effect,
   inject,
   signal,
+  untracked,
   viewChild,
 } from '@angular/core';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
@@ -72,6 +73,8 @@ export class ShellComponent {
       }
     };
     effect(() => {
+      // A new session generation (another account, a sign-out) restarts the polling.
+      this.session.generation();
       stop();
       if (this.session.isAuthenticated()) {
         void this.unread.refresh();
@@ -86,8 +89,26 @@ export class ShellComponent {
     });
     destroyRef.onDestroy(stop);
 
-    const navigation = inject(Router)
-      .events.pipe(filter((event) => event instanceof NavigationEnd))
+    // When the session changes under a mounted page (also from another tab), the guards of the
+    // current route run again: protected pages send the visitor to login or home.
+    const router = inject(Router);
+    let seenGeneration: number | null = null;
+    effect(() => {
+      const generation = this.session.generation();
+      untracked(() => {
+        const changed = seenGeneration !== null && seenGeneration !== generation;
+        seenGeneration = generation;
+        if (changed && router.navigated) {
+          void router.navigateByUrl(router.url, {
+            onSameUrlNavigation: 'reload',
+            replaceUrl: true,
+          });
+        }
+      });
+    });
+
+    const navigation = router.events
+      .pipe(filter((event) => event instanceof NavigationEnd))
       .subscribe(() => this.sheetOpen.set(false));
     destroyRef.onDestroy(() => navigation.unsubscribe());
   }

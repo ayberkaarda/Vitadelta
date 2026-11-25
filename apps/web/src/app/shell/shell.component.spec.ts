@@ -13,6 +13,7 @@ import {
 import { EN, translocoTesting } from '../testing/transloco-testing';
 import { ApiClient } from '../core/api/api-client';
 import { AuthTokenResponse } from '../core/api/api-types';
+import { authGuard } from '../core/auth/guards';
 import { RefreshCoordinator, SessionMessage } from '../core/auth/refresh-coordinator';
 import { CurrencyStore } from '../core/state/currency.store';
 import { QueryStore } from '../core/state/query.store';
@@ -47,6 +48,7 @@ describe('ShellComponent', () => {
             refresh: vi.fn(async () => refreshResult),
             announceSession: vi.fn(),
             announceSignedOut: vi.fn(),
+            invalidate: vi.fn(),
             remoteChanges$: new Subject<SessionMessage>(),
           },
         },
@@ -202,5 +204,76 @@ describe('ShellComponent', () => {
     expect(host().querySelector('[role="dialog"]')).toBeNull();
     expect(host().querySelector('header')?.inert).toBe(false);
     expect(document.activeElement).toBe(button);
+  });
+
+  describe('after a session change in another tab', () => {
+    let remote: Subject<SessionMessage>;
+    const ACCOUNT_B = fixtureUser({
+      id: '0b0b0b0b-0000-4000-8000-00000000000b',
+      email: 'other@example.com',
+    });
+
+    async function renderWithRoutes(): Promise<Router> {
+      remote = new Subject<SessionMessage>();
+      TestBed.configureTestingModule({
+        imports: [ShellComponent, translocoTesting()],
+        providers: [
+          provideRouter([
+            {
+              path: 'account',
+              canActivate: [authGuard],
+              runGuardsAndResolvers: 'always',
+              children: [],
+            },
+            { path: 'auth/login', children: [] },
+          ]),
+          { provide: ApiClient, useValue: api },
+          {
+            provide: RefreshCoordinator,
+            useValue: {
+              refresh: vi.fn(async () => refreshResult),
+              announceSession: vi.fn(),
+              announceSignedOut: vi.fn(),
+              invalidate: vi.fn(),
+              remoteChanges$: remote,
+            },
+          },
+        ],
+      });
+      fixture = TestBed.createComponent(ShellComponent);
+      await settle(fixture);
+      const router = TestBed.inject(Router);
+      await router.navigateByUrl('/account');
+      await settle(fixture);
+      return router;
+    }
+
+    it('re-runs the guards of the mounted page and sends it to login after a sign-out', async () => {
+      refreshResult = fixtureTokenResponse('tok-a');
+      const router = await renderWithRoutes();
+      expect(router.url).toBe('/account');
+
+      remote.next({ type: 'signed-out', at: Date.now() });
+      await settle(fixture);
+      await settle(fixture);
+      expect(router.url).toBe('/auth/login?returnUrl=%2Faccount');
+    });
+
+    it('reloads the unread count for the account signed in elsewhere', async () => {
+      refreshResult = fixtureTokenResponse('tok-a');
+      await renderWithRoutes();
+      expect(api['getUnreadNotificationCount']).toHaveBeenCalledTimes(1);
+
+      api['getUnreadNotificationCount'] = vi.fn(() => of({ unreadCount: 9 }));
+      api['getMe'] = vi.fn(() => of(fixtureMe({ ...ACCOUNT_B })));
+      remote.next({
+        type: 'session',
+        response: fixtureTokenResponse('tok-b', ACCOUNT_B),
+        at: Date.now(),
+      });
+      await settle(fixture);
+      expect(api['getUnreadNotificationCount']).toHaveBeenCalledTimes(1);
+      expect(host().querySelector('vd-notification-bell a')?.textContent?.trim()).toBe('9');
+    });
   });
 });

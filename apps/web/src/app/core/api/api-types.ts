@@ -113,6 +113,7 @@ export type OutboxStats = Schemas['OutboxStats'];
 export type ProductsImportDocument = Schemas['ProductsImportDocument'];
 export type ImportJob = Schemas['ImportJob'];
 export type ImportJobDetail = Schemas['ImportJobDetail'];
+export type ImportJobError = Schemas['ImportJobError'];
 export type AdminUser = Schemas['AdminUser'];
 export type AdminUserPage = Schemas['AdminUserPage'];
 export type GrantSubscriptionRequest = Schemas['GrantSubscriptionRequest'];

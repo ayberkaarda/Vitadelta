@@ -12,6 +12,7 @@ import { ApiProblem } from '../api/api-problem';
 import { AuthTokenResponse } from '../api/api-types';
 import {
   LockManagerLike,
+  REFRESH_HANDSHAKE_TIMEOUT_MS,
   REFRESH_LOCK_NAME,
   RefreshCoordinator,
   SESSION_CHANNEL,
@@ -20,9 +21,33 @@ import {
   WEB_LOCKS,
 } from './refresh-coordinator';
 
-/** In-memory stand-in for BroadcastChannel: delivers to every other channel on the bus. */
+/**
+ * In-memory stand-in for BroadcastChannel: delivers to every other channel on the bus, at once
+ * or, for a deferred bus, only when the test calls {@link FakeBus.deliverAll}.
+ */
 class FakeBus {
   readonly channels: FakeChannel[] = [];
+  private readonly queue: { readonly to: FakeChannel; readonly data: unknown }[] = [];
+
+  constructor(readonly deferred = false) {}
+
+  send(from: FakeChannel, message: unknown): void {
+    for (const channel of this.channels) {
+      if (channel !== from) {
+        if (this.deferred) {
+          this.queue.push({ to: channel, data: structuredClone(message) });
+        } else {
+          channel.deliver(structuredClone(message));
+        }
+      }
+    }
+  }
+
+  deliverAll(): void {
+    for (const entry of this.queue.splice(0)) {
+      entry.to.deliver(entry.data);
+    }
+  }
 }
 
 class FakeChannel implements SessionChannelLike {
@@ -36,11 +61,7 @@ class FakeChannel implements SessionChannelLike {
 
   postMessage(message: unknown): void {
     this.sent.push(message);
-    for (const channel of this.bus.channels) {
-      if (channel !== this) {
-        channel.deliver(structuredClone(message));
-      }
-    }
+    this.bus.send(this, message);
   }
 
   addEventListener(_type: 'message', listener: (event: MessageEvent<unknown>) => void): void {
@@ -58,14 +79,34 @@ class FakeChannel implements SessionChannelLike {
   }
 }
 
-/** Exclusive lock manager shared by all "tabs": callbacks run one after another. */
+/**
+ * Exclusive lock manager shared by all "tabs": callbacks run one after another. Accepts both
+ * call shapes of the Web Locks API and grants an `ifAvailable` request a `null` lock while
+ * the lock is held or requested.
+ */
 class FakeLocks implements LockManagerLike {
   readonly names: string[] = [];
   private tail: Promise<unknown> = Promise.resolve();
+  private pending = 0;
 
-  request<T>(name: string, callback: () => Promise<T>): Promise<T> {
+  request<T>(name: string, ...args: unknown[]): Promise<T> {
+    const [first, second] = args;
+    const options = (typeof first === 'function' ? {} : first) as { ifAvailable?: boolean };
+    const callback = (typeof first === 'function' ? first : second) as (
+      lock: unknown,
+    ) => Promise<T>;
     this.names.push(name);
-    const run = this.tail.then(() => callback());
+    if (options.ifAvailable && this.pending > 0) {
+      return Promise.resolve().then(() => callback(null));
+    }
+    this.pending += 1;
+    const run = this.tail.then(async () => {
+      try {
+        return await callback({ name });
+      } finally {
+        this.pending -= 1;
+      }
+    });
     this.tail = run.catch(() => undefined);
     return run;
   }
@@ -77,7 +118,7 @@ interface Tab {
   readonly calls: Subject<AuthTokenResponse>[];
 }
 
-function createTab(bus: FakeBus, locks: LockManagerLike | null): Tab {
+function createTab(bus: FakeBus, locks: LockManagerLike | null, handshakeTimeout = 2000): Tab {
   const channel = new FakeChannel(bus);
   const calls: Subject<AuthTokenResponse>[] = [];
   const api = {
@@ -91,6 +132,7 @@ function createTab(bus: FakeBus, locks: LockManagerLike | null): Tab {
     [
       { provide: ApiClient, useValue: api },
       { provide: WEB_LOCKS, useValue: locks },
+      { provide: REFRESH_HANDSHAKE_TIMEOUT_MS, useValue: handshakeTimeout },
       { provide: SESSION_CHANNEL, useValue: channel },
     ],
     TestBed.inject(EnvironmentInjector),
@@ -141,7 +183,15 @@ describe('RefreshCoordinator', () => {
     answer(tab.calls[0], fixtureTokenResponse('t1'));
     await result;
     expect(locks.names).toEqual([REFRESH_LOCK_NAME]);
-    expect(tab.channel.sent).toEqual([{ type: 'session', response: fixtureTokenResponse('t1') }]);
+    expect(tab.channel.sent).toEqual([
+      { type: 'session', response: fixtureTokenResponse('t1'), at: expect.any(Number) },
+      {
+        type: 'refresh-done',
+        completedAt: expect.any(Number),
+        outcome: 'ok',
+        response: fixtureTokenResponse('t1'),
+      },
+    ]);
   });
 
   it('across tabs, a tab waiting for the lock reuses the session another tab obtained', async () => {
@@ -162,7 +212,9 @@ describe('RefreshCoordinator', () => {
     await expect(resultA).resolves.toEqual(fixtureTokenResponse('shared'));
     await expect(resultB).resolves.toEqual(fixtureTokenResponse('shared'));
     expect(tabB.calls).toHaveLength(0);
-    expect(remoteSeenByB).toEqual([{ type: 'session', response: fixtureTokenResponse('shared') }]);
+    expect(remoteSeenByB).toEqual([
+      { type: 'session', response: fixtureTokenResponse('shared'), at: expect.any(Number) },
+    ]);
   });
 
   it('refreshes itself when the remote session predates its own request', async () => {
@@ -243,6 +295,93 @@ describe('RefreshCoordinator', () => {
     await expect(result).resolves.toEqual(fixtureTokenResponse('y'));
   });
 
+  it('a tab that waited for the lock learns the holder outcome even when the broadcast is late', async () => {
+    const bus = new FakeBus(true);
+    const locks = new FakeLocks();
+    const tabA = createTab(bus, locks);
+    const tabB = createTab(bus, locks);
+
+    const resultA = tabA.coordinator.refresh();
+    await flush();
+    const resultB = tabB.coordinator.refresh();
+    await flush();
+    expect(tabA.calls).toHaveLength(1);
+
+    answer(tabA.calls[0], fixtureTokenResponse('shared'));
+    await expect(resultA).resolves.toEqual(fixtureTokenResponse('shared'));
+    // B now holds the lock, but A's messages have not been delivered yet.
+    await flush();
+    bus.deliverAll();
+    await flush();
+    expect(tabB.calls).toHaveLength(0);
+    await expect(resultB).resolves.toEqual(fixtureTokenResponse('shared'));
+  });
+
+  it('a waiting tab does not refresh again after the holder was refused', async () => {
+    const bus = new FakeBus(true);
+    const locks = new FakeLocks();
+    const tabA = createTab(bus, locks);
+    const tabB = createTab(bus, locks);
+
+    const resultA = tabA.coordinator.refresh();
+    await flush();
+    const resultB = tabB.coordinator.refresh();
+    await flush();
+    tabA.calls[0].error(new ApiProblem({ kind: 'problem', status: 401, code: 'unauthorized' }));
+    await expect(resultA).resolves.toBeNull();
+    await flush();
+    bus.deliverAll();
+    await flush();
+    expect(tabB.calls).toHaveLength(0);
+    await expect(resultB).resolves.toBeNull();
+  });
+
+  it('does not announce a refresh that completes after another tab signed out', async () => {
+    const bus = new FakeBus();
+    const locks = new FakeLocks();
+    const tabA = createTab(bus, locks);
+    const tabB = createTab(bus, locks);
+    const seenByB: SessionMessage[] = [];
+    tabB.coordinator.remoteChanges$.subscribe((message) => seenByB.push(message));
+
+    const resultA = tabA.coordinator.refresh();
+    await flush();
+    tabB.coordinator.announceSignedOut();
+    answer(tabA.calls[0], fixtureTokenResponse('late'));
+    await resultA;
+    expect(tabA.channel.sent.filter((m) => (m as SessionMessage).type === 'session')).toEqual([]);
+    expect(seenByB).toEqual([]);
+  });
+
+  it('ignores a session announced by a refresh that started before a sign-out', () => {
+    const tab = createTab(new FakeBus(), null);
+    const seen: SessionMessage[] = [];
+    tab.coordinator.remoteChanges$.subscribe((message) => seen.push(message));
+    tab.channel.deliver({ type: 'signed-out', at: 2000 });
+    tab.channel.deliver({ type: 'session', response: fixtureTokenResponse('old'), at: 1000 });
+    expect(seen.map((message) => message.type)).toEqual(['signed-out']);
+  });
+
+  it('refreshes itself when the lock holder never reports (a closed tab)', async () => {
+    const bus = new FakeBus();
+    const locks = new FakeLocks();
+    const tab = createTab(bus, locks, 10);
+    let release: () => void = () => undefined;
+    // A tab that takes the lock and is closed before it can report.
+    void locks.request(
+      REFRESH_LOCK_NAME,
+      {},
+      () => new Promise<void>((resolve) => (release = resolve)),
+    );
+    const result = tab.coordinator.refresh();
+    await flush();
+    release();
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(tab.calls).toHaveLength(1);
+    answer(tab.calls[0], fixtureTokenResponse('own'));
+    await expect(result).resolves.toEqual(fixtureTokenResponse('own'));
+  });
+
   it('ignores malformed channel messages', () => {
     const bus = new FakeBus();
     const tab = createTab(bus, null);
@@ -251,6 +390,9 @@ describe('RefreshCoordinator', () => {
     tab.channel.deliver('hello');
     tab.channel.deliver({ type: 'session', response: { accessToken: 5 } });
     tab.channel.deliver({ type: 'other' });
+    tab.channel.deliver({ type: 'signed-out' });
+    tab.channel.deliver({ type: 'session', response: fixtureTokenResponse('x') });
+    tab.channel.deliver({ type: 'refresh-done', completedAt: 1, outcome: 'ok', response: null });
     tab.channel.deliver(null);
     expect(seen).toEqual([]);
   });

@@ -18,22 +18,30 @@ describe('authInterceptor', () => {
   let http: HttpClient;
   let backend: HttpTestingController;
   let token: string | null;
+  let generation: number;
   let refreshResult: boolean;
-  let session: { accessToken: () => string | null; refreshAccessToken: ReturnType<typeof vi.fn> };
+  let session: {
+    accessToken: () => string | null;
+    generation: () => number;
+    refreshAccessToken: ReturnType<typeof vi.fn>;
+  };
   let navigate: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
     token = 'old-token';
+    generation = 1;
     refreshResult = true;
     session = {
       accessToken: () => token,
+      generation: () => generation,
       refreshAccessToken: vi.fn(async () => {
         if (refreshResult) {
           token = 'new-token';
-          return true;
+          return 'refreshed';
         }
         token = null;
-        return false;
+        generation += 1;
+        return 'failed';
       }),
     };
     TestBed.configureTestingModule({
@@ -152,5 +160,40 @@ describe('authInterceptor', () => {
     backend.expectOne('/api/v1/admin/users').flush(null, { status: 403, statusText: 'Forbidden' });
     await expect(forbidden).rejects.toBeInstanceOf(HttpErrorResponse);
     expect(session.refreshAccessToken).not.toHaveBeenCalled();
+  });
+
+  it('never replays a request under the account of another session generation', async () => {
+    const result = firstValueFrom(http.patch('/api/v1/me', { locale: 'tr' }));
+    const first = backend.expectOne('/api/v1/me');
+    expect(first.request.headers.get('Authorization')).toBe('Bearer old-token');
+    // Another tab signs in as a different account while the request is in flight.
+    token = 'token-of-account-b';
+    generation = 2;
+    first.flush(null, { status: 401, statusText: 'Unauthorized' });
+    const settled = result.catch((e: unknown) => e);
+    await flush();
+    backend.expectNone('/api/v1/me');
+    const error = await settled;
+    expect((error as HttpErrorResponse).status).toBe(401);
+    expect(session.refreshAccessToken).not.toHaveBeenCalled();
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it('does not retry when the refresh ends in another session generation', async () => {
+    session.refreshAccessToken.mockImplementation(async () => {
+      token = 'token-of-account-b';
+      generation = 2;
+      return 'superseded';
+    });
+    const result = firstValueFrom(http.get('/api/v1/me/saved-products?country=TR'));
+    backend
+      .expectOne('/api/v1/me/saved-products?country=TR')
+      .flush(null, { status: 401, statusText: 'Unauthorized' });
+    const settled = result.catch((e: unknown) => e);
+    await flush();
+    backend.expectNone('/api/v1/me/saved-products?country=TR');
+    const error = await settled;
+    expect((error as HttpErrorResponse).status).toBe(401);
+    expect(navigate).not.toHaveBeenCalled();
   });
 });

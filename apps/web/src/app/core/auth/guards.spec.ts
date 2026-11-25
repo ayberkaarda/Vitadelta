@@ -19,10 +19,15 @@ function run(guard: typeof authGuard, url: string) {
 describe('route guards', () => {
   let authenticated: boolean;
   let admin: boolean;
+  /** Outcome of `/me` for the current session generation. */
+  let currentMe: Promise<boolean>;
+  let ensureMe: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     authenticated = false;
     admin = false;
+    currentMe = Promise.resolve(true);
+    ensureMe = vi.fn(() => currentMe);
     TestBed.configureTestingModule({
       providers: [
         provideRouter([]),
@@ -32,10 +37,49 @@ describe('route guards', () => {
             whenReady: () => Promise.resolve(),
             isAuthenticated: () => authenticated,
             isAdmin: () => admin,
+            ensureMe,
+            me: () => (admin ? { role: 'ADMIN' } : { role: 'USER' }),
           },
         },
       ],
     });
+  });
+
+  it('adminGuard refuses an admin token when /me of the current session fails', async () => {
+    authenticated = true;
+    admin = true;
+    currentMe = Promise.resolve(false);
+    expect(serialize(await run(adminGuard, '/admin'))).toBe('/');
+    expect(ensureMe).toHaveBeenCalled();
+  });
+
+  it('adminGuard waits for a pending /me of the current session before admitting', async () => {
+    authenticated = true;
+    admin = true;
+    let finish: (ok: boolean) => void = () => undefined;
+    currentMe = new Promise<boolean>((resolve) => (finish = resolve));
+    let settled = false;
+    const result = Promise.resolve(run(adminGuard, '/admin')).then((value) => {
+      settled = true;
+      return value;
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(settled).toBe(false);
+    finish(true);
+    await expect(result).resolves.toBe(true);
+  });
+
+  it('protected areas re-run their guards when the session changes', async () => {
+    const account = (await import('../../features/account/account.routes')).default;
+    const adminRoutes = (await import('../../features/admin/admin.routes')).default;
+    const guarded = [...account, ...adminRoutes].flatMap((route) =>
+      route.children ? route.children : [route],
+    );
+    const withGuards = guarded.filter((route) => (route.canActivate ?? []).length > 0);
+    expect(withGuards).toHaveLength(2);
+    for (const route of withGuards) {
+      expect(route.runGuardsAndResolvers).toBe('always');
+    }
   });
 
   const serialize = (tree: unknown) => TestBed.inject(Router).serializeUrl(tree as UrlTree);

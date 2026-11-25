@@ -27,6 +27,7 @@ describe('SessionStore', () => {
     refresh: ReturnType<typeof vi.fn>;
     announceSession: ReturnType<typeof vi.fn>;
     announceSignedOut: ReturnType<typeof vi.fn>;
+    invalidate: ReturnType<typeof vi.fn>;
     remoteChanges$: Subject<SessionMessage>;
   };
   let store: SessionStore;
@@ -41,6 +42,7 @@ describe('SessionStore', () => {
       refresh: vi.fn(async (): Promise<AuthTokenResponse | null> => null),
       announceSession: vi.fn(),
       announceSignedOut: vi.fn(),
+      invalidate: vi.fn(),
       remoteChanges$: new Subject<SessionMessage>(),
     };
     TestBed.configureTestingModule({
@@ -150,19 +152,25 @@ describe('SessionStore', () => {
   });
 
   it('refreshAccessToken stores a new token or clears the session', async () => {
+    coordinator.refresh.mockResolvedValue(fixtureTokenResponse('tok-1'));
+    await store.bootstrap();
     coordinator.refresh.mockResolvedValue(fixtureTokenResponse('fresh'));
-    await expect(store.refreshAccessToken()).resolves.toBe(true);
+    await expect(store.refreshAccessToken()).resolves.toBe('refreshed');
     expect(store.accessToken()).toBe('fresh');
 
     coordinator.refresh.mockResolvedValue(null);
-    await expect(store.refreshAccessToken()).resolves.toBe(false);
+    await expect(store.refreshAccessToken()).resolves.toBe('failed');
     expect(store.accessToken()).toBeNull();
     expect(store.status()).toBe('anonymous');
   });
 
   it('applies a session refreshed or signed in by another tab', async () => {
     await store.bootstrap();
-    coordinator.remoteChanges$.next({ type: 'session', response: fixtureTokenResponse('remote') });
+    coordinator.remoteChanges$.next({
+      type: 'session',
+      response: fixtureTokenResponse('remote'),
+      at: Date.now(),
+    });
     expect(store.accessToken()).toBe('remote');
     expect(store.isAuthenticated()).toBe(true);
     await Promise.resolve();
@@ -172,7 +180,7 @@ describe('SessionStore', () => {
   it('applies a sign-out made in another tab', async () => {
     coordinator.refresh.mockResolvedValue(fixtureTokenResponse('tok-1'));
     await store.bootstrap();
-    coordinator.remoteChanges$.next({ type: 'signed-out' });
+    coordinator.remoteChanges$.next({ type: 'signed-out', at: Date.now() });
     expect(store.status()).toBe('anonymous');
     expect(store.accessToken()).toBeNull();
   });
@@ -205,5 +213,133 @@ describe('SessionStore', () => {
     const usage = { ...fixtureMe().usage, savedProducts: { used: 5, limit: 5 } };
     store.applyUsage(usage);
     expect(store.usage()?.savedProducts).toEqual({ used: 5, limit: 5 });
+  });
+
+  it('advances the generation on identity changes only, never on a token rotation', async () => {
+    const ACCOUNT_B = fixtureUser({ id: '0b0b0b0b-0000-4000-8000-00000000000b' });
+    coordinator.refresh.mockResolvedValue(fixtureTokenResponse('tok-1'));
+    await store.bootstrap();
+    const signedIn = store.generation();
+
+    coordinator.refresh.mockResolvedValue(fixtureTokenResponse('tok-2'));
+    await store.refreshAccessToken();
+    coordinator.remoteChanges$.next({
+      type: 'session',
+      response: fixtureTokenResponse('tok-3'),
+      at: Date.now(),
+    });
+    expect(store.generation()).toBe(signedIn);
+
+    coordinator.remoteChanges$.next({
+      type: 'session',
+      response: fixtureTokenResponse('tok-b', ACCOUNT_B),
+      at: Date.now(),
+    });
+    expect(store.generation()).toBe(signedIn + 1);
+
+    await store.signOut();
+    expect(store.generation()).toBe(signedIn + 2);
+    await store.signIn(fixtureTokenResponse('tok-c'));
+    expect(store.generation()).toBe(signedIn + 3);
+
+    coordinator.refresh.mockResolvedValue(fixtureTokenResponse('tok-b', ACCOUNT_B));
+    await expect(store.refreshAccessToken()).resolves.toBe('superseded');
+    expect(store.generation()).toBe(signedIn + 4);
+    expect(store.user()?.id).toBe(ACCOUNT_B.id);
+
+    coordinator.refresh.mockResolvedValue(null);
+    await expect(store.refreshAccessToken()).resolves.toBe('failed');
+    expect(store.generation()).toBe(signedIn + 5);
+    await store.forget();
+    expect(store.generation()).toBe(signedIn + 5);
+  });
+
+  it('ensureMe confirms /me of the current generation only', async () => {
+    coordinator.refresh.mockResolvedValue(fixtureTokenResponse('tok-1'));
+    api.getMe.mockReturnValue(throwError(() => problem(503, 'internal_error')));
+    await store.bootstrap();
+    expect(store.hasCurrentMe()).toBe(false);
+    await expect(store.ensureMe()).resolves.toBe(false);
+
+    api.getMe.mockReturnValue(of(fixtureMe({ role: 'ADMIN' })));
+    await expect(store.ensureMe()).resolves.toBe(true);
+    expect(api.getMe).toHaveBeenCalledTimes(3);
+    await expect(store.ensureMe()).resolves.toBe(true);
+    expect(api.getMe).toHaveBeenCalledTimes(3);
+
+    store.clear();
+    await expect(store.ensureMe()).resolves.toBe(false);
+  });
+
+  describe('session generations', () => {
+    const ACCOUNT_B = fixtureUser({
+      id: '0b0b0b0b-0000-4000-8000-00000000000b',
+      email: 'other@example.com',
+    });
+
+    it('discards a refresh that resolves after sign-out', async () => {
+      coordinator.refresh.mockResolvedValue(fixtureTokenResponse('tok-1'));
+      await store.bootstrap();
+      let resolveRefresh: (value: AuthTokenResponse | null) => void = () => undefined;
+      coordinator.refresh.mockReturnValue(
+        new Promise<AuthTokenResponse | null>((resolve) => (resolveRefresh = resolve)),
+      );
+      const refreshing = store.refreshAccessToken();
+      await store.signOut();
+      expect(coordinator.invalidate).toHaveBeenCalled();
+
+      resolveRefresh(fixtureTokenResponse('late-token'));
+      await refreshing;
+      expect(store.accessToken()).toBeNull();
+      expect(store.status()).toBe('anonymous');
+      expect(store.user()).toBeNull();
+    });
+
+    it('discards a late /me of the previous account after a switch in another tab', async () => {
+      coordinator.refresh.mockResolvedValue(fixtureTokenResponse('tok-1'));
+      await store.bootstrap();
+      const lateMe = new Subject<ReturnType<typeof fixtureMe>>();
+      api.getMe.mockReturnValueOnce(lateMe.asObservable());
+      const reloading = store.reloadMe();
+
+      api.getMe.mockReturnValue(of(fixtureMe({ ...ACCOUNT_B })));
+      coordinator.remoteChanges$.next({
+        type: 'session',
+        response: fixtureTokenResponse('tok-b', ACCOUNT_B),
+        at: Date.now(),
+      });
+      await Promise.resolve();
+      expect(store.user()?.id).toBe(ACCOUNT_B.id);
+
+      lateMe.next(fixtureMe());
+      lateMe.complete();
+      await reloading;
+      expect(store.user()?.id).toBe(ACCOUNT_B.id);
+      expect(store.me()?.email).toBe('other@example.com');
+      expect(store.accessToken()).toBe('tok-b');
+    });
+
+    it('ignores a profile that belongs to another account', async () => {
+      coordinator.refresh.mockResolvedValue(fixtureTokenResponse('tok-1'));
+      await store.bootstrap();
+      store.applyMe(fixtureMe({ ...ACCOUNT_B }));
+      expect(store.user()?.id).toBe(fixtureUser().id);
+      expect(store.me()?.email).toBe('user@example.com');
+    });
+
+    it('ignores a /me 401 that arrives after the session changed', async () => {
+      coordinator.refresh.mockResolvedValue(fixtureTokenResponse('tok-1'));
+      await store.bootstrap();
+      const lateMe = new Subject<ReturnType<typeof fixtureMe>>();
+      api.getMe.mockReturnValueOnce(lateMe.asObservable());
+      const reloading = store.reloadMe();
+      api.getMe.mockReturnValue(of(fixtureMe({ ...ACCOUNT_B })));
+      await store.signIn(fixtureTokenResponse('tok-b', ACCOUNT_B));
+
+      lateMe.error(problem(401, 'unauthorized'));
+      await reloading;
+      expect(store.status()).toBe('authenticated');
+      expect(store.accessToken()).toBe('tok-b');
+    });
   });
 });
