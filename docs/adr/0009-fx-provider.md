@@ -36,8 +36,10 @@ Prices are stored and ranked in the native currency of each country (TRY, EUR, G
 | Unknown query parameter (for example singular `provider=`) | 422 | `{"status":422,"message":"unknown parameter: provider"}` |
 | Unknown path or unknown provider in the path | 404 | `{"status":404,"message":"not found"}` |
 | Unknown provider as query value (`providers=NOPE`) | 200 | `[]` |
+| ISO code the ECB does not publish in `quotes` (for example `ARS`; verified 2026-11-25) | 200 | the rows of the other quotes only; `[]` when no requested quote is published |
+| ISO code the ECB does not publish as `base` | 200 | `[]` |
 
-The adapter treats any non-2xx status, an empty array, a missing requested quote or inconsistent dates as a failed fetch.
+The adapter treats any non-2xx status, an empty array, a missing requested quote or inconsistent dates as a failed fetch. A failure that names requested quotes (a 400/422 body naming them, or quotes left out of a 200 answer) reports them; the refresh job then requests that base once more without them, and when a 400/422 names no currency it requests the quotes one by one. Every dropped quote is logged as an operator warning and counted (`vitadelta.fx.refresh.unsupported{currency}`); it keeps no rate, so conversions to it are `UNAVAILABLE`, while every other pair is updated. A base the provider does not publish still fails (it has no rates at all).
 
 **Refresh job.** `FxRefreshJob` runs under its advisory lock (ADR-0011): at startup when `fx_rate` is empty or the newest `as_of` is older than 1 day, then every 6 hours. For every supported base it requests all other supported currencies and upserts `fx_rate (base, quote, as_of, rate, fetched_at, source = 'FRANKFURTER')`. Failures are logged with a metric and never crash the application; the last stored rates stay in use. `POST /admin/fx/refresh` runs the job immediately and returns the number of upserted rows.
 
@@ -53,7 +55,7 @@ The adapter treats any non-2xx status, an empty array, a missing requested quote
 - Replacing the provider means a new adapter; the port, the table and the conversion logic stay unchanged.
 - Tests use WireMock stubs of the verified v2 shapes, so the adapter is tested without network access.
 
-**Not verified on 2026-11-24:** provider rate limits (none documented in the OpenAPI document or visible in response headers; no load test was made), and the behaviour for a real currency that ECB does not publish (the 422 was observed only for a nonexistent three-letter code). The adapter's failure handling covers both cases.
+**Not verified on 2026-11-24:** provider rate limits (none documented in the OpenAPI document or visible in response headers; no load test was made). The behaviour for a real currency that ECB does not publish was verified on 2026-11-25 (left out of a 200 answer, see the table).
 
 ## Alternatives considered
 
