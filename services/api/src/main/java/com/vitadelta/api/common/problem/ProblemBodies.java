@@ -55,6 +55,11 @@ public final class ProblemBodies {
     return ResponseEntity.status(problem.getStatus()).headers(all).body(toBody(problem));
   }
 
+  /** The JSON text of a problem (used where no servlet response object is available). */
+  public static String json(ProblemDetail problem) {
+    return MAPPER.writeValueAsString(toBody(problem));
+  }
+
   /** Writes a problem to a servlet response (used by filters and security handlers). */
   public static void write(HttpServletResponse response, ProblemDetail problem) throws IOException {
     response.setStatus(problem.getStatus());

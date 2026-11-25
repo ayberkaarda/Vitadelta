@@ -39,6 +39,7 @@ import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.MultipartException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
 /**
@@ -69,6 +70,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
   static final String VALIDATION_DETAIL = "The request contains invalid fields.";
   static final String UNREADABLE_DETAIL = "The request body is not valid JSON for this operation.";
   static final String TOO_LARGE_DETAIL = "The request body exceeds the size limit.";
+  static final String MULTIPART_DETAIL = "The multipart body or one of its parts cannot be read.";
 
   @ExceptionHandler(ProblemException.class)
   ResponseEntity<Object> handleProblem(ProblemException exception, HttpServletRequest request) {
@@ -94,6 +96,29 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
   @ExceptionHandler(PayloadTooLargeException.class)
   ResponseEntity<Object> handleTooLarge(Exception exception, HttpServletRequest request) {
     return validation(HttpStatus.CONTENT_TOO_LARGE, TOO_LARGE_DETAIL, List.of(), request);
+  }
+
+  /**
+   * A multipart body the container cannot parse, for example a part whose file name contains NUL or
+   * other characters the container rejects: {@code 422 validation_failed} on the {@code file} part.
+   * Uploaded file names are never used, so nothing of the name is echoed. An oversized body is
+   * still {@code 413}.
+   */
+  @ExceptionHandler(MultipartException.class)
+  ResponseEntity<Object> handleMultipart(MultipartException exception, HttpServletRequest request) {
+    if (exception instanceof MaxUploadSizeExceededException || causedByTooLarge(exception)) {
+      return validation(HttpStatus.CONTENT_TOO_LARGE, TOO_LARGE_DETAIL, List.of(), request);
+    }
+    LOG.warn(
+        "Unreadable multipart body for {} {}: {}",
+        request.getMethod(),
+        request.getRequestURI(),
+        exception.getClass().getSimpleName());
+    return validation(
+        HttpStatus.UNPROCESSABLE_CONTENT,
+        VALIDATION_DETAIL,
+        List.of(new FieldViolation("file", "invalid_format", MULTIPART_DETAIL)),
+        request);
   }
 
   @ExceptionHandler(AuthenticationException.class)

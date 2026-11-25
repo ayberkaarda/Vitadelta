@@ -4,18 +4,23 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.Operation;
 import io.swagger.v3.oas.models.info.Info;
+import io.swagger.v3.oas.models.media.Content;
 import io.swagger.v3.oas.models.media.MediaType;
 import io.swagger.v3.oas.models.media.Schema;
+import io.swagger.v3.oas.models.parameters.Parameter;
 import io.swagger.v3.oas.models.responses.ApiResponse;
 import io.swagger.v3.oas.models.servers.Server;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.RecordComponent;
 import java.util.ArrayList;
+import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 import org.springdoc.core.customizers.OpenApiCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -23,8 +28,9 @@ import org.springframework.context.annotation.Configuration;
 /**
  * The OpenAPI description served by springdoc at {@link SecurityConfig#OPENAPI_DOCUMENT}. It is
  * generated from the controllers and their records ({@code springdoc.use-fqn}: schemas are named by
- * their fully qualified class name) and compared with {@code contracts/public-api.openapi.yaml} by
- * a test; the contract stays authoritative.
+ * their fully qualified class name while the document is built, then renamed to the contract's
+ * schema names by {@link #renameSchemas}) and compared with {@code
+ * contracts/public-api.openapi.yaml} by a test; the contract stays authoritative.
  *
  * <p>Response records are always serialized with every component (also {@code null} ones), so for
  * every record reachable from a response body whose components carry no explicit
@@ -50,9 +56,171 @@ public class OpenApiConfig {
         .servers(List.of(new Server().url("/").description("Same origin")));
   }
 
+  /**
+   * Contract schema names of the records whose simple class name differs from it (springdoc
+   * generates the fully qualified names, see {@link #renameSchemas}). Several classes may map to
+   * the same contract schema when they describe the same shape.
+   */
+  static final Map<String, String> CONTRACT_SCHEMA_NAMES =
+      Map.ofEntries(
+          Map.entry("com.vitadelta.api.billing.PromoCodeRecord", "PromoCode"),
+          Map.entry(
+              "com.vitadelta.api.catalog.web.ProductPresenter.Availability", "ProductAvailability"),
+          Map.entry("com.vitadelta.api.catalog.web.ProductPresenter.Flag", "ProductFlag"),
+          Map.entry("com.vitadelta.api.catalog.web.ProductPresenter.Nutrient", "ProductNutrient"),
+          Map.entry(
+              "com.vitadelta.api.catalog.web.ProductPresenter.Provenance", "ProductProvenance"),
+          Map.entry("com.vitadelta.api.catalog.web.ReferenceDataController.CountryItem", "Country"),
+          Map.entry(
+              "com.vitadelta.api.catalog.web.ReferenceDataController.FormItem", "NutrientForm"),
+          Map.entry(
+              "com.vitadelta.api.catalog.web.ReferenceDataController.NutrientItem", "Nutrient"),
+          Map.entry("com.vitadelta.api.common.HealthResponse", "Health"),
+          Map.entry("com.vitadelta.api.entitlement.PlanController.PlanView", "Plan"),
+          Map.entry("com.vitadelta.api.entitlement.PriceConversion", "MoneyMeta"),
+          Map.entry("com.vitadelta.api.entitlement.PriceConversion.Fx", "FxMeta"),
+          Map.entry(
+              "com.vitadelta.api.identity.AccountPlanSummary.SubscriptionView", "Subscription"),
+          Map.entry(
+              "com.vitadelta.api.imports.ImportController.ImportJobDetailView", "ImportJobDetail"),
+          Map.entry(
+              "com.vitadelta.api.imports.ImportController.ImportJobErrorView", "ImportJobError"),
+          Map.entry("com.vitadelta.api.imports.ImportController.ImportJobView", "ImportJob"),
+          Map.entry(
+              "com.vitadelta.api.recommendation.RecommendationApi.CategoryWeightsInput",
+              "CategoryWeights"),
+          Map.entry("com.vitadelta.api.recommendation.RecommendationApi.Flag", "ProductFlag"),
+          Map.entry(
+              "com.vitadelta.api.recommendation.RecommendationApi.Principal", "PrincipalSummary"),
+          Map.entry(
+              "com.vitadelta.api.recommendation.RecommendationApi.QueryRequest",
+              "RecommendationQueryRequest"),
+          Map.entry(
+              "com.vitadelta.api.recommendation.RecommendationApi.QueryResponse",
+              "RecommendationQueryResponse"),
+          Map.entry("com.vitadelta.api.recommendation.RecommendationApi.RankingInput", "Ranking"),
+          Map.entry(
+              "com.vitadelta.api.recommendation.RecommendationApi.RequiredNutrientInput",
+              "RequiredNutrient"),
+          Map.entry("com.vitadelta.api.recommendation.RecommendationApi.WeightsInput", "Weights"),
+          Map.entry("tools.jackson.databind.JsonNode", "UpdateMeRequest"),
+          Map.entry("JsonNode", "UpdateMeRequest"));
+
+  /**
+   * The schema kept when several classes map to one contract name: the one that describes the
+   * contract schema completely (the recommendation flag declares the code enumeration).
+   */
+  static final Set<String> PREFERRED_SCHEMAS =
+      Set.of("com.vitadelta.api.recommendation.RecommendationApi.Flag");
+
   @Bean
   OpenApiCustomizer responseRecordsRequired() {
-    return OpenApiConfig::markResponseRecordsRequired;
+    return openApi -> {
+      markResponseRecordsRequired(openApi);
+      renameSchemas(openApi);
+    };
+  }
+
+  /**
+   * Renames the generated schemas (fully qualified class names, which keep nested records of
+   * different classes apart while the document is built) to the contract's schema names: the entry
+   * of {@link #CONTRACT_SCHEMA_NAMES}, otherwise the simple class name. Every reference is
+   * rewritten; when two classes map to the same name the one of {@link #PREFERRED_SCHEMAS} is kept,
+   * otherwise the first one. No class or package name remains in the served document.
+   */
+  @SuppressWarnings("rawtypes")
+  static void renameSchemas(OpenAPI openApi) {
+    if (openApi.getComponents() == null || openApi.getComponents().getSchemas() == null) {
+      return;
+    }
+    Map<String, String> names = new LinkedHashMap<>();
+    Map<String, Schema> renamed = new TreeMap<>();
+    for (Map.Entry<String, Schema> entry : openApi.getComponents().getSchemas().entrySet()) {
+      String name = contractName(entry.getKey());
+      names.put(entry.getKey(), name);
+      if (!renamed.containsKey(name) || PREFERRED_SCHEMAS.contains(entry.getKey())) {
+        renamed.put(name, entry.getValue());
+      }
+    }
+    Set<Schema> visited = java.util.Collections.newSetFromMap(new IdentityHashMap<>());
+    renamed.values().forEach(schema -> rewriteReferences(schema, names, visited));
+    if (openApi.getPaths() != null) {
+      openApi
+          .getPaths()
+          .values()
+          .forEach(item -> item.readOperations().forEach(op -> rewrite(op, names, visited)));
+    }
+    openApi.getComponents().setSchemas(new LinkedHashMap<>(renamed));
+  }
+
+  /** The contract name of a generated schema name. */
+  static String contractName(String generated) {
+    String mapped = CONTRACT_SCHEMA_NAMES.get(generated);
+    if (mapped != null) {
+      return mapped;
+    }
+    int dot = generated.lastIndexOf('.');
+    return dot < 0 ? generated : generated.substring(dot + 1);
+  }
+
+  @SuppressWarnings("rawtypes")
+  private static void rewrite(Operation operation, Map<String, String> names, Set<Schema> seen) {
+    if (operation.getParameters() != null) {
+      for (Parameter parameter : operation.getParameters()) {
+        rewriteReferences(parameter.getSchema(), names, seen);
+        rewriteContent(parameter.getContent(), names, seen);
+      }
+    }
+    if (operation.getRequestBody() != null) {
+      rewriteContent(operation.getRequestBody().getContent(), names, seen);
+    }
+    if (operation.getResponses() != null) {
+      for (ApiResponse response : operation.getResponses().values()) {
+        rewriteContent(response.getContent(), names, seen);
+      }
+    }
+  }
+
+  @SuppressWarnings("rawtypes")
+  private static void rewriteContent(Content content, Map<String, String> names, Set<Schema> seen) {
+    if (content != null) {
+      for (MediaType media : content.values()) {
+        rewriteReferences(media.getSchema(), names, seen);
+      }
+    }
+  }
+
+  @SuppressWarnings({"rawtypes", "unchecked"})
+  private static void rewriteReferences(
+      Schema schema, Map<String, String> names, Set<Schema> seen) {
+    if (schema == null || !seen.add(schema)) {
+      return;
+    }
+    String ref = schema.get$ref();
+    if (ref != null && ref.startsWith(REF_PREFIX)) {
+      String target = names.get(ref.substring(REF_PREFIX.length()));
+      if (target != null) {
+        schema.set$ref(REF_PREFIX + target);
+      }
+    }
+    if (schema.getProperties() != null) {
+      for (Object property : schema.getProperties().values()) {
+        rewriteReferences((Schema) property, names, seen);
+      }
+    }
+    rewriteReferences(schema.getItems(), names, seen);
+    rewriteReferences(schema.getNot(), names, seen);
+    if (schema.getAdditionalProperties() instanceof Schema values) {
+      rewriteReferences(values, names, seen);
+    }
+    for (List<Schema> parts :
+        List.of(
+            listOf(schema.getAllOf()),
+            listOf(schema.getOneOf()),
+            listOf(schema.getAnyOf()),
+            listOf(schema.getPrefixItems()))) {
+      parts.forEach(part -> rewriteReferences(part, names, seen));
+    }
   }
 
   @SuppressWarnings("rawtypes")
