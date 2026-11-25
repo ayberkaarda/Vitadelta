@@ -125,6 +125,61 @@ class CatalogWriteTransactionTest extends PostgresIntegrationTest {
   }
 
   @Test
+  void afterBumpSeesTheCommittedVersionAndIsSkippedWithoutABump() {
+    long before = version();
+    List<Long> seen = new ArrayList<>();
+    String result =
+        writeTransaction.execute(
+            () -> "changed",
+            changed -> true,
+            (changed, version) -> {
+              assertThat(changed).isEqualTo("changed");
+              assertThat(CatalogWriteTransaction.isActive()).isTrue();
+              seen.add(version);
+            });
+    assertThat(result).isEqualTo("changed");
+    assertThat(seen).containsExactly(before + 1);
+    assertThat(version()).isEqualTo(before + 1);
+
+    writeTransaction.execute(
+        () -> "unchanged", unchanged -> false, (unchanged, version) -> seen.add(version));
+    assertThat(seen).containsExactly(before + 1);
+    assertThat(version()).isEqualTo(before + 1);
+  }
+
+  @Test
+  void aFailingAfterBumpRollsBackTheWriteAndTheBump() {
+    long before = version();
+    assertThatThrownBy(() ->
+            writeTransaction.execute(
+                () -> {
+                  writer.upsertNutrients(
+                      List.of(nutrient("TXN_AFTER_BUMP", "After bump")), new WriteReport());
+                  return null;
+                },
+                written -> true,
+                (written, version) -> {
+                  jdbc.update(
+                      "INSERT INTO outbox_event (id, event_type, aggregate_type, aggregate_id,"
+                          + " payload, created_at, next_attempt_at)"
+                          + " VALUES (gen_random_uuid(), 'OFFERS_CHANGED', 'PRODUCT_COUNTRY',"
+                          + " 'after-bump-test', '{}'::jsonb, now(), now())");
+                  throw new IllegalStateException("listener failed");
+                }))
+        .hasMessage("listener failed");
+    assertThat(version()).isEqualTo(before);
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT count(*) FROM nutrient WHERE code = 'TXN_AFTER_BUMP'", Integer.class))
+        .isZero();
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT count(*) FROM outbox_event WHERE aggregate_id = 'after-bump-test'",
+                Integer.class))
+        .isZero();
+  }
+
+  @Test
   void bumpIsTheLastStatementAndTheVersionIsVisibleAfterCommit() {
     long before = version();
     long seenInside =

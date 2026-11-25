@@ -68,13 +68,21 @@ class SeedTest extends PostgresIntegrationTest {
     return products + "\n" + offers;
   }
 
+  private int outboxEvents() {
+    return jdbc.queryForObject("SELECT count(*) FROM outbox_event", Integer.class);
+  }
+
   @Test
-  void seedingTwiceKeepsCountsAndIdsAndBumpsOncePerRun() throws IOException {
+  void seedingTwiceKeepsCountsAndIdsAndBumpsOnlyWhenARowChanged() throws IOException {
     Path dataDir = TestData.dataDir();
+    seedService.seed(dataDir);
     long start = version();
     SeedService.Result first = seedService.seed(dataDir);
-    assertThat(version()).isEqualTo(start + 1);
-    assertThat(first.catalogVersion()).isEqualTo(start + 1);
+    assertThat(first.report().changedRows()).isZero();
+    assertThat(first.versionBumped()).isFalse();
+    assertThat(first.changedPairs()).isZero();
+    assertThat(version()).isEqualTo(start);
+    assertThat(first.catalogVersion()).isEqualTo(start);
     Map<String, Integer> countsAfterFirst = counts();
     String idsAfterFirst = ids();
     assertThat(jdbc.queryForObject("SELECT count(*) FROM product WHERE synthetic", Integer.class))
@@ -108,13 +116,49 @@ class SeedTest extends PostgresIntegrationTest {
                 String.class))
         .isEqualTo("Vitamin D3 (cholecalciferol)");
 
+    int eventsBefore = outboxEvents();
     SeedService.Result second = seedService.seed(dataDir);
-    assertThat(version()).isEqualTo(start + 2);
-    assertThat(second.catalogVersion()).isEqualTo(start + 2);
+    assertThat(version()).isEqualTo(start);
+    assertThat(second.catalogVersion()).isEqualTo(start);
+    assertThat(second.versionBumped()).isFalse();
+    assertThat(outboxEvents()).as("an unchanged seed emits no event").isEqualTo(eventsBefore);
     assertThat(counts()).isEqualTo(countsAfterFirst);
     assertThat(ids()).isEqualTo(idsAfterFirst);
     assertThat(second.report().changedRows()).isZero();
     assertThat(second.report().tables().keySet()).containsAll(TABLES);
+  }
+
+  @Test
+  void aSeedThatChangesOffersBumpsOnceAndEmitsOffersChangedWithTheCommittedVersion() {
+    Path dataDir = TestData.dataDir();
+    seedService.seed(dataDir);
+    String goldB =
+        jdbc.queryForObject("SELECT id::text FROM product WHERE code = 'GOLD-B'", String.class);
+    jdbc.update(
+        "UPDATE offer SET price = price + 1 WHERE country_code = 'TR'"
+            + " AND product_id = (SELECT id FROM product WHERE code = 'GOLD-B')");
+    long before = version();
+
+    SeedService.Result restored = seedService.seed(dataDir);
+
+    assertThat(restored.versionBumped()).isTrue();
+    assertThat(restored.catalogVersion()).isEqualTo(before + 1);
+    assertThat(version()).isEqualTo(before + 1);
+    assertThat(restored.changedPairs()).isEqualTo(1);
+    List<String> aggregates =
+        jdbc.queryForList(
+            "SELECT aggregate_id FROM outbox_event WHERE event_type = 'OFFERS_CHANGED'"
+                + " AND (payload ->> 'catalogVersion')::bigint = ?",
+            String.class,
+            before + 1);
+    assertThat(aggregates).containsExactly(goldB + ":TR");
+
+    int eventsBefore = outboxEvents();
+    SeedService.Result again = seedService.seed(dataDir);
+    assertThat(again.versionBumped()).isFalse();
+    assertThat(again.changedPairs()).isZero();
+    assertThat(version()).isEqualTo(before + 1);
+    assertThat(outboxEvents()).isEqualTo(eventsBefore);
   }
 
   @Test
@@ -305,7 +349,15 @@ class SeedTest extends PostgresIntegrationTest {
 
   @Test
   void runnerSeedsTheConfiguredDirectory() {
+    seedService.seed(TestData.dataDir());
+    jdbc.update("UPDATE nutrient_form SET name_en = 'changed' WHERE code = 'UBIQUINOL'");
     long before = version();
+    new SeedRunner(seedService, new SeedProperties(TestData.dataDir())).run(null);
+    assertThat(version()).isEqualTo(before + 1);
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT name_en FROM nutrient_form WHERE code = 'UBIQUINOL'", String.class))
+        .isNotEqualTo("changed");
     new SeedRunner(seedService, new SeedProperties(TestData.dataDir())).run(null);
     assertThat(version()).isEqualTo(before + 1);
   }
