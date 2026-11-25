@@ -1,0 +1,142 @@
+# Phase 8 report: payment provider (Stripe, test mode)
+
+Date: 2026-11-25. Branch: `feat/phase-8-billing-provider`.
+
+The owner approved the optional Phase 8 of the project specification (§13.10) and chose Stripe in test mode. This report covers the contracts and the API. The web part (checkout button on `/upgrade`, billing-portal entry on `/account`) is delivered separately; section 11 is reserved for it.
+
+## 1. Completed
+
+- Contract first: three new operations (`POST /billing/checkout-session`, `POST /billing/portal-session`, `POST /billing/webhooks/stripe`), `Plan.checkoutAvailable`, three problem codes; the typed web client was regenerated (section 8).
+- `BillingProvider` adapter `StripeBillingProvider` behind the existing billing port, with a new request kind `ActivationRequest.ProviderPeriod`; subscriptions with `source = PROVIDER` and the Stripe subscription id in `external_ref`, changed only under the existing per-user row lock (`SubscriptionService.applyProviderPeriod`, `SubscriptionService.endProviderSubscription`).
+- Hosted Stripe Checkout (subscription mode, one recurring monthly price) and Stripe Billing Portal (payment methods, invoices, cancellation); the API creates sessions and returns their URLs, built only from `VITADELTA_WEB_BASE_URL`.
+- Webhook receiver: raw-body signature verification before parsing (HMAC-SHA256 over `t.payload`, constant-time comparison of every `v1`, 5-minute window in both directions, missing, repeated and malformed headers rejected), one generic `400` for every rejection, idempotency through a processed-events table, current subscription state read from Stripe for every handled event, forward-only application (periods never shrink, an ended subscription never comes back), user mapping only through the user id attached at checkout (never e-mail), events of the other mode and unknown types acknowledged and ignored. Own body limit (256 kB) and rate cap (300 per minute per client address); no credentials and no CSRF token.
+- `plan-activated` (first activation) and `plan-expired` (provider subscription ended) mails through the existing asynchronous mail dispatcher; the alert module's existing listeners create the in-app notifications from the published events.
+- Account deletion cancels the user's live Stripe subscriptions after the deletion commits.
+- Configuration through `VITADELTA_BILLING_PROVIDER` (none|stripe, default none), `VITADELTA_STRIPE_SECRET_KEY`, `VITADELTA_STRIPE_WEBHOOK_SECRET`, `VITADELTA_STRIPE_PRICE_ID`, `VITADELTA_STRIPE_ALLOW_LIVE`; fail fast before the database is contacted; live keys refused unless explicitly allowed; secrets never printed. Documented in `.env.example` (placeholders only) and passed through `infra/docker-compose.yml`.
+- Flyway migration V7 (`billing_customer`, `billing_subscription`, `billing_webhook_event`).
+- ADR-0014, runbook section 7.1 (test-mode product and price, portal configuration, `stripe listen`, webhook secret and API key rotation, troubleshooting), README (English and Turkish), architecture, ADR-0005 (pins), ADR-0010 and ADR-0013 cross-references.
+
+## 2. Files by area
+
+| Area | Files |
+|---|---|
+| Contracts (ORCH) | `contracts/public-api.openapi.yaml` |
+| Web, generated only | `apps/web/src/app/core/api/schema.d.ts` (`npm run api:types`) |
+| Billing (AGENT_IDENTITY) | new: `BillingProperties`, `StripeSignatureVerifier`, `StripeApi`, `StripeApiException`, `StripeSubscription`, `StripeBillingProvider`, `BillingAccountRepository`, `StripeWebhookService`, `ProviderCheckoutService`, `ProviderBillingController`, `ProviderCheckoutAvailability`, `BillingAccountDeletionListener`; changed: `ActivationRequest`, `BillingProvider`, `BillingApi` |
+| Entitlement (AGENT_IDENTITY) | new: `CheckoutAvailability`; changed: `Subscription` (`externalRef`), `SubscriptionRepository`, `SubscriptionService`, `SubscriptionSource`, `PlanController` |
+| Migration (AGENT_IDENTITY) | `V7__billing_provider.sql` |
+| Shared files (AGENT_API boundary, applied by this worker) | `ProblemCode` (3 codes), `RateLimitPolicy` (3 policies), `HttpLimitsProperties` (webhook body limit), `SecurityConfig` (`/billing/webhooks/**` public, `/billing/**` authenticated), `StartupValidationConfig` (`BillingProperties` validated first), `application.yml` (`vitadelta.billing.*`, `vitadelta.http.webhook-*`) |
+| Tests | new: `StripeSignatureVerifierTest`, `BillingPropertiesTest`, `StripeApiTest`, `StripeIntegrationTest` (base), `StripeWebhookIntegrationTest`, `StripeCheckoutIntegrationTest`, `BillingProviderDisabledIntegrationTest`; changed: `OpenApiContractTest`, `MigrationGapTest`, `ProblemsTest`, `PropertiesValidationTest`, `RequestFiltersTest`, `StartupFailFastTest` |
+| Infra | `.env.example`, `infra/docker-compose.yml` |
+| Docs | `docs/adr/0014-stripe-billing-provider.md`, `docs/adr/0005-version-pins.md`, `docs/adr/0010-billing-port.md`, `docs/adr/0013-migration-numbering.md`, `docs/runbook.md`, `docs/architecture.md`, `README.md`, `README.tr.md`, this report |
+
+## 3. Tests and checks
+
+| Check | Command | Result |
+|---|---|---|
+| API, full gate | `cd services/api && ./gradlew check --rerun-tasks` (JDK 25) | PASS: 1503 tests, 0 failures, 0 skipped; spotless and the JaCoCo gate green (line coverage 96.35 %, branch 86.65 %; package `billing` 96.07 % lines) |
+| Contract lint | `npx @redocly/cli@2.83.0 lint contracts/public-api.openapi.yaml` | valid; the same 7 pre-existing warnings as on `main` |
+| Typed web client | `cd apps/web && npm run api:types`, then `npm run api:check` | regenerated, current |
+| Security scan | `scripts/security-scan.sh` | OK (gitleaks history and tree, env files, SQL concatenation, npm and pip audit, Dependabot, pinned actions PASS; dependency-check SKIPPED without `NVD_API_KEY`) |
+| Web type check | `npx tsc -p tsconfig.app.json --noEmit`, `npx tsc -p tsconfig.spec.json --noEmit` | FAILS until the web part lands (section 11): `PROBLEM_CODES` in `core/api/api-types.ts` must list the three new problem codes, and the typed `Plan` fixtures need `checkoutAvailable` |
+| Web suites, e2e, `scripts/test-all.sh` | | not run in this part (the web suites fail on the type check above) |
+
+New tests (all against a WireMock stub of the Stripe API, keys and secrets generated per run):
+
+- `StripeSignatureVerifierTest`: valid signature; any matching `v1` among several (rotation); `v0` and debug entries ignored; tampered and reformatted body; another secret; changed timestamp; replay window in both directions with the exact boundary; missing and repeated header; twelve malformed header forms; repeated `t`; oversized header; too many signatures; non-hex and upper-case signatures. Expected signatures are computed independently in the test.
+- `BillingPropertiesTest`: provider off by default (empty, `none`); unknown provider; test and restricted test keys; live keys refused unless allowed; each required value; malformed values without echoing secrets; API base URL (https, or http to loopback only); limits; `toString` hides secrets.
+- `StripeApiTest`: Checkout form fields, `Authorization` and `Stripe-Version` headers; customer reuse; non-https or malformed session URLs; portal session; Stripe error type and code without the message; subscription parsing (latest item period end, expanded invoice, metadata, expanded customer, end time); grant rule per status and invoice; malformed and duplicate-key bodies; ids checked before they reach a URL; DELETE cancellation; 404, connection reset, timeout, oversized body, refused connection; unconfigured adapter.
+- `StripeWebhookIntegrationTest`: checkout activates PRO (`PROVIDER`, `external_ref`, period end, customer mapping, `plan-activated` mail, event, pinned headers to Stripe, nothing provider-specific in `GET /me`); idempotent replay with fresh signatures (one mail, Stripe read once); six parallel deliveries of one event apply once; paid renewal extends without a mail; open and failed renewals grant nothing until paid; deletion downgrades at once with `plan-expired`; a late active read never revives an ended subscription; an older period never shortens a newer one; checkout on top of a promo period keeps the later end; user mapping only through metadata (mismatch with `client_reference_id`, missing metadata, other price, missing client reference); customer of another user refused; other mode, unknown type and payment-mode sessions ignored; Stripe outage answers 503 and the retry applies; unknown subscription ignored; nine unauthentic variants all get the identical generic 400 and change nothing; no credentials needed, 100 kB body accepted, 300 kB refused with 413, per-address cap of 300 per minute with `Retry-After`; account deletion cancels the Stripe subscription after commit and a later deleted event is recorded as `user_missing`; a failed cancellation does not block the deletion.
+- `StripeCheckoutIntegrationTest`: checkout bound to the user (client reference and both metadata fields, return URLs from `VITADELTA_WEB_BASE_URL`, locale, no e-mail sent to Stripe, no subscription change); customer reuse; 401, 403 `email_not_verified`, 409 `plan_already_active`; Stripe failure is 503 without details; per-user limits of checkout and portal; portal 409 `no_billing_account`, return URL, non-https portal URL refused; `checkoutAvailable` true for PRO only.
+- `BillingProviderDisabledIntegrationTest`: `checkoutAvailable` false; checkout, portal and webhook answer 503 `billing_unavailable`; authentication still required.
+- `StartupFailFastTest`: provider `stripe` without a key, with a live key, and an unknown provider stop the startup before the database is contacted.
+- Updated: `OpenApiContractTest` (three new operations implemented; one documented gap), `MigrationGapTest` (V7 in both delivery orders), `ProblemsTest`, `PropertiesValidationTest`, `RequestFiltersTest`.
+
+## 4. Deviations and assumptions
+
+- **Plain REST instead of the Stripe SDK.** `stripe-java` 34.2.0 was evaluated (works on JDK 25, pinned to the same API version) and not used: four calls and the signature check do not justify the SDK and Gson on the runtime classpath (ADR-0014).
+- **Current state over payload.** Every handled event triggers one `GET /v1/subscriptions/{id}`; the payload is only used to locate the subscription. This makes ordering irrelevant and keeps one parsed shape.
+- **Grant rule.** A period is granted only when the subscription is `active`/`trialing` and its latest invoice is `paid`. Stripe moves `current_period_end` when the renewal invoice is created; granting on that alone would give an unpaid month.
+- **Future timestamps rejected.** Stripe's libraries reject only signing times older than the tolerance; this adapter also rejects times more than 5 minutes ahead.
+- **Renewals send no mail.** `plan-activated` is sent on activation only, `plan-expired` when a provider subscription ends; a monthly renewal mail was not specified.
+- **Webhook ignored cases answer 200.** Unknown types, other-mode events and subscriptions not created by this API's checkout are acknowledged so Stripe stops retrying; a Stripe outage while reading answers `503` so Stripe retries.
+- **Account deletion** cancels the user's live Stripe subscriptions after commit (not listed in §13.10; without it a deleted user would keep being charged). A failed cancellation does not block the deletion; it is logged and counted for the operator.
+- **`checkoutAvailable` does not depend on the caller.** A PRO caller gets `409 plan_already_active` from checkout; the web app reads the caller's plan from `GET /me`.
+- **`billing_webhook_event` is kept indefinitely.** No personal data, a few rows per paying user per month; no purge job was added.
+- **Known limits** (runbook 7.1): a promo period redeemed on top of a provider period is lost when the provider subscription ends early; two concurrent checkouts can create two Stripe subscriptions for one user (metric and log line; the operator cancels and refunds one).
+
+## 5. Unverified or skipped
+
+- No call was made to the real Stripe API and no real key was used: every test runs against a WireMock stub answering the documented shapes. The end-to-end flow with a real test-mode account (`stripe listen`, test card) has not been run.
+- The Stripe facts (latest API version `2026-11-18.endive`, Endive breaking changes, subscription and invoice fields, the manual signature scheme, `stripe-java` 34.2.0) were read from Stripe's documentation, changelog, the `stripe-java` source on GitHub and Maven Central on 2026-11-25.
+- The §15.7 adversarial cases for the billing routes are not written: by the adversarial-test rule they belong to AGENT_REDTEAM, not to the implementing agent. Suggested cases: signature forgery and replay through nginx, header smuggling of `Stripe-Signature`, metadata spoofing, customer takeover, oversized and chunked bodies, rate-cap bypass with forwarded headers.
+- Stripe recommends allow-listing its webhook source addresses; not configured in nginx (the signature is the control). Left to the deployment.
+
+## 6. Decisions for the owner
+
+- Whether to keep the `stripe` provider off in the default local stack (current) and how the Stripe test account, price and webhook secret are provisioned for shared environments.
+- Whether a monthly renewal e-mail is wanted.
+- Whether promo redemption should be blocked while a provider subscription is active (avoids the lost-promo-period limit above).
+- Live mode remains out of scope until a separate decision (`VITADELTA_STRIPE_ALLOW_LIVE`).
+
+## 7. Proposed scope changes
+
+- An admin view of a user's provider state (customer, subscription status, last webhook outcome) and an admin "cancel at Stripe" action, to replace the SQL and CLI steps of runbook 7.1.
+
+## 8. Branch, commits and contract changes
+
+Branch `feat/phase-8-billing-provider`, created from `main` at `7c4e3b6`. Not pushed; no PR opened.
+
+- `fe191be` feat(contracts): add the Stripe checkout, billing portal and webhook operations
+- `e29c18e` chore(web): regenerate the typed API client for the billing operations
+- `08f053a` fix(contracts): show the generic webhook rejection detail in its example
+- `8ec51b4` chore(web): regenerate the typed API client after the webhook example fix
+- `f9ebb92` feat(identity): add the billing provider tables in migration V7
+- `20b215f` feat(identity): apply and end payment-provider subscription periods
+- `3652600` feat(api): add billing problem codes, rate limits and the webhook body limit
+- `61cba34` feat(billing): configure the optional Stripe provider and fail fast on bad settings
+- `47126ee` feat(billing): verify Stripe webhook signatures over the raw body
+- `cdb2554` feat(billing): call the Stripe REST API with a pinned API version
+- `974bd8e` feat(identity): report checkoutAvailable on the plans
+- `7c60799` feat(billing): add the Stripe adapter of the billing port and its repository
+- `c547f3f` feat(billing): serve hosted checkout, billing portal and the Stripe webhook
+- `1807664` feat(billing): cancel the Stripe subscription of a deleted account after commit
+- `0c2a789` feat(infra): pass the optional Stripe settings to the API and document them
+- `c8a90d1` docs: record the Stripe provider decision and the pinned API version
+- `285b365` docs: add the Stripe test-mode setup, webhook forwarding and secret rotation to the runbook
+- `3b5e162` docs: mention the optional Stripe provider in the READMEs and the architecture
+- this report: docs: add the Phase 8 report for the contracts and the API
+
+Contract changes (`contracts/public-api.openapi.yaml`):
+
+| Change | Field / operation | Reason | Compatibility |
+|---|---|---|---|
+| New operation | `POST /billing/checkout-session` → `BillingRedirect { url }`; 401, 403 `email_not_verified`, 409 `plan_already_active`, 429, 503 `billing_unavailable` | hosted Stripe Checkout for PRO | additive |
+| New operation | `POST /billing/portal-session` → `BillingRedirect`; 401, 409 `no_billing_account`, 429, 503 | cancellation and payment methods on the Stripe Billing Portal | additive |
+| New operation | `POST /billing/webhooks/stripe` (`security: []`, header `Stripe-Signature`, body `StripeEvent`) → `WebhookAck { received }`; 400 generic, 413, 429, 503 | signature-authenticated provider webhook | additive |
+| New required property | `Plan.checkoutAvailable` (boolean) | the web app shows the checkout button from the server's answer | additive for readers; typed clients that construct `Plan` objects must add it (web fixtures, section 11) |
+| New problem types | `billing_unavailable` (503), `plan_already_active` (409), `no_billing_account` (409) in `Problem.type` | billing errors | additive |
+| New responses / schemas | `BillingConflict`, `BillingUnavailable`, `WebhookRejected`; `BillingRedirect`, `StripeEvent`, `WebhookAck`; tag `Billing` | | additive |
+| Description | `PayloadTooLarge` names the 256 kB webhook limit | | none |
+
+`OpenApiContractTest` lists one new accepted gap: the webhook binds the raw body as bytes (`request: kind contract=object code=scalar`), because the signature is verified over the exact bytes before parsing.
+
+## 9. Next phase
+
+The web part of Phase 8 (section 11), then the phase gate: `scripts/test-all.sh` including e2e, the AGENT_REDTEAM billing cases, the phase PR.
+
+## 10. Awaiting approval
+
+Awaiting the web part and the owner's review of this report.
+
+## 11. Web part (to be completed by the web worker)
+
+<!-- Reserved for the web worker: checkout button on /upgrade (rendered from Plan.checkoutAvailable,
+     follows BillingRedirect.url), return handling of /upgrade?checkout=success|canceled, billing
+     portal entry on /account for subscription.source = PROVIDER, i18n keys (tr, en) including the
+     problem codes billing_unavailable, plan_already_active and no_billing_account (PROBLEM_CODES in
+     core/api/api-types.ts must list them for the app to type-check), tests and the
+     typed fixtures that need Plan.checkoutAvailable (upgrade-page.component.spec.ts,
+     results/testing/golden.fixtures.ts). -->
+
+Not delivered yet.
