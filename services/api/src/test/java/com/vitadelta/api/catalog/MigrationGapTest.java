@@ -21,9 +21,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * Migrations V1, V2 and V5 on a clean database, and the reserved gap: V3 and V4 arrive in Phase 5
- * after V5 has been applied. With {@code out-of-order} (as configured in {@code application.yml}) a
- * later V3 is applied and validation still passes; without it Flyway rejects the database.
+ * The delivered migrations V1, V2, V4 and V5 on a clean database, and the reserved gap: V3 arrives
+ * after V4 and V5 have been applied. With {@code out-of-order} (as configured in {@code
+ * application.yml}) a later V3 is applied and validation still passes; without it Flyway rejects
+ * the database.
  */
 class MigrationGapTest extends PostgresIntegrationTest {
 
@@ -51,13 +52,14 @@ class MigrationGapTest extends PostgresIntegrationTest {
   }
 
   @Test
-  void aCleanDatabaseGetsV1V2AndV5AndAcceptsTheReservedVersionsLater() throws Exception {
+  void aCleanDatabaseGetsTheDeliveredMigrationsAndAcceptsTheReservedVersionsLater()
+      throws Exception {
     String url = createDatabase();
     Flyway current = flyway(url, true, "classpath:db/migration");
     current.migrate();
     MigrationInfo[] applied = current.info().applied();
     assertThat(Arrays.stream(applied).map(i -> i.getVersion().getVersion()))
-        .containsExactly("1", "2", "5");
+        .containsExactly("1", "2", "4", "5");
     assertThat(applied).allSatisfy(i -> assertThat(i.getState()).isEqualTo(MigrationState.SUCCESS));
     assertThat(current.info().pending()).isEmpty();
 
@@ -71,7 +73,7 @@ class MigrationGapTest extends PostgresIntegrationTest {
     Flyway withLater = flyway(url, true, "classpath:db/migration", laterLocation);
     withLater.migrate();
     assertThat(Arrays.stream(withLater.info().applied()).map(i -> i.getVersion().getVersion()))
-        .contains("1", "2", "3", "5");
+        .contains("1", "2", "3", "4", "5");
     withLater.validate();
   }
 
@@ -83,7 +85,10 @@ class MigrationGapTest extends PostgresIntegrationTest {
     Files.createDirectories(copy);
     for (String file :
         new String[] {
-          "V1__catalog.sql", "V2__identity_and_plans.sql", "V5__form_registry_and_ul_notes.sql"
+          "V1__catalog.sql",
+          "V2__identity_and_plans.sql",
+          "V4__fx_rates.sql",
+          "V5__form_registry_and_ul_notes.sql"
         }) {
       try (var in = getClass().getResourceAsStream("/db/migration/" + file)) {
         String sql = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);

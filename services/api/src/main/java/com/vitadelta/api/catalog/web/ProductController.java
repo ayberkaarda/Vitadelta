@@ -12,9 +12,12 @@ import com.vitadelta.api.common.problem.ProblemCode;
 import com.vitadelta.api.common.problem.ProblemException;
 import com.vitadelta.api.common.ratelimit.RateLimitPolicy;
 import com.vitadelta.api.common.ratelimit.RateLimiter;
+import com.vitadelta.api.common.watch.WatchState;
+import com.vitadelta.api.common.watch.WatchStateReader;
 import com.vitadelta.api.common.web.ClientIpResolver;
 import com.vitadelta.api.entitlement.PriceConversion;
 import com.vitadelta.api.identity.CurrentUser;
+import io.swagger.v3.oas.annotations.Parameter;
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.Clock;
 import java.time.Instant;
@@ -51,6 +54,7 @@ public class ProductController {
   private final ProductPresenter presenter;
   private final RateLimiter rateLimiter;
   private final ClientIpResolver clientIps;
+  private final WatchStateReader watchStates;
   private final Clock clock;
 
   public ProductController(
@@ -59,12 +63,14 @@ public class ProductController {
       ProductPresenter presenter,
       RateLimiter rateLimiter,
       ClientIpResolver clientIps,
+      WatchStateReader watchStates,
       Clock clock) {
     this.catalog = catalog;
     this.currencies = currencies;
     this.presenter = presenter;
     this.rateLimiter = rateLimiter;
     this.clientIps = clientIps;
+    this.watchStates = watchStates;
     this.clock = clock;
   }
 
@@ -90,7 +96,8 @@ public class ProductController {
 
   @GetMapping("/products")
   public ProductPage search(
-      @RequestParam(required = false) String country,
+      // Validated here (422 with field errors); documented as required like the contract.
+      @Parameter(required = true) @RequestParam(required = false) String country,
       @RequestParam(required = false) String q,
       @RequestParam(required = false) Integer page,
       @RequestParam(required = false) Integer pageSize,
@@ -135,7 +142,8 @@ public class ProductController {
   @GetMapping("/products/{id}")
   public ProductDetailResponse detail(
       @PathVariable("id") String id,
-      @RequestParam(required = false) String country,
+      // Validated here (422 with field errors); documented as required like the contract.
+      @Parameter(required = true) @RequestParam(required = false) String country,
       @RequestParam(required = false) String displayCurrency,
       Authentication authentication,
       HttpServletRequest request) {
@@ -155,10 +163,19 @@ public class ProductController {
           ProblemCode.PRODUCT_NOT_AVAILABLE_IN_COUNTRY,
           "The product is not sold in " + found.code() + ".");
     }
+    ProductDetail detail = presenter.detail(product, conversion, clock.instant());
+    Optional<UUID> caller = CurrentUser.id(authentication);
+    if (caller.isPresent()) {
+      WatchState state =
+          watchStates
+              .forProducts(caller.get(), found.code(), List.of(productId))
+              .getOrDefault(productId, WatchState.NONE);
+      detail = detail.withWatchState(state);
+    }
     return new ProductDetailResponse(
         new ProductDetailMeta(
             found.code(), found.currency(), conversion.currency(), conversion.fx()),
-        presenter.detail(product, conversion, clock.instant()));
+        detail);
   }
 
   private void limitAnonymous(Authentication authentication, HttpServletRequest request) {
