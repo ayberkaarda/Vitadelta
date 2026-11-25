@@ -217,6 +217,29 @@ class AuthFlowIntegrationTest extends IdentityIntegrationTest {
   }
 
   @Test
+  void requestsForAddressesThatReceiveNoMailDoNotConsumeTheRecipientSlot() {
+    String email = uniqueEmail();
+    // Nothing is sent for an unknown address, so a third party cannot use up its mail slots.
+    assertThat(
+            post("/api/v1/auth/forgot-password", body(Map.of("email", email))).getStatus().value())
+        .isEqualTo(202);
+    UUID id = registerVerified(email);
+    // A verified account gets no verification mail either.
+    assertThat(
+            post("/api/v1/auth/resend-verification", body(Map.of("email", email)))
+                .getStatus()
+                .value())
+        .isEqualTo(202);
+
+    int before = mail().to(email).size();
+    assertThat(
+            post("/api/v1/auth/forgot-password", body(Map.of("email", email))).getStatus().value())
+        .isEqualTo(202);
+    assertThat(mail().awaitToken(email, before + 1)).isNotBlank();
+    assertThat(id).isNotNull();
+  }
+
+  @Test
   void aSuccessfulPasswordResetClearsTheAccountLoginLock() {
     String email = uniqueEmail();
     UUID id = registerVerified(email);

@@ -177,13 +177,13 @@ public class AuthService {
   /** Issues a new verification e-mail for an unverified, active account. */
   public void resendVerification(String rawEmail) {
     String email = Emails.normalize(rawEmail);
-    boolean allowed = recipients.tryAcquire(MailKind.VERIFY_EMAIL, email);
     transactions.executeWithoutResult(status -> {
       Optional<UserAccount> user = users.findByEmail(email);
-      if (allowed
-          && user.isPresent()
+      // The recipient slot is taken only for a mail that would really be sent.
+      if (user.isPresent()
           && !user.get().emailVerified()
-          && user.get().status() == UserStatus.ACTIVE) {
+          && user.get().status() == UserStatus.ACTIVE
+          && recipients.tryAcquire(MailKind.VERIFY_EMAIL, email)) {
         String token = emailTokens.issue(user.get().id(), Kind.VERIFY_EMAIL, clock.instant());
         mail.dispatchAfterCommit(
             OutgoingMail.verifyEmail(user.get().email(), mailLocale(user.get().locale()), token));
@@ -194,10 +194,11 @@ public class AuthService {
   /** Issues a password-reset e-mail for an active account. */
   public void forgotPassword(String rawEmail) {
     String email = Emails.normalize(rawEmail);
-    boolean allowed = recipients.tryAcquire(MailKind.RESET_PASSWORD, email);
     transactions.executeWithoutResult(status -> {
       Optional<UserAccount> user = users.findByEmail(email);
-      if (allowed && user.isPresent() && user.get().status() == UserStatus.ACTIVE) {
+      if (user.isPresent()
+          && user.get().status() == UserStatus.ACTIVE
+          && recipients.tryAcquire(MailKind.RESET_PASSWORD, email)) {
         String token = emailTokens.issue(user.get().id(), Kind.RESET_PASSWORD, clock.instant());
         mail.dispatchAfterCommit(
             OutgoingMail.resetPassword(user.get().email(), mailLocale(user.get().locale()), token));
