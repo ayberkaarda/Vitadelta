@@ -1,6 +1,6 @@
 # ADR-0010: Billing port with promo-code and manual adapters; payment provider deferred
 
-- Status: Accepted
+- Status: Accepted; the deferred payment provider is decided in ADR-0014 (Stripe, Phase 8)
 - Date: 2026-11-24
 
 ## Context

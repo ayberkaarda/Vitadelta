@@ -199,6 +199,13 @@ Digests are the OCI index (multi-platform) digests of the exact tags, read with 
 | pytest for the security-tool tests | 9.2.0 | `scripts/test-all.sh` | same as the other script tests |
 | Validation only (not in the repository) | actionlint 1.7.12 (`rhysd/actionlint:1.7.12`), shellcheck 0.11.0 (`koalaman/shellcheck:v0.11.0`) | | used to validate the workflow and the scripts |
 
+### Added in Phase 8
+
+| Item | Pin | Where pinned | Notes |
+|---|---|---|---|
+| Stripe API version | `2026-11-18.endive` (header `Stripe-Version` on every request) | `StripeApi.API_VERSION` in `services/api` | latest GA version on 2026-11-25 (Stripe changelog); no Endive breaking change touches Checkout Sessions, Billing Portal sessions, subscriptions or invoice parents (ADR-0014) |
+| Stripe Java SDK | not used | | `stripe-java` 34.2.0 (Maven Central, 2026-11-19, pinned to `2026-11-18.endive`) was evaluated and rejected: the adapter needs four calls and the signature check, and the SDK would add Gson and a large API surface to the runtime classpath (ADR-0014) |
+
 How the pins are updated:
 
 - **Images.** Dependabot (`.github/dependabot.yml`: ecosystem `docker` for `/infra/nginx`, `/services/api` and `/services/scoring`, ecosystem `docker-compose` for `/infra`) proposes a new tag together with its digest. By hand: `docker buildx imagetools inspect <image>:<new tag>` prints `Digest: sha256:...` (the index digest); replace tag and digest together, then run `scripts/dev-up.sh` and `infra/nginx/check-routing.sh`. A digest is never updated alone for the same tag without checking why the tag moved.
