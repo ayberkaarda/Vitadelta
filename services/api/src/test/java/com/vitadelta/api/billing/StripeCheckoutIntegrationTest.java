@@ -3,21 +3,16 @@ package com.vitadelta.api.billing;
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.postRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
-import static com.github.tomakehurst.wiremock.client.WireMock.urlPathMatching;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.github.tomakehurst.wiremock.client.ResponseDefinitionBuilder;
 import com.github.tomakehurst.wiremock.client.WireMock;
-import com.github.tomakehurst.wiremock.stubbing.Scenario;
 import com.github.tomakehurst.wiremock.verification.LoggedRequest;
 import com.vitadelta.api.entitlement.Contract;
 import com.vitadelta.api.entitlement.PlanCode;
 import com.vitadelta.api.entitlement.SubscriptionSource;
 import com.vitadelta.api.identity.Role;
 import com.vitadelta.api.support.TestEnvironment;
-import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Callable;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.web.servlet.client.EntityExchangeResult;
 import tools.jackson.databind.JsonNode;
@@ -181,132 +176,5 @@ class StripeCheckoutIntegrationTest extends StripeIntegrationTest {
 
     assertProblem(post(CHECKOUT, "", user.token()), 409, "plan_already_active");
     assertThat(STRIPE.findAll(postRequestedFor(urlPathEqualTo("/v1/checkout/sessions")))).isEmpty();
-  }
-
-  private void stripeExpires(int status) {
-    STRIPE.stubFor(
-        WireMock.post(urlPathMatching("/v1/checkout/sessions/cs_test_[A-Za-z0-9]+/expire"))
-            .willReturn(
-                aResponse()
-                    .withStatus(status)
-                    .withHeader("Content-Type", "application/json")
-                    .withBody(
-                        status == 200
-                            ? "{\"object\":\"checkout.session\",\"status\":\"expired\"}"
-                            : "{\"error\":{\"type\":\"invalid_request_error\"}}")));
-  }
-
-  private int expired() {
-    return STRIPE
-        .findAll(
-            postRequestedFor(urlPathMatching("/v1/checkout/sessions/cs_test_[A-Za-z0-9]+/expire")))
-        .size();
-  }
-
-  @Test
-  void aNewCheckoutExpiresThePreviousOpenSession() {
-    TestUser user = user();
-    stripeAnswers(
-        "/v1/checkout/sessions", 200, "{\"id\":\"cs_test_Old1\",\"url\":\"" + SESSION_URL + "\"}");
-    stripeExpires(200);
-    assertStatus(post(CHECKOUT, "", user.token()), 200);
-    assertThat(expired()).isZero();
-
-    assertStatus(post(CHECKOUT, "", user.token()), 200);
-
-    assertThat(
-            STRIPE.findAll(
-                postRequestedFor(urlPathEqualTo("/v1/checkout/sessions/cs_test_Old1/expire"))))
-        .hasSize(1);
-    assertThat(STRIPE.findAll(postRequestedFor(urlPathEqualTo("/v1/checkout/sessions"))))
-        .hasSize(2);
-  }
-
-  @Test
-  void aJustPaidPreviousSessionIsNotFollowedByASecondOne() {
-    TestUser user = user();
-    stripeAnswers(
-        "/v1/checkout/sessions", 200, "{\"id\":\"cs_test_Paid1\",\"url\":\"" + SESSION_URL + "\"}");
-    assertStatus(post(CHECKOUT, "", user.token()), 200);
-    // Stripe refuses to expire a completed session; its webhook has not arrived yet.
-    stripeExpires(400);
-    assertProblem(post(CHECKOUT, "", user.token()), 409, "plan_already_active");
-    assertThat(STRIPE.findAll(postRequestedFor(urlPathEqualTo("/v1/checkout/sessions"))))
-        .hasSize(1);
-
-    // A Stripe outage while expiring is 503 and creates nothing either.
-    stripeExpires(500);
-    assertProblem(post(CHECKOUT, "", user.token()), 503, "billing_unavailable");
-    assertThat(STRIPE.findAll(postRequestedFor(urlPathEqualTo("/v1/checkout/sessions"))))
-        .hasSize(1);
-
-    // Once the completed checkout is applied, the session is forgotten and the plan is PRO.
-    String subscription = stripeId("sub_");
-    String customer = stripeId("cus_");
-    subscription(
-        subscription,
-        customer,
-        "active",
-        user.id(),
-        PRICE,
-        clock.instant().plus(java.time.Duration.ofDays(30)),
-        "paid");
-    webhookOk(checkoutCompleted(stripeId("evt_"), user.id().toString(), subscription, customer));
-    assertThat(
-            jdbc.sql("SELECT session_ref FROM billing_checkout_session WHERE user_id = ?")
-                .param(user.id())
-                .query(String.class)
-                .optional())
-        .isEmpty();
-    assertProblem(post(CHECKOUT, "", user.token()), 409, "plan_already_active");
-  }
-
-  private void webhookOk(String body) {
-    assertStatus(webhook(body), 200);
-  }
-
-  private static ResponseDefinitionBuilder session(String id) {
-    return aResponse()
-        .withStatus(200)
-        .withHeader("Content-Type", "application/json")
-        .withFixedDelay(300)
-        .withBody(
-            "{\"id\":\"" + id + "\",\"url\":\"https://checkout.stripe.com/c/pay/" + id + "\"}");
-  }
-
-  @Test
-  void concurrentCheckoutsLeaveOnePayableSession() throws Exception {
-    TestUser user = user();
-    String scenario = "two-sessions-" + user.id();
-    STRIPE.stubFor(
-        WireMock.post(urlPathEqualTo("/v1/checkout/sessions"))
-            .inScenario(scenario)
-            .whenScenarioStateIs(Scenario.STARTED)
-            .willSetStateTo("second")
-            .willReturn(session("cs_test_First")));
-    STRIPE.stubFor(
-        WireMock.post(urlPathEqualTo("/v1/checkout/sessions"))
-            .inScenario(scenario)
-            .whenScenarioStateIs("second")
-            .willReturn(session("cs_test_Second")));
-    stripeExpires(200);
-    List<EntityExchangeResult<String>> results =
-        parallel(
-            List.<Callable<EntityExchangeResult<String>>>of(
-                () -> post(CHECKOUT, "", user.token(), randomIp(), null),
-                () -> post(CHECKOUT, "", user.token(), randomIp(), null)));
-
-    // A caller that arrives while the other one creates its session is asked to retry; one that
-    // arrives later replaces the first session. Either way exactly one session stays payable.
-    for (EntityExchangeResult<String> result : results) {
-      if (result.getStatus().value() == 409) {
-        assertProblem(result, 409, "conflict_retry");
-      } else {
-        assertStatus(result, 200);
-      }
-    }
-    assertThat(results).anySatisfy(result -> assertStatus(result, 200));
-    int created = STRIPE.findAll(postRequestedFor(urlPathEqualTo("/v1/checkout/sessions"))).size();
-    assertThat(created - expired()).isEqualTo(1);
   }
 }

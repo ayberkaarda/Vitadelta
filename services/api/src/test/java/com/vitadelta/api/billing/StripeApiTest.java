@@ -109,7 +109,7 @@ class StripeApiTest {
             + "\"url\":\"https://checkout.stripe.com/c/pay/cs_test_1\"}");
     UUID user = UUID.randomUUID();
 
-    StripeApi.CheckoutSession session =
+    String url =
         api.createCheckoutSession(
             new StripeApi.CheckoutRequest(
                 user,
@@ -119,9 +119,7 @@ class StripeApiTest {
                 "https://vitadelta.test/upgrade?checkout=canceled",
                 "tr"));
 
-    assertThat(session.url()).isEqualTo("https://checkout.stripe.com/c/pay/cs_test_1");
-    assertThat(session.id()).isEqualTo("cs_test_1");
-    assertThat(session.expiresAt()).isNull();
+    assertThat(url).isEqualTo("https://checkout.stripe.com/c/pay/cs_test_1");
     LoggedRequest request =
         server.findAll(postRequestedFor(urlPathEqualTo("/v1/checkout/sessions"))).get(0);
     assertThat(request.getHeader("Authorization")).isEqualTo("Bearer " + KEY);
@@ -461,54 +459,5 @@ class StripeApiTest {
                 Duration.ofMinutes(5)));
     assertThatThrownBy(() -> off.cancelSubscription("sub_1"))
         .isInstanceOf(IllegalStateException.class);
-  }
-
-  @Test
-  void aCheckoutSessionIsExpiredAndItsExpiryIsRead() {
-    answer(
-        "POST",
-        "/v1/checkout/sessions",
-        200,
-        "{\"id\":\"cs_test_3\",\"url\":\"https://checkout.stripe.com/x\","
-            + "\"expires_at\":1800000000}");
-    StripeApi.CheckoutSession session =
-        api.createCheckoutSession(
-            new StripeApi.CheckoutRequest(
-                UUID.randomUUID(),
-                "price_1SyntheticPro",
-                null,
-                "https://a.test/s",
-                "https://a.test/c",
-                "en"));
-    assertThat(session.expiresAt()).isEqualTo(Instant.ofEpochSecond(1_800_000_000L));
-
-    answer(
-        "POST",
-        "/v1/checkout/sessions/cs_test_3/expire",
-        200,
-        "{\"id\":\"cs_test_3\",\"status\":\"expired\"}");
-    api.expireCheckoutSession("cs_test_3");
-    assertThat(
-            server.findAll(
-                postRequestedFor(urlPathEqualTo("/v1/checkout/sessions/cs_test_3/expire"))))
-        .hasSize(1);
-    assertThatThrownBy(() -> api.expireCheckoutSession("cs_test_3/../x"))
-        .isInstanceOf(IllegalArgumentException.class);
-
-    server.resetAll();
-    answer("POST", "/v1/checkout/sessions", 200, "{\"url\":\"https://checkout.stripe.com/x\"}");
-    StripeApiException noId =
-        catchThrowableOfType(
-            StripeApiException.class,
-            () ->
-                api.createCheckoutSession(
-                    new StripeApi.CheckoutRequest(
-                        UUID.randomUUID(),
-                        "price_1SyntheticPro",
-                        null,
-                        "https://a.test/s",
-                        "https://a.test/c",
-                        "en")));
-    assertThat(noId.reason()).isEqualTo(Reason.MALFORMED);
   }
 }
