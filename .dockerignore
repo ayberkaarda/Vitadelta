@@ -19,5 +19,6 @@ services
 **/coverage
 **/test-results
 **/playwright-report
+**/e2e/.output
 **/*.log
 **/.DS_Store
