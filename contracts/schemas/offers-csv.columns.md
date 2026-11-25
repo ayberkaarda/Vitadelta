@@ -10,7 +10,7 @@ summary and row errors are read with `GET /api/v1/admin/imports/{jobId}`.
 | Rule | Value |
 |---|---|
 | Encoding | UTF-8. A leading byte order mark (`EF BB BF`) is accepted and ignored. Invalid UTF-8 fails the whole file (`invalid_encoding`). |
-| Size limit | 20 MB (20 971 520 bytes). Larger uploads are rejected before processing with `413` (problem+json); no job rows are written. |
+| Size limit | 20 MB (20 971 520 bytes). Larger uploads are rejected before processing with `413` (problem+json); no job rows are written. At most 200 000 data rows (`too_many_records` otherwise). |
 | Dialect | RFC 4180. Delimiter `,` (comma). Line endings `CRLF` or `LF`; a final line break is optional. |
 | Quoting | A field containing a comma, a double quote, `CR` or `LF` is enclosed in double quotes; a double quote inside a quoted field is written as two double quotes (`""`). Any other field may be quoted. A file that cannot be parsed under these rules (an unterminated quoted field, a double quote inside an unquoted field, or text after a closing quote) fails the whole file (`invalid_csv`). |
 | Whitespace | Significant inside quotes. Unquoted leading or trailing spaces and tabs are trimmed. |
@@ -36,11 +36,14 @@ An empty value in any column is `missing_value`.
 
 ## Row errors
 
-Every row is validated before anything is written. All row errors of the file are recorded as
-`import_job_error` rows (`row_number`, `message`, where the message starts with the code below).
+Every row is validated before anything is written. The row errors of the file are recorded as
+`import_job_error` rows (`row_number`, `message`, where the message starts with the code below),
+at most 1000: validation stops at the 1001st error, which is replaced by one `too_many_errors`
+error at its row.
 
 | Code | Condition |
 |---|---|
+| `field_too_long` | A field is longer than 4096 characters (the row's other rules are not checked). |
 | `missing_value` | A required column is empty. |
 | `wrong_column_count` | The record does not have exactly eight fields. |
 | `unknown_product_code` | `product_code` is malformed or no product has that code. |
@@ -58,8 +61,9 @@ File-level failures are recorded as a single error with `row_number` 1, and no r
 | Code | Condition |
 |---|---|
 | `invalid_encoding` | The file is not valid UTF-8. |
-| `invalid_csv` | The file cannot be parsed as CSV under the dialect and quoting rules above (for example an unterminated quoted field). |
+| `invalid_csv` | The file cannot be parsed as CSV under the dialect and quoting rules above (for example an unterminated quoted field). The message is fixed text with the line number of the failure (for an unterminated quoted field, the line where its record starts). |
 | `invalid_header` | The file is empty or its first record is not exactly the header above. |
+| `too_many_records` | The file has more than 200 000 data rows. |
 
 A record with the wrong number of fields in an otherwise parseable file is the row error
 `wrong_column_count`, not a file-level failure.
