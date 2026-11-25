@@ -25,7 +25,7 @@ export default defineConfig({
     headless: true,
     locale: 'en-US',
     timezoneId: 'UTC',
-    trace: 'retain-on-failure',
+    trace: process.env['CI'] ? 'off' : 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'off',
     actionTimeout: 15_000,
