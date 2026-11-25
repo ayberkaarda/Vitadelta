@@ -25,11 +25,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * The delivered migrations V1 to V6 on a clean database, and the delivery order of ADR-0013: a
- * database that is already at V5 without V3 (V3 was delivered after V4 and V5) applies V3 and V6
- * later with {@code out-of-order} (as configured in {@code application.yml}) and ends in the same
- * schema as a fresh database; without it Flyway rejects the database. An edited applied migration
- * still fails validation.
+ * The delivered migrations V1 to V7 on a clean database, and the delivery order of ADR-0013: a
+ * database that is already at V5 without V3 (V3 was delivered after V4 and V5) applies V3, V6 and
+ * V7 later with {@code out-of-order} (as configured in {@code application.yml}) and ends in the
+ * same schema as a fresh database; without it Flyway rejects the database. An edited applied
+ * migration still fails validation.
  */
 class MigrationGapTest extends PostgresIntegrationTest {
 
@@ -39,7 +39,8 @@ class MigrationGapTest extends PostgresIntegrationTest {
     "V3__notifications_and_outbox.sql",
     "V4__fx_rates.sql",
     "V5__form_registry_and_ul_notes.sql",
-    "V6__alert_ordering.sql"
+    "V6__alert_ordering.sql",
+    "V7__billing_provider.sql"
   };
 
   @TempDir Path later;
@@ -105,7 +106,7 @@ class MigrationGapTest extends PostgresIntegrationTest {
     current.migrate();
     MigrationInfo[] applied = current.info().applied();
     assertThat(Arrays.stream(applied).map(i -> i.getVersion().getVersion()))
-        .containsExactly("1", "2", "3", "4", "5", "6");
+        .containsExactly("1", "2", "3", "4", "5", "6", "7");
     assertThat(applied).allSatisfy(i -> assertThat(i.getState()).isEqualTo(MigrationState.SUCCESS));
     assertThat(current.info().pending()).isEmpty();
   }
@@ -115,8 +116,8 @@ class MigrationGapTest extends PostgresIntegrationTest {
     Path withoutV3 = later.resolve("without-v3");
     Files.createDirectories(withoutV3);
     for (String file : MIGRATIONS) {
-      // V6 builds on V3 and was delivered after it.
-      if (!file.startsWith("V3") && !file.startsWith("V6")) {
+      // V6 builds on V3 and was delivered after it; V7 was delivered after both.
+      if (!file.startsWith("V3") && !file.startsWith("V6") && !file.startsWith("V7")) {
         Files.writeString(withoutV3.resolve(file), migration(file));
       }
     }
@@ -130,7 +131,7 @@ class MigrationGapTest extends PostgresIntegrationTest {
     Flyway upgraded = flyway(existing, true, "classpath:db/migration");
     upgraded.migrate();
     assertThat(Arrays.stream(upgraded.info().applied()).map(i -> i.getVersion().getVersion()))
-        .containsExactly("1", "2", "4", "5", "3", "6");
+        .containsExactly("1", "2", "4", "5", "3", "6", "7");
     upgraded.validate();
 
     String fresh = createDatabase();
