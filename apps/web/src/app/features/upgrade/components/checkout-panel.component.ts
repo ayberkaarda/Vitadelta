@@ -13,7 +13,10 @@ import { TranslocoPipe } from '@jsverse/transloco';
 import { ApiProblem } from '../../../core/api/api-problem';
 import { loginQueryParams } from '../../../core/auth/return-url';
 import { SessionStore } from '../../../core/auth/session.store';
-import { ProviderActionGuard } from '../../../core/billing/action-guard';
+import {
+  BILLING_CONFLICT_PAUSE_SECONDS,
+  ProviderActionGuard,
+} from '../../../core/billing/action-guard';
 import { BillingNavigator } from '../../../core/billing/billing-navigator';
 import { IconComponent } from '../../../shared/icon/icon.component';
 import { NoticeComponent } from '../../../shared/notice/notice.component';
@@ -31,7 +34,9 @@ import { ManageSubscriptionComponent } from '../../account/components/manage-sub
  * - PRO from a promo code or a grant: a short note, no button.
  * - Everyone else: "Subscribe to PRO", which asks the API for a hosted checkout session and
  *   sends the browser to the provider. `401` leads to the login page, `409 plan_already_active`
- *   reloads `/me` and points to the account, `403 email_not_verified` points to the account
+ *   reloads `/me` and points to the account (or, while `/me` is not PRO, to the billing portal:
+ *   a provider subscription of the user has not ended), `409 conflict_retry` asks to try again
+ *   and holds the button for a short pause, `403 email_not_verified` points to the account
  *   page (where the e-mail can be resent), `429` and `503 billing_unavailable` are retryable;
  *   after `429` the button waits for the `Retry-After` countdown too. Leaving the page cancels
  *   a pending session request, so a late answer never moves the browser.
@@ -89,7 +94,30 @@ import { ManageSubscriptionComponent } from '../../account/components/manage-sub
           </p>
         }
         @if (problem(); as p) {
-          @if (p.code === 'plan_already_active' || p.code === 'email_not_verified') {
+          @if (p.code === 'plan_already_active' && session.plan() !== 'PRO') {
+            <!-- The summary is not PRO, yet the server refuses a new subscription: one of the
+                 user's provider subscriptions has not ended (it is settled in the portal). -->
+            <vd-notice
+              tone="warn"
+              icon="info"
+              live="alert"
+              [heading]="'upgrade.checkout.unsettled_title' | transloco"
+              data-code="plan_already_active"
+            >
+              <p>{{ 'upgrade.checkout.unsettled_text' | transloco }}</p>
+              <vd-manage-subscription class="portal" />
+            </vd-notice>
+          } @else if (p.code === 'conflict_retry') {
+            <vd-notice
+              tone="warn"
+              icon="clock"
+              live="alert"
+              [heading]="'upgrade.checkout.conflict_title' | transloco"
+              data-code="conflict_retry"
+            >
+              <p>{{ 'upgrade.checkout.conflict_text' | transloco }}</p>
+            </vd-notice>
+          } @else if (p.code === 'plan_already_active' || p.code === 'email_not_verified') {
             <vd-notice
               [tone]="p.code === 'plan_already_active' ? 'info' : 'warn'"
               [icon]="p.code === 'plan_already_active' ? 'info' : 'mail'"
@@ -125,6 +153,9 @@ import { ManageSubscriptionComponent } from '../../account/components/manage-sub
     [vdNoticeActions] {
       display: contents;
     }
+    .portal {
+      margin-top: var(--vd-space-2);
+    }
   `,
   host: { '(window:pageshow)': 'onPageShow($event)' },
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -141,7 +172,10 @@ export class CheckoutPanelComponent {
   protected readonly busy = signal(false);
   protected readonly problem = signal<ApiProblem | null>(null);
   /** Cancels a pending session when the page is left; holds the rate-limit countdown. */
-  protected readonly guard = new ProviderActionGuard(inject(DestroyRef));
+  protected readonly guard = new ProviderActionGuard(
+    inject(DestroyRef),
+    inject(BILLING_CONFLICT_PAUSE_SECONDS),
+  );
 
   protected readonly paidThroughProvider = computed(() => {
     const me = this.session.isAuthenticated() ? this.session.me() : null;

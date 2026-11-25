@@ -25,7 +25,11 @@
     "signin_note": "Abone olmak için ücretsiz bir hesap gerekir.",
     "already_pro": "Hesabınızda PRO zaten etkin.",
     "account_link": "Hesabınıza gidin",
-    "verify_link": "Doğrulama e-postasını yeniden gönderin"
+    "verify_link": "Doğrulama e-postasını yeniden gönderin",
+    "unsettled_title": "Açık bir ücretli abonelik var",
+    "unsettled_text": "Hesabınızda henüz sona ermemiş bir Stripe aboneliği var (örneğin ödenmemiş bir yenileme) ya da son ödemeniz hâlâ doğrulanıyor. İkinci bir abonelik başlatmak yerine bunu fatura portalında düzenleyin.",
+    "conflict_title": "Ödeme sayfanız zaten hazırlanıyor",
+    "conflict_text": "Hesabınız için aynı anda başka bir ödeme oturumu oluşturuluyordu, belki başka bir sekmede. Biraz sonra tekrar deneyin."
   },
   "return": {
     "confirming_title": "Teşekkürler! Ödemeniz doğrulanıyor…",
