@@ -74,9 +74,9 @@
   },
   "quota": {
     "label": "Ücretsiz sorgular",
-    "remaining": "{{ left }}/{{ limit }} ücretsiz sorgu kaldı",
-    "remaining_one": "{{ left }}/{{ limit }} ücretsiz sorgu kaldı",
-    "remaining_short": "{{ left }}/{{ limit }} kaldı",
+    "remaining": "{{ left }} / {{ limit }} ücretsiz sorgu kaldı",
+    "remaining_one": "{{ left }} / {{ limit }} ücretsiz sorgu kaldı",
+    "remaining_short": "{{ left }} / {{ limit }} kaldı",
     "exhausted": "Ücretsiz sorgu kalmadı · Kaydol",
     "exhausted_short": "Kaydol"
   },
@@ -337,9 +337,9 @@
     "LIQUID": "Sıvı"
   },
   "usage": {
-    "of": "{{ limit }} içinde {{ used }}",
+    "of": "{{ used }} / {{ limit }}",
     "unlimited": "{{ used }} · sınırsız",
-    "limit_reached": "{{ limit }} içinde {{ used }} · sınıra ulaşıldı"
+    "limit_reached": "{{ used }} / {{ limit }} · sınıra ulaşıldı"
   },
   "common": {
     "close": "Kapat",
