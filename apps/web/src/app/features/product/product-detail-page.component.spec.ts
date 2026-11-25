@@ -54,6 +54,7 @@ async function setup(url: string, options: Options = {}) {
   };
   const session = {
     whenReady: () => Promise.resolve(),
+    generation: signal(1),
     isAuthenticated: signal(authenticated),
     status: signal(authenticated ? 'authenticated' : 'anonymous'),
     user: signal(authenticated ? fixtureUser({ emailVerified: false }) : null),
@@ -107,6 +108,16 @@ function text(element: Element | null): string {
 }
 
 describe('ProductDetailPageComponent', () => {
+  it('loads the product again for a new session so saved and alert state follow the account', async () => {
+    const { api, session, settle } = await setup('/products/' + GOLD_A_ID + '?country=TR', {
+      authenticated: true,
+    });
+    expect(api.getProduct).toHaveBeenCalledTimes(1);
+    session.generation.set(2);
+    await settle();
+    expect(api.getProduct).toHaveBeenCalledTimes(2);
+  });
+
   it('requests the product with the country of the URL and the display currency', async () => {
     const { api, currency } = await setup(`/products/${GOLD_A_ID}?country=DE&mode=PRICE`, {
       currency: 'EUR',

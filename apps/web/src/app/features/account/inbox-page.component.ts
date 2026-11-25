@@ -64,6 +64,8 @@ export class InboxPageComponent {
   protected readonly unread = inject(UnreadCountStore);
   protected readonly format = inject(Formatter);
 
+  private loadSequence = 0;
+
   protected readonly state = signal<LoadState>({ kind: 'loading' });
   protected readonly page = signal(1);
   protected readonly actionProblem = signal<ApiProblem | null>(null);
@@ -75,16 +77,22 @@ export class InboxPageComponent {
     void this.unread.refresh();
   }
 
+  /** Loads a page; an answer of a superseded load (another page) is ignored. */
   protected async load(page: number): Promise<void> {
+    const sequence = ++this.loadSequence;
     this.page.set(page);
     this.state.set({ kind: 'loading' });
     try {
       const result = await firstValueFrom(
         this.api.listNotifications({ page, pageSize: INBOX_PAGE_SIZE }),
       );
-      this.state.set({ kind: 'ready', page: result });
+      if (sequence === this.loadSequence) {
+        this.state.set({ kind: 'ready', page: result });
+      }
     } catch (error: unknown) {
-      this.state.set({ kind: 'error', problem: ApiProblem.from(error) });
+      if (sequence === this.loadSequence) {
+        this.state.set({ kind: 'error', problem: ApiProblem.from(error) });
+      }
     }
   }
 

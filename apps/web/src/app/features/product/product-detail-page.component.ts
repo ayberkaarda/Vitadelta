@@ -189,10 +189,12 @@ export class ProductDetailPageComponent {
 
     effect(() => {
       const request = this.request();
+      // A new session generation loads the product again: saved and alert state are per account.
+      const generation = this.session.generation();
       if (!request) {
         return;
       }
-      const key = JSON.stringify(request);
+      const key = `${generation}:${JSON.stringify(request)}`;
       if (key === this.lastKey) {
         return;
       }

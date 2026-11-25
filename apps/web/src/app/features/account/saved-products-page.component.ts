@@ -34,6 +34,7 @@ import { ProblemNoticeComponent } from '../../shared/notice/problem-notice.compo
 import { ProvenanceMarkerComponent } from '../../shared/provenance/provenance-marker.component';
 import { EmptyStateComponent } from '../../shared/state/empty-state.component';
 import { SkeletonComponent } from '../../shared/state/skeleton.component';
+import { activationChange } from '../results/shared/product-actions.service';
 import { ALERT_TRIGGERS, parseThreshold, withoutKey } from './account-format';
 
 type LoadState =
@@ -76,6 +77,8 @@ export class SavedProductsPageComponent {
   private readonly currency = inject(CurrencyStore);
   protected readonly format = inject(Formatter);
 
+  private loadSequence = 0;
+
   protected readonly triggers = ALERT_TRIGGERS;
   protected readonly state = signal<LoadState>({ kind: 'loading' });
   /** Problem of the last action per product id (shown under the row). */
@@ -113,16 +116,26 @@ export class SavedProductsPageComponent {
     }
   }
 
+  /** Loads the list; an answer of a superseded load (another country or currency) is ignored. */
   private async load(country: string, displayCurrency: string | undefined): Promise<void> {
+    const sequence = ++this.loadSequence;
     this.state.set({ kind: 'loading' });
+    this.adding.set(null);
+    this.rowProblems.set({});
+    this.removedName.set(null);
     try {
       const list = await firstValueFrom(
         this.api.listSavedProducts({ country, ...(displayCurrency ? { displayCurrency } : {}) }),
       );
+      if (sequence !== this.loadSequence) {
+        return;
+      }
       this.currency.recordMeta(list.meta);
       this.state.set({ kind: 'ready', list });
     } catch (error: unknown) {
-      this.state.set({ kind: 'error', problem: ApiProblem.from(error) });
+      if (sequence === this.loadSequence) {
+        this.state.set({ kind: 'error', problem: ApiProblem.from(error) });
+      }
     }
   }
 
@@ -151,7 +164,7 @@ export class SavedProductsPageComponent {
 
   protected async alertOff(item: SavedProduct, alert: AlertSubscription): Promise<void> {
     this.clearRowProblem(item.productId);
-    this.patchItem(item.productId, (entry) => ({
+    this.patchItem(item, (entry) => ({
       ...entry,
       alerts: entry.alerts.filter((existing) => existing.id !== alert.id),
     }));
@@ -159,7 +172,7 @@ export class SavedProductsPageComponent {
       await firstValueFrom(this.api.updateAlert(alert.id, { active: false }));
       await this.session.reloadMe();
     } catch (error: unknown) {
-      this.patchItem(item.productId, (entry) => ({
+      this.patchItem(item, (entry) => ({
         ...entry,
         alerts: sortAlerts([...entry.alerts, alert]),
       }));
@@ -206,7 +219,7 @@ export class SavedProductsPageComponent {
     this.clearRowProblem(item.productId);
     this.creating.set(true);
     try {
-      const created = await firstValueFrom(
+      const answered = await firstValueFrom(
         this.api.createAlert({
           productId: item.productId,
           countryCode: item.countryCode,
@@ -214,7 +227,13 @@ export class SavedProductsPageComponent {
           ...(thresholdPercent !== null ? { thresholdPercent } : {}),
         }),
       );
-      this.patchItem(item.productId, (entry) => ({
+      // POST answers an existing subscription unchanged, active or not: it is activated (with
+      // the requested threshold) before the row lists it.
+      const change = activationChange(answered, thresholdPercent);
+      const created = change
+        ? await firstValueFrom(this.api.updateAlert(answered.id, change))
+        : answered;
+      this.patchItem(item, (entry) => ({
         ...entry,
         alerts: sortAlerts([
           ...entry.alerts.filter((existing) => existing.id !== created.id),
@@ -242,9 +261,10 @@ export class SavedProductsPageComponent {
     }
   }
 
+  /** Puts a row back after a refused removal, unless the list now shows another country. */
   private restoreItem(item: SavedProduct, index: number): void {
     const current = this.state();
-    if (current.kind !== 'ready') {
+    if (current.kind !== 'ready' || current.list.meta.country !== item.countryCode) {
       return;
     }
     const items = current.list.items.filter((entry) => entry.productId !== item.productId);
@@ -252,11 +272,14 @@ export class SavedProductsPageComponent {
     this.setItems(items);
   }
 
-  private patchItem(productId: string, change: (item: SavedProduct) => SavedProduct): void {
+  /** Changes the row of `item` when the list still shows its country. */
+  private patchItem(item: SavedProduct, change: (item: SavedProduct) => SavedProduct): void {
     const current = this.state();
-    if (current.kind === 'ready') {
+    if (current.kind === 'ready' && current.list.meta.country === item.countryCode) {
       this.setItems(
-        current.list.items.map((entry) => (entry.productId === productId ? change(entry) : entry)),
+        current.list.items.map((entry) =>
+          entry.productId === item.productId ? change(entry) : entry,
+        ),
       );
     }
   }

@@ -6,12 +6,14 @@ import { Formatter } from '../../../core/format/formatter';
 import { MoneyContext } from '../../../core/state/currency.store';
 import { IconComponent } from '../../../shared/icon/icon.component';
 import { MoneyComponent } from '../../../shared/money/money.component';
+import { webUrl } from '../../../shared/text/web-url';
 
 /**
  * Offers of the product in the selected country (design hand-off §4.6): retailer with the
  * "used for cost" marker on the offer behind the cost, the demo price (with native amount and
  * rate in the tooltip), stock state, the date the price was checked with the stale marker, and
- * an external link. Every price is a demo value.
+ * an external link. Every price is a demo value. Only an absolute `http:` or `https:` URL is
+ * rendered as a link; any other value is shown as plain text.
  */
 @Component({
   selector: 'vd-offers-table',
@@ -83,18 +85,24 @@ import { MoneyComponent } from '../../../shared/money/money.component';
                 </span>
               </td>
               <td class="r">
-                <a
-                  class="btn btn-ghost btn-sm"
-                  [href]="offer.url"
-                  target="_blank"
-                  rel="noopener noreferrer nofollow"
-                  [attr.aria-label]="
-                    'product.offers.visit_label' | transloco: { retailer: offer.retailer }
-                  "
-                >
-                  {{ 'product.offers.visit' | transloco }}
-                  <vd-icon name="ext" />
-                </a>
+                @if (webUrl(offer.url); as href) {
+                  <a
+                    class="btn btn-ghost btn-sm"
+                    [href]="href"
+                    target="_blank"
+                    rel="noopener noreferrer nofollow"
+                    [attr.aria-label]="
+                      'product.offers.visit_label' | transloco: { retailer: offer.retailer }
+                    "
+                  >
+                    {{ 'product.offers.visit' | transloco }}
+                    <vd-icon name="ext" />
+                  </a>
+                } @else {
+                  <span class="text-xs muted offer-url" data-offer-link="none" translate="no">{{
+                    offer.url
+                  }}</span>
+                }
               </td>
             </tr>
           } @empty {
@@ -108,7 +116,17 @@ import { MoneyComponent } from '../../../shared/money/money.component';
       </table>
     </div>
   `,
-  styles: ':host { display: block; }',
+  styles: `
+    :host {
+      display: block;
+    }
+    .offer-url {
+      display: inline-block;
+      max-width: 16rem;
+      overflow-wrap: anywhere;
+      text-align: left;
+    }
+  `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class OffersTableComponent {
@@ -119,6 +137,11 @@ export class OffersTableComponent {
   /** Money context (`meta`) of the product response. */
   readonly meta = input.required<MoneyContext>();
   readonly countryName = input.required<string>();
+
+  /** The offer URL when it parses as an absolute `http:` or `https:` URL; `null` otherwise. */
+  protected webUrl(url: string): string | null {
+    return webUrl(url);
+  }
 
   protected isSelected(offer: Offer): boolean {
     const selected = this.selectedOffer();

@@ -108,6 +108,7 @@ function configure(api: Record<string, unknown>, me: Me = fixtureMe()) {
   const meSignal = signal(me);
   const reloadMe = vi.fn(async () => undefined);
   const recordMeta = vi.fn();
+  const countryCode = signal('TR');
   TestBed.configureTestingModule({
     imports: [translocoTesting({ scopes: { account: { en: accountEn, tr: accountTr } } })],
     providers: [
@@ -127,7 +128,7 @@ function configure(api: Record<string, unknown>, me: Me = fixtureMe()) {
         useValue: {
           intlLocale: signal('en-US'),
           countries: signal(FIXTURE_COUNTRIES),
-          countryCode: signal('TR'),
+          countryCode,
           country: signal(FIXTURE_COUNTRIES[0]),
           loadCountries: vi.fn(async () => undefined),
         },
@@ -138,7 +139,7 @@ function configure(api: Record<string, unknown>, me: Me = fixtureMe()) {
       },
     ],
   });
-  return { reloadMe, recordMeta };
+  return { reloadMe, recordMeta, countryCode };
 }
 
 describe('SavedProductsPageComponent', () => {
@@ -263,6 +264,75 @@ describe('SavedProductsPageComponent', () => {
     });
     expect(rows()[1].querySelector('[data-trigger="BACK_IN_STOCK"]')).not.toBeNull();
     expect(reloadMe).toHaveBeenCalled();
+  });
+
+  it('re-enables an existing inactive subscription before reporting the alert as added', async () => {
+    const inactive: AlertSubscription = {
+      ...DROP_ALERT,
+      id: 'a1000000-0000-4000-8000-000000000007',
+      productId: IRON.productId,
+      thresholdPercent: 10,
+      active: false,
+    };
+    const create = vi.fn(() => of(inactive));
+    const update = vi.fn(() => of({ ...inactive, active: true, thresholdPercent: 5 }));
+    const { reloadMe } = await setup({ createAlert: create, updateAlert: update });
+    rows()[1].querySelector<HTMLButtonElement>('button[aria-expanded]')?.click();
+    await settle(fixture);
+    host()
+      .querySelector('.add-alert')
+      ?.dispatchEvent(new Event('submit', { cancelable: true }));
+    await settle(fixture);
+    expect(update).toHaveBeenCalledWith(inactive.id, { active: true, thresholdPercent: 5 });
+    expect(rows()[1].querySelector('[data-trigger="PRICE_DROP"]')?.textContent).toContain(
+      'Price drop ≥ 5 %',
+    );
+    expect(reloadMe).toHaveBeenCalled();
+  });
+
+  it('does not show a re-enabled alert when the activation is refused', async () => {
+    const inactive: AlertSubscription = {
+      ...DROP_ALERT,
+      id: 'a1000000-0000-4000-8000-000000000007',
+      productId: IRON.productId,
+      active: false,
+    };
+    const create = vi.fn(() => of(inactive));
+    const update = vi.fn(() =>
+      throwError(() => limitProblem('limits.alert_subscriptions_reached')),
+    );
+    await setup({ createAlert: create, updateAlert: update });
+    rows()[1].querySelector<HTMLButtonElement>('button[aria-expanded]')?.click();
+    await settle(fixture);
+    host()
+      .querySelector('.add-alert')
+      ?.dispatchEvent(new Event('submit', { cancelable: true }));
+    await settle(fixture);
+    expect(update).toHaveBeenCalled();
+    expect(rows()[1].querySelector('[data-trigger="PRICE_DROP"]')).toBeNull();
+    expect(host().querySelector('vd-limit-notice')).not.toBeNull();
+  });
+
+  it('never lets a slower response for the previous country replace the current list', async () => {
+    const slowTr = new Subject<SavedProductList>();
+    const usList: SavedProductList = {
+      meta: { ...SAVED_LIST.meta, country: 'US' },
+      items: [{ ...IRON, countryCode: 'US', code: 'IRON-US' }],
+    };
+    const list = vi.fn((params: { country: string }) =>
+      params.country === 'TR' ? slowTr.asObservable() : of(usList),
+    );
+    const { countryCode } = configure({ listSavedProducts: list });
+    fixture = TestBed.createComponent(SavedProductsPageComponent);
+    await settle(fixture);
+    countryCode.set('US');
+    await settle(fixture);
+    expect(rows().map((row) => row.getAttribute('data-product'))).toEqual(['IRON-US']);
+
+    slowTr.next(SAVED_LIST);
+    slowTr.complete();
+    await settle(fixture);
+    expect(rows().map((row) => row.getAttribute('data-product'))).toEqual(['IRON-US']);
   });
 
   it('rejects a malformed threshold before calling the API', async () => {

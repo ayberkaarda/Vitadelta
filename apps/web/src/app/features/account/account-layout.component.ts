@@ -8,7 +8,9 @@ import { UnreadCountStore } from '../../core/state/unread-count.store';
 
 /**
  * Frame of `/account/**` (design hand-off §4.8): heading, e-mail and member-since line, and the
- * sub-navigation with the unread badge from the shell's unread count.
+ * sub-navigation with the unread badge from the shell's unread count. The routed page is
+ * created anew for every session generation and removed once the session ends, so data of a
+ * previous account never stays on screen.
  */
 @Component({
   selector: 'vd-account-layout',
@@ -48,7 +50,12 @@ import { UnreadCountStore } from '../../core/state/unread-count.store';
           }
         </a>
       </nav>
-      <router-outlet />
+      @if (session.isAuthenticated()) {
+        <!-- One outlet per session generation: a new account gets freshly loaded pages. -->
+        @for (generation of [session.generation()]; track generation) {
+          <router-outlet />
+        }
+      }
     </div>
   `,
   styles: `

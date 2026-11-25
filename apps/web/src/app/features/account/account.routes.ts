@@ -5,6 +5,7 @@ export default featureRoutes('account', [
   {
     path: '',
     canActivate: [authGuard],
+    runGuardsAndResolvers: 'always',
     loadComponent: () => import('./account-layout.component').then((m) => m.AccountLayoutComponent),
     children: [
       {
