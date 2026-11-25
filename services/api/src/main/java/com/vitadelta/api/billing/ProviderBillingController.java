@@ -19,7 +19,9 @@ import org.springframework.web.bind.annotation.RestController;
  * /api/v1/billing/portal-session} for the signed-in user, and the public {@code POST
  * /api/v1/billing/webhooks/stripe}, which is authenticated by its signature only, takes the raw
  * body as bytes (so the signature is checked over exactly what Stripe sent) and is capped per
- * client address before anything else runs.
+ * client address. The cap is checked once the body has been read (bounded by the 256 kB webhook
+ * limit of {@code RequestBodyLimitFilter}) and before the signature check, the parsing and any
+ * database or Stripe access.
  */
 @RestController
 public class ProviderBillingController {
