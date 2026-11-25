@@ -12,10 +12,14 @@ info:
     - Money and score values are JSON numbers rounded once to 4 decimals
       (round-half-even). FX rates are returned unrounded with their stored
       8 decimals.
-    - Every monetary field is expressed in `meta.currency` (the display currency).
-      Native-currency values are additionally returned in `*Native` fields of
-      cost and offer objects. `valueScore` is never converted: it is content
-      points per unit of `meta.nativeCurrency` per day.
+    - Every monetary field of a response with `meta.fx` is expressed in
+      `meta.currency` (the display currency). Native-currency values are
+      additionally returned in `*Native` fields of cost, offer, plan-price and
+      compare-delta objects. `valueScore` is never converted: it is content
+      points per unit of `meta.nativeCurrency` per day. Exceptions, always
+      native and never converted, also inside a response with `meta.fx`:
+      `AlertSubscription.baselinePrice` (currency `baselineCurrency`) and the
+      amounts of notification payloads (currency `payload.currency`).
     - Errors use RFC 9457 `application/problem+json`. The problem `type` is
       `https://vitadelta.dev/problems/<code>`; generic HTTP errors without
       additional semantics (for example an unknown alert id) use `about:blank`.
@@ -79,7 +83,10 @@ paths:
       summary: Minimal liveness status
       description: |
         Returns only the aggregated status. No dependency names, versions or
-        backlog figures are exposed. `DOWN` is returned with status 503.
+        backlog figures are exposed. `DOWN` is returned with status 503. The
+        status is the overall status of `GET /admin/health` (`DOWN` when the
+        database is down, `DEGRADED` when another component is degraded or
+        down), cached for at most 10 seconds.
       security: []
       parameters:
         - $ref: '#/components/parameters/XRequestId'
@@ -190,24 +197,47 @@ paths:
       description: |
         Default category weights, the default per-nutrient override and the
         allowed ranges of category weights, overrides and the CUSTOM-mode lambda.
+
+        `engine` carries the read-only scoring-engine parameters the web app
+        needs to draw the utility curve and the verdict scale. They are the
+        `config` of the scoring service's `GET /internal/v1/health`
+        (`EngineConfig` of the scoring contract), copied unrounded. The API
+        reads them on its first need and keeps the last successful answer in
+        memory; while no answer was ever obtained (scoring service down since
+        start-up) `engine` is `null` and the operation still answers 200. This
+        operation never answers 503.
       security: []
       parameters:
         - $ref: '#/components/parameters/XRequestId'
       responses:
         '200':
-          description: Default category weights, override default and the allowed ranges.
+          description: Default category weights, override default, the allowed ranges and the engine parameters.
           headers:
             X-Request-Id: { $ref: '#/components/headers/XRequestId' }
           content:
             application/json:
               schema: { $ref: '#/components/schemas/DefaultWeights' }
-              example:
-                categories: { VITAMIN: 1.0, MINERAL: 1.0, COENZYME: 0.8, OTHER: 0.5 }
-                categoryRange: { min: 0.0, max: 2.0 }
-                overrideDefault: 1.0
-                overrideRange: { min: 0.0, max: 3.0 }
-                lambdaDefault: 0.5
-                lambdaRange: { min: 0.0, max: 1.0 }
+              examples:
+                defaults:
+                  summary: Engine parameters known
+                  value:
+                    categories: { VITAMIN: 1.0, MINERAL: 1.0, COENZYME: 0.8, OTHER: 0.5 }
+                    categoryRange: { min: 0.0, max: 2.0 }
+                    overrideDefault: 1.0
+                    overrideRange: { min: 0.0, max: 3.0 }
+                    lambdaDefault: 0.5
+                    lambdaRange: { min: 0.0, max: 1.0 }
+                    engine: { diminishingBeta: 0.35, utilityCeiling: 1.5, verdictWorthItMaxRatio: 1.0, verdictMarginalMaxRatio: 1.5 }
+                engineUnknown:
+                  summary: Scoring service not reached since start-up
+                  value:
+                    categories: { VITAMIN: 1.0, MINERAL: 1.0, COENZYME: 0.8, OTHER: 0.5 }
+                    categoryRange: { min: 0.0, max: 2.0 }
+                    overrideDefault: 1.0
+                    overrideRange: { min: 0.0, max: 3.0 }
+                    lambdaDefault: 0.5
+                    lambdaRange: { min: 0.0, max: 1.0 }
+                    engine: null
         '500': { $ref: '#/components/responses/InternalError' }
 
   /session/quota:
@@ -347,7 +377,7 @@ paths:
               schema: { $ref: '#/components/schemas/RecommendationQueryResponse' }
               examples:
                 goldenPairValueMode:
-                  summary: GOLD-A / GOLD-B in TR, VALUE mode, FREE user, native currency (fewer than 3 products with content, so `mRef` is null)
+                  summary: GOLD-A / GOLD-B in TR, VALUE mode, FREE user who saved GOLD-A with a price-drop alert, native currency (fewer than 3 products with content, so `mRef` is null)
                   value:
                     meta:
                       country: TR
@@ -386,8 +416,9 @@ paths:
                           - &znRow { code: ZINC, category: MINERAL, amountPerDay: 10, ulAmountPerDay: 10, unit: mg, reference: 10, referenceSource: REGULATORY, coverageRatio: 1.0, utility: 1.0, weight: 1.0, contribution: 1.0, cappedAtUl: false, cappedAtUMax: false, ulBelowReference: false, belowPresenceFloor: false }
                         topContributors: [*vitCRowA, *vitDRow, *b12Row, *znRow, *mgRow]
                         selectedOffer: { retailer: Retailer One, url: 'https://shop.example.com/products/gold-a', checkedAt: '2026-11-20T09:00:00Z' }
-                        saved: false
-                        alerts: []
+                        saved: true
+                        alerts:
+                          - { id: 5a6b7c8d-9e0f-4a1b-8c2d-3e4f5a6b7c8d, productId: 3b2f0c4e-6a1d-4f0e-9c3a-1a2b3c4d5e01, countryCode: TR, trigger: PRICE_DROP, thresholdPercent: 10, baselinePrice: 800.0, baselineCurrency: TRY, active: true, createdAt: '2026-11-24T08:30:00Z', lastTriggeredAt: null }
                       - productId: 3b2f0c4e-6a1d-4f0e-9c3a-1a2b3c4d5e02
                         code: GOLD-B
                         rank: 2
@@ -656,10 +687,8 @@ paths:
       description: |
         Formulation, availability, offers and flags of one product in the given
         country. For signed-in users `saved` and `alerts` reflect the caller's
-        saved state and alert subscriptions in that country; for anonymous
-        callers they are `false` and `[]`. Saved products and alerts arrive
-        with Phase 5; until then `saved` is `false` and `alerts` is `[]` for
-        every principal.
+        saved state and alert subscriptions (active and inactive) in that
+        country; for anonymous callers they are `false` and `[]`.
 
         `offers` lists every offer of the product in the country (in stock
         and out of stock), ordered by `price` ascending, then `checkedAt`
@@ -774,8 +803,13 @@ paths:
       operationId: listFxCurrencies
       summary: Supported display currencies
       description: |
-        The supported display currencies (country currencies plus configured
-        extra ISO 4217 codes) with the newest stored rate date per currency.
+        The supported display currencies (country currencies plus the
+        configured extra ISO 4217 codes of `VITADELTA_FX_EXTRA_CURRENCIES`),
+        ordered by `code` ascending. `asOf` is the newest stored `as_of` of
+        any rate row whose base or quote is the currency (`null` when no such
+        row exists); `stale` is `true` when `asOf` is more than 5 days before
+        the current UTC date, and `false` when `asOf` is `null`. Reads the
+        stored rates only; it never calls the FX provider.
       security: []
       parameters:
         - $ref: '#/components/parameters/XRequestId'
@@ -787,12 +821,23 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/FxCurrencyList' }
-              example:
-                items:
-                  - { code: EUR, asOf: '2026-11-23', stale: false }
-                  - { code: GBP, asOf: '2026-11-23', stale: false }
-                  - { code: TRY, asOf: '2026-11-23', stale: false }
-                  - { code: USD, asOf: '2026-11-23', stale: false }
+              examples:
+                refreshed:
+                  summary: Rates stored for every currency
+                  value:
+                    items:
+                      - { code: EUR, asOf: '2026-11-23', stale: false }
+                      - { code: GBP, asOf: '2026-11-23', stale: false }
+                      - { code: TRY, asOf: '2026-11-23', stale: false }
+                      - { code: USD, asOf: '2026-11-23', stale: false }
+                beforeFirstRefresh:
+                  summary: No rate stored yet
+                  value:
+                    items:
+                      - { code: EUR, asOf: null, stale: false }
+                      - { code: GBP, asOf: null, stale: false }
+                      - { code: TRY, asOf: null, stale: false }
+                      - { code: USD, asOf: null, stale: false }
         '500': { $ref: '#/components/responses/InternalError' }
 
   /fx/rates:
@@ -801,11 +846,19 @@ paths:
       operationId: getFxRates
       summary: Newest rates for a base currency
       description: |
-        Newest stored rate per quote currency for the base. Rates carry their
-        stored 8 decimals unrounded.
+        Newest stored rate (largest `as_of`) per quote currency for the base,
+        over every other supported currency, ordered by `quote` ascending. A
+        quote without any stored row for the pair is omitted (an empty
+        `rates` array before the first refresh); the identity pair is never
+        listed. Rates are never inverted or derived through a third currency.
+        `rate` is a JSON number written with exactly the 8 stored decimals
+        (for example `0.02087500`), never rounded. `stale` is `true` when
+        `asOf` is more than 5 days before the current UTC date. `source` is
+        `FRANKFURTER`. Reads the stored rates only.
 
-        Problem codes: `validation_failed` (422, missing `base`),
-        `fx_unsupported_currency` (422).
+        Problem codes: `validation_failed` (422, missing or malformed `base`,
+        field `base`), `fx_unsupported_currency` (422, a well-formed base
+        outside the supported set), `internal_error` (500).
       security: []
       parameters:
         - $ref: '#/components/parameters/XRequestId'
@@ -823,11 +876,18 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/FxRateList' }
-              example:
-                base: TRY
-                rates:
-                  - { quote: EUR, rate: 0.02087500, asOf: '2026-11-23', source: FRANKFURTER, stale: false }
-                  - { quote: USD, rate: 0.02413700, asOf: '2026-11-23', source: FRANKFURTER, stale: false }
+              examples:
+                tryBase:
+                  summary: Base TRY (illustrative rates)
+                  value:
+                    base: TRY
+                    rates:
+                      - { quote: EUR, rate: 0.01807000, asOf: '2026-11-23', source: FRANKFURTER, stale: false }
+                      - { quote: GBP, rate: 0.01588000, asOf: '2026-11-23', source: FRANKFURTER, stale: false }
+                      - { quote: USD, rate: 0.02413700, asOf: '2026-11-23', source: FRANKFURTER, stale: false }
+                beforeFirstRefresh:
+                  summary: No rate stored yet
+                  value: { base: TRY, rates: [] }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '500': { $ref: '#/components/responses/InternalError' }
 
@@ -1192,6 +1252,13 @@ paths:
         `emailAlertsEnabled`. `displayCurrency: null` resets the preference to
         the country's native currency.
 
+        `emailAlertsEnabled: false` stops alert and cap e-mails only: in-app
+        notifications are still created, and a pending e-mail is evaluated at
+        send time (it is skipped as ineligible while the preference is
+        `false`). Auth and plan e-mails are not affected. It is the target of
+        the preference link and the `List-Unsubscribe` header of alert
+        e-mails.
+
         Problem codes: `unauthorized` (401), `validation_failed` (422),
         `country_not_found` (422), `fx_unsupported_currency` (422).
       security:
@@ -1256,13 +1323,30 @@ paths:
       operationId: listSavedProducts
       summary: Saved products in one country
       description: |
-        Saved products of the caller for the country with the current effective
-        price, stock state, flags and the active alert subscriptions. Products
-        that are no longer available in the country are kept and carry the
-        `UNAVAILABLE_IN_COUNTRY` flag.
+        Every saved product of the caller for the country (no paging), ordered
+        by `savedAt` descending, then `productId` ascending, with the current
+        effective price (section 7.4, out-of-stock offers included), its stock
+        state (`cost.outOfStock` and the `OUT_OF_STOCK` flag), flags and the
+        caller's active alert subscriptions on the product in that country.
+        Does not call the scoring service.
 
-        Problem codes: `unauthorized` (401), `validation_failed` (422),
-        `country_not_found` (422), `fx_unsupported_currency` (422).
+        A product whose availability in the country is no longer `AVAILABLE`
+        (`NOT_SOLD`, `DISCONTINUED` or no availability row) stays in the list
+        with `availabilityStatus` (`NOT_SOLD` for a missing row), `cost` and
+        `selectedOffer` `null` and the single flag `UNAVAILABLE_IN_COUNTRY`.
+        An available product carries the flags of `GET /products`
+        (`CONVERSION_ASSUMED`, `PRICE_STALE`, `OUT_OF_STOCK`, then `FX_STALE`
+        / `FX_UNAVAILABLE` when it has a cost); an available product without
+        any offer has `cost` and `selectedOffer` `null`.
+
+        Money is converted like every catalog response (`meta.fx`); until a
+        rate exists for the display currency money stays native with
+        `meta.fx.status = UNAVAILABLE`. `alerts[].baselinePrice` is always
+        native (`baselineCurrency`).
+
+        Problem codes: `unauthorized` (401), `validation_failed` (422,
+        malformed `country` or `displayCurrency`), `country_not_found` (422),
+        `fx_unsupported_currency` (422).
       security:
         - bearerAuth: []
       parameters:
@@ -1277,6 +1361,40 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/SavedProductList' }
+              example:
+                meta:
+                  country: TR
+                  nativeCurrency: TRY
+                  currency: USD
+                  fx: { base: TRY, quote: USD, rate: 0.02413700, asOf: '2026-11-23', source: FRANKFURTER, stale: false, status: OK }
+                items:
+                  - productId: 3b2f0c4e-6a1d-4f0e-9c3a-1a2b3c4d5e01
+                    code: GOLD-A
+                    brand: Gold
+                    name: Gold A Multivitamin
+                    dosageForm: TABLET
+                    provenance: { synthetic: true, source: Synthetic fixture set (fictional brand and formulation), sourceRef: null, sourceEntryDate: null }
+                    countryCode: TR
+                    savedAt: '2026-11-24T08:30:00Z'
+                    availabilityStatus: AVAILABLE
+                    cost: { effectivePrice: 19.3096, effectivePriceNative: 800.0, currency: USD, servingsPerContainer: 60, daysSupply: 60, costPerDay: 0.3218, costPerDayNative: 13.3333, priceStale: false, outOfStock: false }
+                    selectedOffer: { retailer: Retailer One, url: 'https://shop.example.com/products/gold-a', checkedAt: '2026-11-20T09:00:00Z' }
+                    flags: []
+                    alerts:
+                      - { id: 5a6b7c8d-9e0f-4a1b-8c2d-3e4f5a6b7c8d, productId: 3b2f0c4e-6a1d-4f0e-9c3a-1a2b3c4d5e01, countryCode: TR, trigger: PRICE_DROP, thresholdPercent: 10, baselinePrice: 800.0, baselineCurrency: TRY, active: true, createdAt: '2026-11-24T08:30:00Z', lastTriggeredAt: null }
+                  - productId: 3b2f0c4e-6a1d-4f0e-9c3a-1a2b3c4d5e07
+                    code: GOLD-G
+                    brand: Gold
+                    name: Gold G Multivitamin
+                    dosageForm: CAPSULE
+                    provenance: { synthetic: true, source: Synthetic fixture set (fictional brand and formulation), sourceRef: null, sourceEntryDate: null }
+                    countryCode: TR
+                    savedAt: '2026-11-20T10:00:00Z'
+                    availabilityStatus: DISCONTINUED
+                    cost: null
+                    selectedOffer: null
+                    flags: [{ code: UNAVAILABLE_IN_COUNTRY, nutrientCodes: [] }]
+                    alerts: []
         '401': { $ref: '#/components/responses/Unauthorized' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '500': { $ref: '#/components/responses/InternalError' }
@@ -1285,13 +1403,27 @@ paths:
       operationId: saveProduct
       summary: Save a product
       description: |
-        Idempotent: saving an already saved product returns 200. The limit check
-        and insert are serialized per user.
+        Saves the product for the country. Does not require a verified e-mail.
+
+        Order of checks: body validation (422) -> country (422
+        `country_not_found`) -> product (404 `product_not_found`, also for an
+        unknown id) -> availability (404 `product_not_available_in_country`
+        unless the product is `AVAILABLE` in the country) -> in one
+        transaction: lock the user's row, return 200 with the existing row
+        when it is already saved (idempotent, no limit check, `savedAt`
+        unchanged), otherwise check the plan limit and insert (201).
+
+        The saved-product limit counts the caller's saved rows over every
+        country. At the limit the answer is 403 `entitlement_exceeded` with
+        `limit`, `used`, `plan`, `upgradeTo: PRO` and `upgradeHint
+        { messageKey: limits.saved_products_reached, ctaPath: /upgrade }`.
 
         Problem codes: `unauthorized` (401), `entitlement_exceeded` (403, saved
         product limit of the plan reached), `product_not_found` (404),
-        `product_not_available_in_country` (404), `validation_failed` (422),
-        `country_not_found` (422).
+        `product_not_available_in_country` (404), `validation_failed` (422,
+        missing or malformed `productId` or `countryCode`),
+        `country_not_found` (422), request body larger than 64 kB (413), body
+        not `application/json` (415), `internal_error` (500).
       security:
         - bearerAuth: []
       parameters:
@@ -1304,12 +1436,13 @@ paths:
             example: { productId: 3b2f0c4e-6a1d-4f0e-9c3a-1a2b3c4d5e01, countryCode: TR }
       responses:
         '200':
-          description: Already saved.
+          description: Already saved; the existing row is returned unchanged.
           headers:
             X-Request-Id: { $ref: '#/components/headers/XRequestId' }
           content:
             application/json:
               schema: { $ref: '#/components/schemas/SavedProductRef' }
+              example: { productId: 3b2f0c4e-6a1d-4f0e-9c3a-1a2b3c4d5e01, countryCode: TR, savedAt: '2026-11-20T10:00:00Z' }
         '201':
           description: Saved.
           headers:
@@ -1321,6 +1454,8 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/EntitlementForbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '500': { $ref: '#/components/responses/InternalError' }
 
@@ -1330,12 +1465,15 @@ paths:
       operationId: removeSavedProduct
       summary: Remove a saved product
       description: |
-        Removes the saved product for the country and deactivates its alert
-        subscriptions for that country. Idempotent: responds 204 also when the
-        product was not saved.
+        Removes the caller's saved-product row for the product and country and,
+        in the same transaction, sets `active = false` on every alert
+        subscription of the caller for that product and country (the
+        subscriptions are kept, with their baseline, and stop counting toward
+        the active-alert limit). Idempotent: responds 204 also when the
+        product was not saved, does not exist, or `productId` is not a UUID.
 
-        Problem codes: `unauthorized` (401), `validation_failed` (422),
-        `country_not_found` (422).
+        Problem codes: `unauthorized` (401), `validation_failed` (422,
+        missing or malformed `country`), `country_not_found` (422).
       security:
         - bearerAuth: []
       parameters:
@@ -1362,9 +1500,14 @@ paths:
       summary: Alert subscriptions of the caller
       description: |
         All alert subscriptions of the caller, active and inactive, across
-        countries. `baselinePrice` is in the country's native currency.
+        countries (no paging), ordered by `createdAt` descending, then `id`
+        ascending. `baselinePrice` is in the country's native currency
+        (`baselineCurrency`) and is never converted. `product` names the
+        product and its availability in the subscription's country; anything
+        but `AVAILABLE` (a missing availability row is `NOT_SOLD`) is shown
+        with the `UNAVAILABLE_IN_COUNTRY` badge.
 
-        Problem codes: `unauthorized` (401).
+        Problem codes: `unauthorized` (401), `internal_error` (500).
       security:
         - bearerAuth: []
       parameters:
@@ -1377,6 +1520,30 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/AlertList' }
+              example:
+                items:
+                  - id: 5a6b7c8d-9e0f-4a1b-8c2d-3e4f5a6b7c8d
+                    productId: 3b2f0c4e-6a1d-4f0e-9c3a-1a2b3c4d5e01
+                    countryCode: TR
+                    trigger: PRICE_DROP
+                    thresholdPercent: 10
+                    baselinePrice: 800.0
+                    baselineCurrency: TRY
+                    active: true
+                    createdAt: '2026-11-24T08:30:00Z'
+                    lastTriggeredAt: null
+                    product: { id: 3b2f0c4e-6a1d-4f0e-9c3a-1a2b3c4d5e01, code: GOLD-A, brand: Gold, name: Gold A Multivitamin, availabilityStatus: AVAILABLE, provenance: { synthetic: true, source: Synthetic fixture set (fictional brand and formulation), sourceRef: null, sourceEntryDate: null } }
+                  - id: 6b7c8d9e-0f1a-4b2c-9d3e-4f5a6b7c8d9e
+                    productId: 3b2f0c4e-6a1d-4f0e-9c3a-1a2b3c4d5e02
+                    countryCode: TR
+                    trigger: BACK_IN_STOCK
+                    thresholdPercent: null
+                    baselinePrice: null
+                    baselineCurrency: TRY
+                    active: false
+                    createdAt: '2026-11-21T12:00:00Z'
+                    lastTriggeredAt: '2026-11-22T07:00:00Z'
+                    product: { id: 3b2f0c4e-6a1d-4f0e-9c3a-1a2b3c4d5e02, code: GOLD-B, brand: Gold, name: Gold B Multivitamin, availabilityStatus: AVAILABLE, provenance: { synthetic: true, source: Synthetic fixture set (fictional brand and formulation), sourceRef: null, sourceEntryDate: null } }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '500': { $ref: '#/components/responses/InternalError' }
     post:
@@ -1386,15 +1553,43 @@ paths:
       description: |
         Creates an active subscription. A saved-product row is created implicitly
         when missing and counts toward the saved-product limit. `thresholdPercent`
-        applies to `PRICE_DROP` only (default 5.00) and must be absent for the
-        other triggers. Requires a verified e-mail. Creating a subscription that
-        already exists for the same product, country and trigger returns the
-        existing subscription with 200.
+        applies to `PRICE_DROP` only (default 5.00 when absent or `null`); for
+        `BACK_IN_STOCK` and `PRICE_CHANGE` a non-null value is 422
+        `validation_failed` with `errors[].code = threshold_not_allowed`
+        (field `thresholdPercent`). Requires a verified e-mail.
+
+        `baselinePrice` (`PRICE_DROP` only) is the product's current native
+        effective price (section 7.4, out-of-stock offers included); `null`
+        when no offer exists, in which case the alert evaluator stores the
+        first price it sees and does not fire on that event. Other triggers
+        store no baseline (`null`).
+
+        Uniqueness: one subscription per (caller, product, country, trigger).
+        When it already exists the answer is 200 with the existing
+        subscription unchanged, active or not: the threshold, baseline and
+        `active` are not modified and no limit or verification check runs.
+        Use `PATCH /me/alerts/{id}` to change the threshold or to reactivate.
+        Requests of one user are serialized by the row lock, so two parallel
+        identical requests give one 201 and one 200.
+
+        Order of checks: body validation (422) -> country (422
+        `country_not_found`) -> product (404 `product_not_found`, also for an
+        unknown id) -> availability (404 `product_not_available_in_country`
+        unless `AVAILABLE`) -> in one transaction: lock the user's row,
+        existing subscription (200), e-mail verification (403
+        `email_not_verified`), active-alert limit (403 `entitlement_exceeded`,
+        `upgradeHint.messageKey = limits.alert_subscriptions_reached`),
+        saved-product limit when the implicit saved row is missing (403
+        `entitlement_exceeded`, `limits.saved_products_reached`), insert
+        (201). A failed check writes nothing.
 
         Problem codes: `unauthorized` (401), `email_not_verified` (403),
         `entitlement_exceeded` (403, alert or saved-product limit reached),
         `product_not_found` (404), `product_not_available_in_country` (404),
-        `validation_failed` (422), `country_not_found` (422).
+        `validation_failed` (422; `errors[].code` includes
+        `threshold_not_allowed`, `out_of_range`), `country_not_found` (422),
+        request body larger than 64 kB (413), body not `application/json`
+        (415), `internal_error` (500).
       security:
         - bearerAuth: []
       parameters:
@@ -1407,12 +1602,23 @@ paths:
             example: { productId: 3b2f0c4e-6a1d-4f0e-9c3a-1a2b3c4d5e01, countryCode: TR, trigger: PRICE_DROP, thresholdPercent: 10 }
       responses:
         '200':
-          description: The subscription already existed.
+          description: The subscription already existed; returned unchanged.
           headers:
             X-Request-Id: { $ref: '#/components/headers/XRequestId' }
           content:
             application/json:
               schema: { $ref: '#/components/schemas/AlertSubscription' }
+              example:
+                id: 5a6b7c8d-9e0f-4a1b-8c2d-3e4f5a6b7c8d
+                productId: 3b2f0c4e-6a1d-4f0e-9c3a-1a2b3c4d5e01
+                countryCode: TR
+                trigger: PRICE_DROP
+                thresholdPercent: 10
+                baselinePrice: 800.0
+                baselineCurrency: TRY
+                active: false
+                createdAt: '2026-11-20T10:00:00Z'
+                lastTriggeredAt: null
         '201':
           description: Subscription created.
           headers:
@@ -1434,6 +1640,8 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/EntitlementForbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '500': { $ref: '#/components/responses/InternalError' }
 
@@ -1443,14 +1651,40 @@ paths:
       operationId: updateAlert
       summary: Activate, deactivate or change the threshold
       description: |
-        Activating (`active: true`) re-checks the e-mail verification and the
-        active-alert limit under the per-user lock and resets the baseline
-        price; changing the threshold also resets the baseline. An id that does
-        not exist or belongs to another user returns the same 404.
+        Applies `active` and/or `thresholdPercent` in one transaction that
+        first locks the caller's row. An id that does not exist, belongs to
+        another user or is not a UUID returns the same 404 (`about:blank`,
+        identical body apart from `instance` and `requestId`).
+
+        - `active: true` on an inactive subscription (activation): 404
+          `product_not_available_in_country` unless the product is still
+          `AVAILABLE` in the country, then 403 `email_not_verified`, then the
+          active-alert limit (403 `entitlement_exceeded`), then, when the
+          saved-product row for the product and country is missing (it was
+          removed), the saved-product limit (403 `entitlement_exceeded`) and
+          the implicit saved row is re-created. The baseline is reset.
+        - `active: true` on an active or `active: false` on an inactive
+          subscription changes nothing and runs no check. `active: false`
+          on an active subscription deactivates it without any check.
+        - `thresholdPercent` (`PRICE_DROP` only; on another trigger 422
+          `validation_failed`, `threshold_not_allowed`; `null` is 422
+          `validation_failed`): a value different from the stored one is
+          stored and resets the baseline; the same value changes nothing.
+        - Baseline reset (`PRICE_DROP` only) = the product's current native
+          effective price (section 7.4, out-of-stock offers included), `null`
+          when no offer exists.
+
+        Order of checks: body shape (422: empty object, `null` or out-of-range
+        `thresholdPercent`, wrong types) -> subscription lookup (404) ->
+        trigger-dependent check (422 `threshold_not_allowed`) -> activation
+        checks above. A failed check writes nothing.
 
         Problem codes: `unauthorized` (401), `email_not_verified` (403),
-        `entitlement_exceeded` (403), 404 (`about:blank`), `validation_failed`
-        (422, for example a threshold on a non-`PRICE_DROP` subscription).
+        `entitlement_exceeded` (403), 404 (`about:blank`),
+        `product_not_available_in_country` (404, activation only),
+        `validation_failed` (422; `threshold_not_allowed`, `out_of_range`,
+        an empty body), request body larger than 64 kB (413), body not
+        `application/json` (415), `internal_error` (500).
       security:
         - bearerAuth: []
       parameters:
@@ -1461,18 +1695,52 @@ paths:
         content:
           application/json:
             schema: { $ref: '#/components/schemas/UpdateAlertRequest' }
-            example: { active: false }
+            examples:
+              deactivate:
+                summary: Deactivate
+                value: { active: false }
+              changeThreshold:
+                summary: Change the threshold (resets the baseline)
+                value: { thresholdPercent: 7.5 }
       responses:
         '200':
-          description: Updated subscription.
+          description: The subscription after the update (also when nothing changed).
           headers:
             X-Request-Id: { $ref: '#/components/headers/XRequestId' }
           content:
             application/json:
               schema: { $ref: '#/components/schemas/AlertSubscription' }
+              example:
+                id: 5a6b7c8d-9e0f-4a1b-8c2d-3e4f5a6b7c8d
+                productId: 3b2f0c4e-6a1d-4f0e-9c3a-1a2b3c4d5e01
+                countryCode: TR
+                trigger: PRICE_DROP
+                thresholdPercent: 7.5
+                baselinePrice: 760.0
+                baselineCurrency: TRY
+                active: true
+                createdAt: '2026-11-24T08:30:00Z'
+                lastTriggeredAt: null
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/EntitlementForbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
+        '404':
+          description: |
+            Unknown, foreign or non-UUID subscription id (`about:blank`), or on
+            activation `product_not_available_in_country`.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+              example:
+                type: about:blank
+                title: Not Found
+                status: 404
+                detail: Not Found.
+                instance: /api/v1/me/alerts/5a6b7c8d-9e0f-4a1b-8c2d-3e4f5a6b7c8d
+                requestId: 8c1d2e3f-4a5b-4c6d-9e7f-0a1b2c3d4e5f
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '500': { $ref: '#/components/responses/InternalError' }
     delete:
@@ -1480,9 +1748,14 @@ paths:
       operationId: deleteAlert
       summary: Delete an alert subscription
       description: |
-        An id that does not exist or belongs to another user returns the same 404.
+        Deletes the subscription (its `alert_delivery` rows go with it;
+        notifications already created stay in the inbox). The saved-product
+        row is kept. An id that does not exist, belongs to another user or is
+        not a UUID returns the same 404 (`about:blank`); deleting twice is 404
+        the second time.
 
-        Problem codes: `unauthorized` (401), 404 (`about:blank`).
+        Problem codes: `unauthorized` (401), 404 (`about:blank`),
+        `internal_error` (500).
       security:
         - bearerAuth: []
       parameters:
@@ -1503,9 +1776,21 @@ paths:
       operationId: listNotifications
       summary: Notification inbox
       description: |
-        Notifications of the caller, newest first.
+        Notifications of the caller ordered by `createdAt` descending, then
+        `id` descending, paged with `page` / `pageSize`. With
+        `unreadOnly=true` only notifications with `readAt = null` are listed
+        and `meta.total` counts only those. A page beyond the last returns an
+        empty `items` array. In-app notifications exist regardless of the
+        e-mail preference and of e-mail delivery.
 
-        Problem codes: `unauthorized` (401), `validation_failed` (422).
+        `type` selects the payload: alert notifications carry a snapshot of
+        the product (code, brand, name), the country, the native `currency`
+        and the before / after effective price and stock state; money in a
+        payload is always native and never converted (no `meta.fx` here).
+
+        Problem codes: `unauthorized` (401), `validation_failed` (422,
+        `unreadOnly` not `true`/`false`, `page < 1`, `pageSize` outside 1 to
+        100), `internal_error` (500).
       security:
         - bearerAuth: []
       parameters:
@@ -1526,17 +1811,57 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/NotificationPage' }
               example:
-                meta: { page: 1, pageSize: 20, total: 1 }
+                meta: { page: 1, pageSize: 20, total: 5 }
                 items:
                   - id: 7d8e9f0a-1b2c-4d3e-9f4a-5b6c7d8e9f0a
                     type: ALERT_PRICE_DROP
                     payload:
+                      subscriptionId: 5a6b7c8d-9e0f-4a1b-8c2d-3e4f5a6b7c8d
+                      trigger: PRICE_DROP
                       productId: 3b2f0c4e-6a1d-4f0e-9c3a-1a2b3c4d5e01
+                      productCode: GOLD-A
+                      brand: Gold
+                      productName: Gold A Multivitamin
                       countryCode: TR
+                      currency: TRY
+                      thresholdPercent: 5
+                      baselinePrice: 800.0
                       before: { effectivePrice: 800.0, inStock: true, retailer: Retailer One, url: 'https://shop.example.com/products/gold-a' }
-                      after: { effectivePrice: 700.0, inStock: true, retailer: Retailer One, url: 'https://shop.example.com/products/gold-a' }
+                      after: { effectivePrice: 752.0, inStock: true, retailer: Retailer One, url: 'https://shop.example.com/products/gold-a' }
                     createdAt: '2026-11-24T07:00:00Z'
                     readAt: null
+                  - id: 8e9f0a1b-2c3d-4e4f-8a5b-6c7d8e9f0a1b
+                    type: ALERT_BACK_IN_STOCK
+                    payload:
+                      subscriptionId: 6b7c8d9e-0f1a-4b2c-9d3e-4f5a6b7c8d9e
+                      trigger: BACK_IN_STOCK
+                      productId: 3b2f0c4e-6a1d-4f0e-9c3a-1a2b3c4d5e02
+                      productCode: GOLD-B
+                      brand: Gold
+                      productName: Gold B Multivitamin
+                      countryCode: TR
+                      currency: TRY
+                      thresholdPercent: null
+                      baselinePrice: null
+                      before: { effectivePrice: 900.0, inStock: false, retailer: Retailer One, url: 'https://shop.example.com/products/gold-b' }
+                      after: { effectivePrice: 900.0, inStock: true, retailer: Retailer One, url: 'https://shop.example.com/products/gold-b' }
+                    createdAt: '2026-11-22T07:00:00Z'
+                    readAt: '2026-11-22T09:00:00Z'
+                  - id: 9f0a1b2c-3d4e-4f5a-9b6c-7d8e9f0a1b2c
+                    type: NOTIFICATION_CAP_REACHED
+                    payload: { periodMonth: '2026-10-01', limit: 30 }
+                    createdAt: '2026-10-28T07:00:00Z'
+                    readAt: '2026-10-28T08:00:00Z'
+                  - id: 0a1b2c3d-4e5f-4a6b-8c7d-8e9f0a1b2c3d
+                    type: PLAN_EXPIRED
+                    payload: { expiredPlanCode: PRO, planCode: FREE, deactivatedAlertSubscriptions: 2 }
+                    createdAt: '2026-10-01T00:05:00Z'
+                    readAt: '2026-10-01T10:00:00Z'
+                  - id: 1b2c3d4e-5f6a-4b7c-9d8e-9f0a1b2c3d4e
+                    type: PLAN_ACTIVATED
+                    payload: { planCode: PRO, source: PROMO, currentPeriodEnd: '2026-10-01T00:00:00Z', extended: false }
+                    createdAt: '2026-09-01T00:00:00Z'
+                    readAt: '2026-09-01T00:10:00Z'
         '401': { $ref: '#/components/responses/Unauthorized' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '500': { $ref: '#/components/responses/InternalError' }
@@ -1547,10 +1872,13 @@ paths:
       operationId: markNotificationRead
       summary: Mark one notification as read
       description: |
-        Idempotent. An id that does not exist or belongs to another user returns
-        the same 404.
+        Sets `readAt` to now when it is `null`; an already read notification
+        keeps its first `readAt` (idempotent, 204). An id that does not exist,
+        belongs to another user or is not a UUID returns the same 404
+        (`about:blank`). No request body.
 
-        Problem codes: `unauthorized` (401), 404 (`about:blank`).
+        Problem codes: `unauthorized` (401), 404 (`about:blank`),
+        `internal_error` (500).
       security:
         - bearerAuth: []
       parameters:
@@ -1571,7 +1899,12 @@ paths:
       operationId: markAllNotificationsRead
       summary: Mark all notifications as read
       description: |
-        Problem codes: `unauthorized` (401).
+        Sets `readAt` to now on every notification of the caller whose
+        `readAt` is `null` (one statement); already read notifications keep
+        their `readAt`. Always 204, also when nothing was unread. No request
+        body.
+
+        Problem codes: `unauthorized` (401), `internal_error` (500).
       security:
         - bearerAuth: []
       parameters:
@@ -1590,9 +1923,11 @@ paths:
       operationId: getUnreadNotificationCount
       summary: Number of unread notifications
       description: |
-        Polled by the web app every 60 seconds while signed in.
+        Number of the caller's notifications with `readAt = null` (equals
+        `meta.total` of `GET /me/notifications?unreadOnly=true`). Polled by
+        the web app every 60 seconds while signed in.
 
-        Problem codes: `unauthorized` (401).
+        Problem codes: `unauthorized` (401), `internal_error` (500).
       security:
         - bearerAuth: []
       parameters:
@@ -1664,7 +1999,32 @@ paths:
       summary: Detailed dependency status
       description: |
         Requires role ADMIN. Scoring service, database, FX freshness, outbox
-        backlog and dead letters, and the last run time of each scheduled job.
+        backlog and dead letters, and the last run of each scheduled job.
+        Always answers 200 with the body (also when a component is `DOWN`);
+        it is evaluated on each call and never cached.
+
+        - `scoring`: `UP` when `GET /internal/v1/health` answers 200 within
+          the scoring client's timeouts, else `DOWN` (an open circuit is
+          `DOWN` without a call).
+        - `database`: `UP` when a trivial query succeeds, else `DOWN`.
+        - `fx`: `newestAsOf` = newest `as_of` over all stored rates (`null`
+          when none), `rateAgeDays` = current UTC date minus `newestAsOf` in
+          days, `stale = rateAgeDays > 5`; `status` is `UP` when not stale,
+          `DEGRADED` when stale or no rate is stored, never `DOWN`.
+        - `outbox`: the counts of `GET /admin/outbox/stats`; `status` is
+          `DEGRADED` when `failed > 0` or the oldest pending event is older
+          than 5 minutes (`oldestPendingAt`), else `UP`. Dead letters are
+          reported but do not change the status.
+        - Overall `status`: `DOWN` when `database` is `DOWN`; otherwise
+          `DEGRADED` when any component is not `UP`; otherwise `UP`. The
+          public `GET /health` returns this same overall status (and 503 for
+          `DOWN`) without any detail, from a result cached for at most 10
+          seconds so that public polling cannot multiply calls to the
+          scoring service or the database.
+        - `jobs`: one entry per scheduled job, in the order of the enum, with
+          the end time and outcome of its last run that obtained the job's
+          advisory lock since the API started (`null` before the first run;
+          skipped runs are not recorded).
 
         Problem codes: `unauthorized` (401), `forbidden` (403).
       x-required-role: ADMIN
@@ -1687,12 +2047,13 @@ paths:
                   scoring: { status: UP }
                   database: { status: UP }
                   fx: { status: UP, newestAsOf: '2026-11-23', rateAgeDays: 1, stale: false }
-                  outbox: { status: UP, pending: 0, failed: 0, deadLetter: 0 }
+                  outbox: { status: UP, pending: 0, failed: 0, deadLetter: 0, oldestPendingAt: null }
                 jobs:
-                  - { name: OUTBOX_PROCESSOR, lastRunAt: '2026-11-24T08:29:55Z' }
-                  - { name: FX_REFRESH, lastRunAt: '2026-11-24T06:00:00Z' }
-                  - { name: SUBSCRIPTION_EXPIRY, lastRunAt: '2026-11-24T00:05:00Z' }
-                  - { name: HOUSEKEEPING, lastRunAt: '2026-11-24T03:15:00Z' }
+                  - { name: OUTBOX_PROCESSOR, lastRunAt: '2026-11-24T08:29:55Z', lastOutcome: SUCCEEDED }
+                  - { name: FX_REFRESH, lastRunAt: '2026-11-24T06:00:02Z', lastOutcome: SUCCEEDED }
+                  - { name: SUBSCRIPTION_EXPIRY, lastRunAt: '2026-11-24T00:05:01Z', lastOutcome: SUCCEEDED }
+                  - { name: HOUSEKEEPING_IDENTITY, lastRunAt: '2026-11-24T03:15:04Z', lastOutcome: SUCCEEDED }
+                  - { name: HOUSEKEEPING_ALERTS, lastRunAt: '2026-11-24T03:15:03Z', lastOutcome: SUCCEEDED }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '500': { $ref: '#/components/responses/InternalError' }
@@ -2090,12 +2451,19 @@ paths:
       operationId: refreshFxRates
       summary: Run the FX refresh job now
       description: |
-        Requires role ADMIN. Runs the FX refresh immediately and returns the
-        number of upserted rate rows. A provider failure is logged and leaves
-        the stored rates in use; the response then reports the rows upserted
-        before the failure.
+        Requires role ADMIN. Runs the FX refresh job (`FxRefreshJob`) once,
+        synchronously, under the job's advisory lock: for every supported base
+        currency one provider call for all other supported currencies, each
+        result upserted in its own short transaction. A failed call (timeout,
+        non-2xx, empty array, missing quote, mixed dates) is logged with a
+        metric, leaves the stored rates of that base in use and does not stop
+        the other bases; the response is still 200 and lists the base in
+        `failedBases`. With four supported currencies a complete run upserts
+        12 rows.
 
-        Problem codes: `unauthorized` (401), `forbidden` (403).
+        Problem codes: `unauthorized` (401), `forbidden` (403),
+        `conflict_retry` (409, the refresh job is running at this moment and
+        holds its lock; nothing was fetched).
       x-required-role: ADMIN
       security:
         - bearerAuth: []
@@ -2109,9 +2477,16 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/FxRefreshResult' }
-              example: { upsertedRows: 12 }
+              examples:
+                complete:
+                  summary: Every base refreshed
+                  value: { upsertedRows: 12, failedBases: [] }
+                providerDown:
+                  summary: Provider unreachable; stored rates stay in use
+                  value: { upsertedRows: 0, failedBases: [EUR, GBP, TRY, USD] }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
         '500': { $ref: '#/components/responses/InternalError' }
 
   /admin/outbox/stats:
@@ -2120,11 +2495,16 @@ paths:
       operationId: getOutboxStats
       summary: Outbox backlog counts
       description: |
-        Requires role ADMIN. `pending` counts unprocessed events, `failed` the
-        unprocessed events with at least one failed attempt, `deadLetter` the
-        events processed with outcome `DEAD_LETTER`.
+        Requires role ADMIN. `pending` counts unprocessed events
+        (`processed_at IS NULL`, claimed or not), `failed` the unprocessed
+        events with at least one failed attempt (`attempts > 0`),
+        `deadLetter` the retained events processed with outcome
+        `DEAD_LETTER`, and `oldestPendingAt` is the `created_at` of the
+        oldest unprocessed event. One read-only query; no event is claimed or
+        changed.
 
-        Problem codes: `unauthorized` (401), `forbidden` (403).
+        Problem codes: `unauthorized` (401), `forbidden` (403),
+        `internal_error` (500).
       x-required-role: ADMIN
       security:
         - bearerAuth: []
@@ -2138,7 +2518,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/OutboxStats' }
-              example: { pending: 3, failed: 1, deadLetter: 0 }
+              example: { pending: 3, failed: 1, deadLetter: 0, oldestPendingAt: '2026-11-24T08:20:00Z' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '500': { $ref: '#/components/responses/InternalError' }
@@ -2371,7 +2751,11 @@ components:
       description: |
         Resource not found. Codes: `product_not_found`,
         `product_not_available_in_country`; other resources (alert,
-        notification, user, import job, promo code) use `about:blank`.
+        notification, user, import job, promo code) use `about:blank`. For
+        caller-scoped resources (`/me/alerts/{id}`,
+        `/me/notifications/{id}/read`) an id that does not exist, belongs to
+        another user or is not a UUID gets the same 404 body (only
+        `instance` and `requestId` differ).
       headers:
         X-Request-Id: { $ref: '#/components/headers/XRequestId' }
       content:
@@ -2385,7 +2769,7 @@ components:
             instance: /api/v1/products/3b2f0c4e-6a1d-4f0e-9c3a-1a2b3c4d5e01
             requestId: 8c1d2e3f-4a5b-4c6d-9e7f-0a1b2c3d4e5f
     Conflict:
-      description: A concurrent subscription change won; retry the request. Code `conflict_retry`.
+      description: A concurrent change or run won (a subscription change, or a running job holding its lock); retry the request. Code `conflict_retry`.
       headers:
         X-Request-Id: { $ref: '#/components/headers/XRequestId' }
       content:
@@ -2590,9 +2974,11 @@ components:
         scoring engine or the effective-price resolution. `FX_STALE` is set
         on every money-bearing item when `meta.fx.stale` is `true`,
         `FX_UNAVAILABLE` when `meta.fx.status` is `UNAVAILABLE`.
-        `UNAVAILABLE_IN_COUNTRY` is used only on saved products and alert
-        subscriptions (Phase 5); catalog and recommendation responses never
-        contain unavailable products and never carry it.
+        `UNAVAILABLE_IN_COUNTRY` is used only on saved products
+        (`SavedProduct.flags`) whose availability is not `AVAILABLE`; alert
+        list items show the same state through `product.availabilityStatus`.
+        Catalog and recommendation responses never contain unavailable
+        products and never carry it.
       enum:
         - EXCEEDS_UL
         - UL_FORM_DEPENDENT
@@ -2705,7 +3091,7 @@ components:
           description: JSON path of the offending field, for example `requiredNutrients[0].unit`.
         code:
           type: string
-          description: Machine-readable reason, for example `weights_all_zero`, `unit_requires_form`, `required`, `out_of_range`, `unknown_nutrient_code`, `lambda_requires_custom`, `same_product`, `no_offer`, `no_stock`, `value_out_of_range`.
+          description: Machine-readable reason, for example `weights_all_zero`, `unit_requires_form`, `required`, `out_of_range`, `unknown_nutrient_code`, `lambda_requires_custom`, `same_product`, `no_offer`, `no_stock`, `value_out_of_range`, `threshold_not_allowed`.
           pattern: '^[a-z][a-z0-9_]*$'
         message:
           type: string
@@ -2863,7 +3249,7 @@ components:
         overrides: { $ref: '#/components/schemas/NutrientOverrides' }
     DefaultWeights:
       type: object
-      required: [categories, categoryRange, overrideDefault, overrideRange, lambdaDefault, lambdaRange]
+      required: [categories, categoryRange, overrideDefault, overrideRange, lambdaDefault, lambdaRange, engine]
       properties:
         categories: { $ref: '#/components/schemas/DefaultCategoryWeights' }
         categoryRange: { $ref: '#/components/schemas/NumberRange' }
@@ -2871,6 +3257,36 @@ components:
         overrideRange: { $ref: '#/components/schemas/NumberRange' }
         lambdaDefault: { type: number, minimum: 0, maximum: 1 }
         lambdaRange: { $ref: '#/components/schemas/NumberRange' }
+        engine:
+          oneOf:
+            - $ref: '#/components/schemas/EngineParameters'
+            - type: 'null'
+          description: Scoring-engine parameters from the scoring service's `GET /internal/v1/health`; `null` while the API has not obtained them since start-up.
+    EngineParameters:
+      type: object
+      description: |
+        Read-only scoring-engine parameters (scoring contract `EngineConfig`,
+        renamed to camelCase, values copied unrounded). Display only: the web
+        app never computes a score or a verdict from them.
+      additionalProperties: false
+      required: [diminishingBeta, utilityCeiling, verdictWorthItMaxRatio, verdictMarginalMaxRatio]
+      properties:
+        diminishingBeta:
+          type: number
+          exclusiveMinimum: 0
+          description: Slope `beta` of the logarithmic segment of the utility curve (scoring `diminishing_beta`).
+        utilityCeiling:
+          type: number
+          minimum: 1
+          description: Utility ceiling `u_max` (scoring `utility_ceiling`).
+        verdictWorthItMaxRatio:
+          type: number
+          exclusiveMinimum: 0
+          description: Largest compare `ratio` that still yields `WORTH_IT` (scoring `verdict_worth_it_max_ratio`).
+        verdictMarginalMaxRatio:
+          type: number
+          exclusiveMinimum: 0
+          description: Largest compare `ratio` that still yields `MARGINAL`; above it the verdict is `NOT_WORTH_IT` (scoring `verdict_marginal_max_ratio`).
 
     # ---------- Recommendations ----------
     Ranking:
@@ -2921,10 +3337,18 @@ components:
       type: object
       description: |
         Conversion applied to every monetary field: displayed value = unrounded
-        native value x `rate`, rounded once to 4 decimals. For the identity pair
-        `rate` is 1 and `asOf`/`source` are `null`. With `status = UNAVAILABLE`,
-        `rate`, `asOf` and `source` are `null` and money stays in the native
-        currency.
+        native value x `rate`, rounded once to 4 decimals; a value is never
+        converted from an already rounded figure. `base` is the country's
+        native currency and `quote` the resolved display currency. The rate is
+        the stored row of the exact pair `(base, quote)` with the largest
+        `as_of` (never inverted, never derived through a third currency).
+        For the identity pair `rate` is 1, `asOf`/`source` are `null`,
+        `stale` is `false` and `status` is `OK`. With `status = UNAVAILABLE`
+        (no stored row for the pair) `rate`, `asOf` and `source` are `null`,
+        `stale` is `false`, money stays in the native currency and every
+        money-bearing item carries the flag `FX_UNAVAILABLE`. With
+        `stale = true` every money-bearing item carries `FX_STALE`.
+        `valueScore` is never converted.
       required: [base, quote, rate, asOf, source, stale, status]
       properties:
         base: { $ref: '#/components/schemas/CurrencyCode' }
@@ -2932,12 +3356,17 @@ components:
         rate:
           type: [number, 'null']
           exclusiveMinimum: 0
-          description: Stored rate with 8 decimals, returned unrounded.
-        asOf: { type: [string, 'null'], format: date }
-        source: { type: [string, 'null'], example: FRANKFURTER }
+          description: Stored rate (`numeric(18,8)`), written with its 8 decimals and never rounded; `1` for the identity pair.
+        asOf:
+          type: [string, 'null']
+          format: date
+          description: ECB publication date of the rate (the provider's `date`), not the fetch time.
+        source:
+          type: [string, 'null']
+          enum: [FRANKFURTER, null]
         stale:
           type: boolean
-          description: '`true` when `asOf` is older than 5 days.'
+          description: '`true` when `asOf` is more than 5 days before the current UTC date (`fx_stale_after_days = 5`).'
         status: { $ref: '#/components/schemas/FxStatus' }
     MoneyMeta:
       type: object
@@ -3059,7 +3488,7 @@ components:
         outOfStock: { type: boolean }
     ProductFlag:
       type: object
-      description: Scoring flags first, in the scoring service's order, then the API flags `FX_STALE`, `FX_UNAVAILABLE`; each code at most once.
+      description: Scoring flags first, in the scoring service's order, then the API flags `FX_STALE`, `FX_UNAVAILABLE`; each code at most once. On saved products that are not `AVAILABLE` the only flag is `UNAVAILABLE_IN_COUNTRY`.
       required: [code, nutrientCodes]
       properties:
         code: { $ref: '#/components/schemas/ProductFlagCode' }
@@ -3175,10 +3604,11 @@ components:
         selectedOffer: { $ref: '#/components/schemas/SelectedOffer' }
         saved:
           type: boolean
-          description: Whether the caller saved the product in this country; `false` for anonymous callers. Always `false` until saved products arrive with Phase 5.
+          description: Whether the caller has a saved-product row for this product in `meta.country`; `false` for anonymous callers. Read per request after paging, never cached with the ranking.
         alerts:
           type: array
-          description: The caller's alert subscriptions on this product in this country; empty for anonymous callers. Always empty until alerts arrive with Phase 5.
+          maxItems: 3
+          description: The caller's alert subscriptions (active and inactive) on this product in `meta.country`, ordered by `trigger` (`PRICE_DROP`, `BACK_IN_STOCK`, `PRICE_CHANGE`); empty for anonymous callers. Read per request after paging, never cached with the ranking.
           items: { $ref: '#/components/schemas/AlertSubscription' }
     RecommendationQueryResponse:
       type: object
@@ -3485,10 +3915,11 @@ components:
           items: { $ref: '#/components/schemas/ProductFlag' }
         saved:
           type: boolean
-          description: '`false` for anonymous callers. Always `false` until saved products arrive with Phase 5.'
+          description: Whether the caller has a saved-product row for this product in `meta.country`; `false` for anonymous callers.
         alerts:
           type: array
-          description: The caller's alert subscriptions on this product in this country; empty for anonymous callers. Always empty until alerts arrive with Phase 5.
+          maxItems: 3
+          description: The caller's alert subscriptions (active and inactive) on this product in `meta.country`, ordered by `trigger` (`PRICE_DROP`, `BACK_IN_STOCK`, `PRICE_CHANGE`); empty for anonymous callers.
           items: { $ref: '#/components/schemas/AlertSubscription' }
     ProductDetailMeta:
       type: object
@@ -3562,8 +3993,10 @@ components:
         asOf:
           type: [string, 'null']
           format: date
-          description: Newest stored rate date involving this currency; `null` when no rate is stored.
-        stale: { type: boolean }
+          description: Newest stored `as_of` of any rate row whose base or quote is this currency; `null` when no such row is stored.
+        stale:
+          type: boolean
+          description: '`true` when `asOf` is more than 5 days before the current UTC date; `false` when `asOf` is `null`.'
     FxCurrencyList:
       type: object
       required: [items]
@@ -3579,12 +4012,17 @@ components:
         rate:
           type: number
           exclusiveMinimum: 0
-          description: Stored rate with 8 decimals, returned unrounded.
-        asOf: { type: string, format: date }
-        source: { type: string, example: FRANKFURTER }
+          description: Stored rate (`numeric(18,8)`), written with its 8 decimals and never rounded.
+        asOf:
+          type: string
+          format: date
+          description: ECB publication date of the rate.
+        source:
+          type: string
+          enum: [FRANKFURTER]
         stale:
           type: boolean
-          description: '`true` when `asOf` is older than 5 days.'
+          description: '`true` when `asOf` is more than 5 days before the current UTC date.'
     FxRateList:
       type: object
       required: [base, rates]
@@ -3595,9 +4033,17 @@ components:
           items: { $ref: '#/components/schemas/FxRate' }
     FxRefreshResult:
       type: object
-      required: [upsertedRows]
+      required: [upsertedRows, failedBases]
       properties:
-        upsertedRows: { type: integer, minimum: 0 }
+        upsertedRows:
+          type: integer
+          minimum: 0
+          description: '`fx_rate` rows inserted or updated by this run (a repeated refresh of the same ECB date rewrites the rows and counts them again).'
+        failedBases:
+          type: array
+          uniqueItems: true
+          description: Base currencies whose provider call failed in this run, ordered ascending; their stored rates stay in use. Empty when every call succeeded.
+          items: { $ref: '#/components/schemas/CurrencyCode' }
 
     # ---------- Session and account ----------
     UsageMeter:
@@ -3623,11 +4069,15 @@ components:
       type: object
       required: [savedProducts, alertSubscriptions, notificationsThisMonth]
       properties:
-        savedProducts: { $ref: '#/components/schemas/UsageMeter' }
+        savedProducts:
+          allOf: [{ $ref: '#/components/schemas/UsageMeter' }]
+          description: Counts saved-product rows over every country.
         alertSubscriptions:
           allOf: [{ $ref: '#/components/schemas/UsageMeter' }]
-          description: Counts active subscriptions.
-        notificationsThisMonth: { $ref: '#/components/schemas/MonthlyUsageMeter' }
+          description: Counts active subscriptions over every country.
+        notificationsThisMonth:
+          allOf: [{ $ref: '#/components/schemas/MonthlyUsageMeter' }]
+          description: Notifications counted this calendar month (UTC); the cap notice and plan notifications are not counted.
     AnonymousQuota:
       type: object
       required: [principal, queriesUsed, queriesLimit, visibleResults]
@@ -3795,31 +4245,41 @@ components:
         savedAt: { type: string, format: date-time }
     SavedProduct:
       type: object
-      required: [productId, code, brand, name, dosageForm, countryCode, savedAt, availabilityStatus, cost, selectedOffer, flags, alerts]
+      required: [productId, code, brand, name, dosageForm, provenance, countryCode, savedAt, availabilityStatus, cost, selectedOffer, flags, alerts]
       properties:
         productId: { type: string, format: uuid }
         code: { $ref: '#/components/schemas/ProductCode' }
         brand: { type: string }
         name: { type: string }
         dosageForm: { $ref: '#/components/schemas/DosageForm' }
+        provenance: { $ref: '#/components/schemas/ProductProvenance' }
         countryCode: { $ref: '#/components/schemas/CountryCode' }
-        savedAt: { type: string, format: date-time }
-        availabilityStatus: { $ref: '#/components/schemas/AvailabilityStatus' }
+        savedAt:
+          type: string
+          format: date-time
+          description: '`saved_product.created_at`.'
+        availabilityStatus:
+          allOf:
+            - $ref: '#/components/schemas/AvailabilityStatus'
+          description: Availability in `countryCode`; `NOT_SOLD` when no availability row exists.
         cost:
           oneOf:
             - $ref: '#/components/schemas/Cost'
             - type: 'null'
-          description: Current effective-price cost with out-of-stock offers included; `null` without offers or when unavailable.
+          description: Current effective-price cost with out-of-stock offers included; `null` without offers or when `availabilityStatus` is not `AVAILABLE`.
         selectedOffer:
           oneOf:
             - $ref: '#/components/schemas/SelectedOffer'
             - type: 'null'
+          description: Offer behind `cost`; `null` exactly when `cost` is `null`.
         flags:
           type: array
+          description: 'Not `AVAILABLE`: exactly `UNAVAILABLE_IN_COUNTRY`. Otherwise the `GET /products` flags in the order `CONVERSION_ASSUMED`, `PRICE_STALE`, `OUT_OF_STOCK`, `FX_STALE`, `FX_UNAVAILABLE` (FX flags only with a cost).'
           items: { $ref: '#/components/schemas/ProductFlag' }
         alerts:
           type: array
-          description: Active alert subscriptions on this product in this country.
+          maxItems: 3
+          description: The caller's active alert subscriptions on this product in this country, ordered by `trigger` (`PRICE_DROP`, `BACK_IN_STOCK`, `PRICE_CHANGE`).
           items: { $ref: '#/components/schemas/AlertSubscription' }
     SavedProductListMeta:
       type: object
@@ -3841,9 +4301,16 @@ components:
     # ---------- Alerts ----------
     ThresholdPercent:
       type: number
-      exclusiveMinimum: 0
-      exclusiveMaximum: 100
-      description: Minimum price drop in percent of the baseline price (`PRICE_DROP` only).
+      minimum: 0.01
+      maximum: 99.99
+      description: |
+        Minimum price drop in percent of the baseline price (`PRICE_DROP`
+        only), stored as `numeric(5,2)`: from 0.01 to 99.99 with at most 2
+        decimal places once trailing zeros are removed. A value outside the
+        range or with more decimals is 422 `validation_failed` with
+        `errors[].code = out_of_range`; it is never rounded. Returned as a
+        JSON number (for example `5` or `7.5`). The alert fires when
+        `after.effectivePrice <= baselinePrice x (1 - thresholdPercent / 100)`.
       example: 5.0
     AlertSubscription:
       type: object
@@ -3860,17 +4327,27 @@ components:
           description: Set for `PRICE_DROP`, `null` otherwise.
         baselinePrice:
           type: [number, 'null']
-          description: Baseline effective price in the country's native currency (`PRICE_DROP`); `null` until a first price exists or for other triggers.
+          exclusiveMinimum: 0
+          description: |
+            Baseline effective price (`numeric(12,2)`) in the country's native
+            currency, never converted to the display currency (`PRICE_DROP`
+            only). Set on creation, activation and threshold change to the
+            current effective price, and after each notification to the
+            triggering price; `null` until a first price exists, and always
+            `null` for the other triggers.
         baselineCurrency:
           allOf:
             - $ref: '#/components/schemas/CurrencyCode'
-          description: Native currency of the country.
+          description: Native currency of the country (the currency of `baselinePrice`).
         active: { type: boolean }
         createdAt: { type: string, format: date-time }
-        lastTriggeredAt: { type: [string, 'null'], format: date-time }
+        lastTriggeredAt:
+          type: [string, 'null']
+          format: date-time
+          description: When the subscription last produced a notification; `null` until then. A firing skipped by the monthly cap sets neither this nor the baseline.
     ProductRef:
       type: object
-      required: [id, code, brand, name, availabilityStatus]
+      required: [id, code, brand, name, availabilityStatus, provenance]
       properties:
         id: { type: string, format: uuid }
         code: { $ref: '#/components/schemas/ProductCode' }
@@ -3879,7 +4356,8 @@ components:
         availabilityStatus:
           allOf:
             - $ref: '#/components/schemas/AvailabilityStatus'
-          description: Availability in the subscription's country; anything but `AVAILABLE` is shown with the `UNAVAILABLE_IN_COUNTRY` badge.
+          description: Availability in the subscription's country (`NOT_SOLD` when no availability row exists); anything but `AVAILABLE` is shown with the `UNAVAILABLE_IN_COUNTRY` badge.
+        provenance: { $ref: '#/components/schemas/ProductProvenance' }
     AlertListItem:
       allOf:
         - $ref: '#/components/schemas/AlertSubscription'
@@ -3902,12 +4380,14 @@ components:
         countryCode: { $ref: '#/components/schemas/CountryCode' }
         trigger: { $ref: '#/components/schemas/AlertTrigger' }
         thresholdPercent:
-          allOf:
+          oneOf:
             - $ref: '#/components/schemas/ThresholdPercent'
-          description: '`PRICE_DROP` only; defaults to 5.00.'
+            - type: 'null'
+          description: '`PRICE_DROP` only; absent or `null` means 5.00. A non-null value with another trigger is 422 `threshold_not_allowed`.'
     UpdateAlertRequest:
       type: object
       minProperties: 1
+      description: At least one of `active` and `thresholdPercent`; `null` values are rejected with 422.
       properties:
         active: { type: boolean }
         thresholdPercent: { $ref: '#/components/schemas/ThresholdPercent' }
@@ -3915,39 +4395,157 @@ components:
     # ---------- Notifications ----------
     OfferState:
       type: object
-      description: Effective-price state of a product in a country (out-of-stock offers included); fields are `null` when no offer exists.
+      description: |
+        Effective-price state of a product in a country (section 7.4,
+        out-of-stock offers included) as carried by the `OFFERS_CHANGED`
+        event; every field is `null` when no offer exists.
       required: [effectivePrice, inStock, retailer, url]
       properties:
         effectivePrice:
           type: [number, 'null']
-          description: Native currency of the country.
+          exclusiveMinimum: 0
+          description: Native currency of the country (`currency` of the payload), 2 decimals as stored; never converted.
         inStock: { type: [boolean, 'null'] }
         retailer: { type: [string, 'null'] }
-        url: { type: [string, 'null'], format: uri }
-    NotificationPayload:
+        url: { type: [string, 'null'], format: uri, maxLength: 2048 }
+    AlertNotificationPayload:
       type: object
       description: |
-        Type-specific payload. Alert notifications carry `productId`,
-        `countryCode`, `before` and `after`; plan notifications carry `planCode`
-        and `currentPeriodEnd`; the cap notice carries `periodMonth` and `limit`.
+        Payload of `ALERT_PRICE_DROP`, `ALERT_BACK_IN_STOCK` and
+        `ALERT_PRICE_CHANGE`: a snapshot written when the notification is
+        created; later catalog changes or a deleted subscription do not alter
+        it. Every amount (`before.effectivePrice`, `after.effectivePrice`,
+        `baselinePrice`) is in the country's native currency `currency` and
+        is never converted to a display currency: the inbox and the alert
+        e-mail render it with `currency`.
+      required: [subscriptionId, trigger, productId, productCode, brand, productName, countryCode, currency, thresholdPercent, baselinePrice, before, after]
       properties:
+        subscriptionId:
+          type: string
+          format: uuid
+          description: Subscription that fired; it may have been deleted since.
+        trigger: { $ref: '#/components/schemas/AlertTrigger' }
         productId: { type: string, format: uuid }
+        productCode: { $ref: '#/components/schemas/ProductCode' }
+        brand: { type: string }
+        productName: { type: string }
         countryCode: { $ref: '#/components/schemas/CountryCode' }
+        currency:
+          allOf:
+            - $ref: '#/components/schemas/CurrencyCode'
+          description: Native currency of `countryCode`.
+        thresholdPercent:
+          oneOf:
+            - $ref: '#/components/schemas/ThresholdPercent'
+            - type: 'null'
+          description: Threshold in effect when the alert fired (`PRICE_DROP`); `null` for the other triggers.
+        baselinePrice:
+          type: [number, 'null']
+          exclusiveMinimum: 0
+          description: Baseline the drop was measured against (`PRICE_DROP`), native; `null` for the other triggers.
         before: { $ref: '#/components/schemas/OfferState' }
         after: { $ref: '#/components/schemas/OfferState' }
+    CapReachedPayload:
+      type: object
+      description: Payload of `NOTIFICATION_CAP_REACHED` (at most one per user and calendar month, not counted against the cap).
+      required: [periodMonth, limit]
+      properties:
+        periodMonth:
+          type: string
+          format: date
+          description: First day of the capped calendar month (UTC).
+        limit:
+          type: integer
+          minimum: 0
+          description: The plan's monthly notification limit that was reached.
+    PlanActivatedPayload:
+      type: object
+      description: Payload of `PLAN_ACTIVATED` (from `SubscriptionActivatedEvent`; not counted against the cap).
+      required: [planCode, source, currentPeriodEnd, extended]
+      properties:
         planCode: { $ref: '#/components/schemas/PlanCode' }
-        currentPeriodEnd: { type: [string, 'null'], format: date-time }
-        periodMonth: { type: string, format: date }
-        limit: { type: integer, minimum: 0 }
-    Notification:
+        source: { $ref: '#/components/schemas/SubscriptionSource' }
+        currentPeriodEnd:
+          type: [string, 'null']
+          format: date-time
+          description: End of the activated or extended period.
+        extended:
+          type: boolean
+          description: '`true` when an existing PRO period was extended.'
+    PlanExpiredPayload:
+      type: object
+      description: Payload of `PLAN_EXPIRED` (from `SubscriptionExpiredEvent`; not counted against the cap).
+      required: [expiredPlanCode, planCode, deactivatedAlertSubscriptions]
+      properties:
+        expiredPlanCode:
+          allOf:
+            - $ref: '#/components/schemas/PlanCode'
+          description: The plan that expired (`PRO`).
+        planCode:
+          allOf:
+            - $ref: '#/components/schemas/PlanCode'
+          description: The plan now active (`FREE`).
+        deactivatedAlertSubscriptions:
+          type: integer
+          minimum: 0
+          description: Alert subscriptions set inactive because they exceeded the new plan's limit.
+    NotificationBase:
       type: object
       required: [id, type, payload, createdAt, readAt]
       properties:
         id: { type: string, format: uuid }
         type: { $ref: '#/components/schemas/NotificationType' }
-        payload: { $ref: '#/components/schemas/NotificationPayload' }
         createdAt: { type: string, format: date-time }
-        readAt: { type: [string, 'null'], format: date-time }
+        readAt:
+          type: [string, 'null']
+          format: date-time
+          description: First time the notification was marked read; `null` while unread.
+    AlertNotification:
+      allOf:
+        - $ref: '#/components/schemas/NotificationBase'
+        - type: object
+          properties:
+            type:
+              type: string
+              enum: [ALERT_PRICE_DROP, ALERT_BACK_IN_STOCK, ALERT_PRICE_CHANGE]
+            payload: { $ref: '#/components/schemas/AlertNotificationPayload' }
+    CapReachedNotification:
+      allOf:
+        - $ref: '#/components/schemas/NotificationBase'
+        - type: object
+          properties:
+            type: { const: NOTIFICATION_CAP_REACHED }
+            payload: { $ref: '#/components/schemas/CapReachedPayload' }
+    PlanActivatedNotification:
+      allOf:
+        - $ref: '#/components/schemas/NotificationBase'
+        - type: object
+          properties:
+            type: { const: PLAN_ACTIVATED }
+            payload: { $ref: '#/components/schemas/PlanActivatedPayload' }
+    PlanExpiredNotification:
+      allOf:
+        - $ref: '#/components/schemas/NotificationBase'
+        - type: object
+          properties:
+            type: { const: PLAN_EXPIRED }
+            payload: { $ref: '#/components/schemas/PlanExpiredPayload' }
+    Notification:
+      description: One inbox entry; `type` selects the payload schema.
+      oneOf:
+        - $ref: '#/components/schemas/AlertNotification'
+        - $ref: '#/components/schemas/CapReachedNotification'
+        - $ref: '#/components/schemas/PlanActivatedNotification'
+        - $ref: '#/components/schemas/PlanExpiredNotification'
+      discriminator:
+        propertyName: type
+        mapping:
+          ALERT_PRICE_DROP: '#/components/schemas/AlertNotification'
+          ALERT_BACK_IN_STOCK: '#/components/schemas/AlertNotification'
+          ALERT_PRICE_CHANGE: '#/components/schemas/AlertNotification'
+          NOTIFICATION_CAP_REACHED: '#/components/schemas/CapReachedNotification'
+          PLAN_ACTIVATED: '#/components/schemas/PlanActivatedNotification'
+          PLAN_EXPIRED: '#/components/schemas/PlanExpiredNotification'
     NotificationPage:
       type: object
       required: [meta, items]
@@ -3992,25 +4590,41 @@ components:
       required: [status, newestAsOf, rateAgeDays, stale]
       properties:
         status: { $ref: '#/components/schemas/HealthStatus' }
-        newestAsOf: { type: [string, 'null'], format: date }
-        rateAgeDays: { type: [integer, 'null'], minimum: 0 }
-        stale: { type: boolean }
+        newestAsOf:
+          type: [string, 'null']
+          format: date
+          description: Newest `as_of` over all stored rates; `null` when no rate is stored.
+        rateAgeDays:
+          type: [integer, 'null']
+          minimum: 0
+          description: Current UTC date minus `newestAsOf` in whole days; `null` when no rate is stored.
+        stale:
+          type: boolean
+          description: '`rateAgeDays > 5`; `false` when no rate is stored (the status is then `DEGRADED`).'
     OutboxHealth:
-      type: object
-      required: [status, pending, failed, deadLetter]
-      properties:
-        status: { $ref: '#/components/schemas/HealthStatus' }
-        pending: { type: integer, minimum: 0 }
-        failed: { type: integer, minimum: 0 }
-        deadLetter: { type: integer, minimum: 0 }
+      description: Outbox counts (as `OutboxStats`) with a status.
+      allOf:
+        - $ref: '#/components/schemas/OutboxStats'
+        - type: object
+          required: [status]
+          properties:
+            status: { $ref: '#/components/schemas/HealthStatus' }
     JobRun:
       type: object
-      required: [name, lastRunAt]
+      required: [name, lastRunAt, lastOutcome]
       properties:
         name:
           type: string
-          enum: [OUTBOX_PROCESSOR, FX_REFRESH, SUBSCRIPTION_EXPIRY, HOUSEKEEPING]
-        lastRunAt: { type: [string, 'null'], format: date-time }
+          description: Scheduled job; the housekeeping job is reported per package (one advisory lock each, ADR-0011).
+          enum: [OUTBOX_PROCESSOR, FX_REFRESH, SUBSCRIPTION_EXPIRY, HOUSEKEEPING_IDENTITY, HOUSEKEEPING_ALERTS]
+        lastRunAt:
+          type: [string, 'null']
+          format: date-time
+          description: End of the last run that obtained the lock since the API started; `null` before the first.
+        lastOutcome:
+          type: [string, 'null']
+          enum: [SUCCEEDED, FAILED, null]
+          description: '`FAILED` when the run ended with an exception (an FX run with at least one failed base also counts as `FAILED`); `null` before the first run.'
     AdminHealth:
       type: object
       required: [status, checkedAt, components, jobs]
@@ -4030,11 +4644,24 @@ components:
           items: { $ref: '#/components/schemas/JobRun' }
     OutboxStats:
       type: object
-      required: [pending, failed, deadLetter]
+      required: [pending, failed, deadLetter, oldestPendingAt]
       properties:
-        pending: { type: integer, minimum: 0 }
-        failed: { type: integer, minimum: 0 }
-        deadLetter: { type: integer, minimum: 0 }
+        pending:
+          type: integer
+          minimum: 0
+          description: Events with `processed_at IS NULL` (claimed or not).
+        failed:
+          type: integer
+          minimum: 0
+          description: Pending events with `attempts > 0` (waiting for a retry).
+        deadLetter:
+          type: integer
+          minimum: 0
+          description: Retained events with outcome `DEAD_LETTER` (kept 90 days).
+        oldestPendingAt:
+          type: [string, 'null']
+          format: date-time
+          description: '`created_at` of the oldest pending event; `null` when nothing is pending.'
     ProductsImportDocument:
       description: Products document; validated against `contracts/schemas/import-products.schema.json` before any write.
       $ref: './schemas/import-products.schema.json'
