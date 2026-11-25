@@ -22,6 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
  * displayCurrency} parameter, then the signed-in user's preference, then the native currency of the
  * price; a currency outside the supported set is {@code 422 fx_unsupported_currency}. The amount is
  * converted by the {@link DisplayPriceConverter} seam (native only until the FX module exists).
+ * {@code checkoutAvailable} comes from the {@link CheckoutAvailability} seam (billing package).
  */
 @RestController
 public class PlanController {
@@ -35,29 +36,36 @@ public class PlanController {
   private final DisplayPriceConverter converter;
   private final DisplayCurrencyPolicy currencies;
   private final UserRepository users;
+  private final CheckoutAvailability checkout;
 
   public PlanController(
       PlanService plans,
       DisplayPriceConverter converter,
       DisplayCurrencyPolicy currencies,
-      UserRepository users) {
+      UserRepository users,
+      CheckoutAvailability checkout) {
     this.plans = plans;
     this.converter = converter;
     this.currencies = currencies;
     this.users = users;
+    this.checkout = checkout;
   }
 
   /** Contract schema {@code PlanList}. */
   public record PlanList(PriceConversion meta, List<PlanView> items) {}
 
-  /** Contract schema {@code Plan}; {@code price} is {@code null} for FREE. */
+  /**
+   * Contract schema {@code Plan}; {@code price} is {@code null} for FREE, {@code checkoutAvailable}
+   * is {@code true} only for PRO with a configured payment provider.
+   */
   public record PlanView(
       @Schema(allowableValues = {"FREE", "PRO"}) String code,
       String name,
       Integer savedProductsLimit,
       Integer alertSubscriptionsLimit,
       Integer notificationsPerMonthLimit,
-      PlanPrice price) {}
+      PlanPrice price,
+      boolean checkoutAvailable) {}
 
   /** Contract schema {@code PlanPrice}. */
   public record PlanPrice(
@@ -116,6 +124,7 @@ public class PlanController {
         plan.savedProductsLimit(),
         plan.alertSubscriptionsLimit(),
         plan.notificationsPerMonthLimit(),
-        price);
+        price,
+        plan.code() == PlanCode.PRO && checkout.available());
   }
 }
