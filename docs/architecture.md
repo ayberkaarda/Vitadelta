@@ -90,6 +90,7 @@ Every scheduled job (outbox, exchange-rate refresh, subscription expiry, houseke
 | Catalog (forms) | `V5__form_registry_and_ul_notes.sql` | `nutrient_form`; form membership enforced on product nutrients, citation notes on upper limits |
 | Alerts | `V6__alert_ordering.sql` | ordering columns on `outbox_event`, catalog-version boundary on `alert_subscription` |
 | Billing provider | `V7__billing_provider.sql` | `billing_customer`, `billing_subscription`, `billing_webhook_event` |
+| Billing provider | `V8__billing_entitlement_state.sql` | `paid_through` on `billing_subscription`, `billing_checkout_session` |
 
 Every committing catalog write bumps `catalog_version` exactly once, which keys the ranking cache and the alert boundaries. Real label products carry `source = 'DSLD'`, the label id and its entry date; their offers and all other prices are synthetic ([ADR-0012](adr/0012-real-label-data-source.md)).
 

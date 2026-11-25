@@ -63,7 +63,8 @@ New tests (all against a WireMock stub of the Stripe API, keys and secrets gener
 - **Account deletion** cancels the user's live Stripe subscriptions after commit (not listed in §13.10; without it a deleted user would keep being charged). A failed cancellation does not block the deletion; it is logged and counted for the operator.
 - **`checkoutAvailable` does not depend on the caller.** A PRO caller gets `409 plan_already_active` from checkout; the web app reads the caller's plan from `GET /me`.
 - **`billing_webhook_event` is kept indefinitely.** No personal data, a few rows per paying user per month; no purge job was added.
-- **Known limits** (runbook 7.1): a promo period redeemed on top of a provider period is lost when the provider subscription ends early; two concurrent checkouts can create two Stripe subscriptions for one user (metric and log line; the operator cancels and refunds one).
+- **Overlapping subscriptions** (review finding, fixed): the entitlement is tracked per Stripe subscription (`paid_through`, migration V8) and follows the live subscription paid furthest ahead; an event of one subscription only extends or ends that subscription's own row, and ending one keeps PRO while another still pays. Checkout is refused while a provider subscription has not ended, concurrent checkouts are serialized, and the previous open session is expired before a new one is created. The portal follows the customer of the entitled subscription; ended subscriptions never set it.
+- **Known limits** (runbook 7.1): a promo period redeemed on top of a provider period is lost when the provider subscription ends early; a second subscription can still arise when Stripe silently keeps an old session payable or a subscription is created outside the API (counted and logged; entitlement stays correct; the operator cancels and refunds one).
 
 ## 5. Unverified or skipped
 
