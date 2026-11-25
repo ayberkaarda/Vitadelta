@@ -38,8 +38,117 @@ jobs:
         env:
           # The scoring performance test scales its 200 ms budget by this factor; shared runners are slower.
           VITADELTA_PERF_FACTOR: "3"
+          # scripts/security-scan.sh runs in the security job below, with gitleaks and full history.
+          RUN_SECURITY_SCAN: "0"
         run: bash scripts/test-all.sh
 
-      - name: Run security scan
-        if: ${{ hashFiles('scripts/security-scan.sh') != '' }}
-        run: bash scripts/security-scan.sh
+  security:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          # Full history of every branch and tag for the gitleaks history scan.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: "22"
+
+      - uses: astral-sh/setup-uv@v10.4.0
+        with:
+          version: "0.13.9"
+          python-version: "3.14"
+
+      - name: Install gitleaks 8.30.1
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/gitleaks.tar.gz" \
+            https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz
+          echo "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  $RUNNER_TEMP/gitleaks.tar.gz" | sha256sum --check --strict
+          mkdir -p "$RUNNER_TEMP/gitleaks"
+          tar -xzf "$RUNNER_TEMP/gitleaks.tar.gz" -C "$RUNNER_TEMP/gitleaks" gitleaks
+          echo "$RUNNER_TEMP/gitleaks" >> "$GITHUB_PATH"
+
+      # Secret scan (history and working tree), tracked .env files, SQL built from strings, npm
+      # audit, pip-audit and the Dependabot configuration. The OWASP Dependency-Check step is
+      # reported as SKIPPED(no NVD_API_KEY): no NVD key is configured for this workflow.
+      - name: Security scan
+        run: bash scripts/security-scan.sh --no-fallback
+
+  # End-to-end and adversarial browser suites against the full compose stack. This job is
+  # informational and is not one of the checks required for merging; it runs for pull requests
+  # and for the default branch.
+  e2e:
+    if: ${{ github.event_name == 'pull_request' || github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    env:
+      E2E_BASE_URL: http://localhost:8080
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      # Creates .env with fresh secrets and a bootstrap administrator with a generated password
+      # (no repository secret is needed), builds the images and waits until every service is healthy.
+      - name: Start the stack
+        id: stack
+        timeout-minutes: 30
+        run: bash scripts/dev-up.sh --bootstrap-admin
+
+      - name: Seed the catalog
+        timeout-minutes: 10
+        run: bash scripts/seed.sh
+
+      - name: Install dependencies and the headless browser shell
+        working-directory: apps/web
+        timeout-minutes: 10
+        run: |
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps --only-shell chromium
+
+      - name: End-to-end suite
+        working-directory: apps/web
+        timeout-minutes: 20
+        run: npm run e2e
+
+      # The API rate limits are per client IP and held in memory; a restart starts them empty.
+      - name: Restart the API
+        if: ${{ !cancelled() && steps.stack.outcome == 'success' }}
+        timeout-minutes: 5
+        run: |
+          docker compose --env-file .env -f infra/docker-compose.yml restart api
+          for _ in $(seq 1 90); do
+            if curl -fsS --max-time 5 "$E2E_BASE_URL/api/v1/health" > /dev/null; then exit 0; fi
+            sleep 2
+          done
+          echo "the API did not answer after the restart" >&2
+          exit 1
+
+      - name: Adversarial suite
+        if: ${{ !cancelled() && steps.stack.outcome == 'success' }}
+        working-directory: apps/web
+        timeout-minutes: 20
+        run: npm run e2e:adversarial
+
+      - name: Collect stack logs
+        if: ${{ failure() }}
+        run: docker compose --env-file .env -f infra/docker-compose.yml logs --no-color > apps/web/e2e/.output/stack.log 2>&1 || true
+
+      - name: Upload traces and reports
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: e2e-output
+          path: apps/web/e2e/.output/
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Tear down
+        if: ${{ always() }}
+        run: bash scripts/dev-down.sh --volumes
