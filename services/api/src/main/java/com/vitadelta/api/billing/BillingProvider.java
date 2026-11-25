@@ -2,9 +2,10 @@ package com.vitadelta.api.billing;
 
 /**
  * Billing port (section 8.8, ADR-0010): turns an activation request into an ACTIVE or extended
- * subscription. v1 adapters: {@link PromoCodeBillingProvider} ({@code POST /me/subscription/promo})
- * and {@link ManualGrantBillingProvider} ({@code POST /admin/users/{id}/subscription}); a payment
- * provider adapter is optional Phase 8 work. Every adapter changes the subscription through {@code
+ * subscription. Adapters: {@link PromoCodeBillingProvider} ({@code POST /me/subscription/promo}),
+ * {@link ManualGrantBillingProvider} ({@code POST /admin/users/{id}/subscription}) and, when a
+ * payment provider is configured, {@link StripeBillingProvider} (paid periods reported by verified
+ * Stripe webhooks, ADR-0014). Every adapter changes the subscription through {@code
  * SubscriptionService} under the user's row lock.
  */
 public interface BillingProvider {
