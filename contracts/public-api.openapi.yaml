@@ -3234,8 +3234,7 @@ components:
       description: Default weight of every category.
       allOf:
         - $ref: '#/components/schemas/CategoryWeights'
-        - type: object
-          required: [VITAMIN, MINERAL, COENZYME, OTHER]
+      required: [VITAMIN, MINERAL, COENZYME, OTHER]
     NutrientOverrides:
       type: object
       description: Per-nutrient weight multipliers in [0.0, 3.0] (default 1.0). Keys must be registry codes; 0 removes the nutrient from the score but not from the breakdown.
@@ -3346,8 +3345,13 @@ components:
         `stale` is `false` and `status` is `OK`. With `status = UNAVAILABLE`
         (no stored row for the pair) `rate`, `asOf` and `source` are `null`,
         `stale` is `false`, money stays in the native currency and every
-        money-bearing item carries the flag `FX_UNAVAILABLE`. With
-        `stale = true` every money-bearing item carries `FX_STALE`.
+        money-bearing item carries the flag `FX_UNAVAILABLE`. A stored rate so
+        small that a non-zero native amount of the response would be displayed
+        as `0.0000` is not applied either (decided for the whole response, so
+        one response never mixes currencies): `status` is `UNAVAILABLE`, money
+        stays native with `FX_UNAVAILABLE` as above, `stale` is `false`, and
+        `rate`, `asOf` and `source` identify the stored row that was not used.
+        With `stale = true` every money-bearing item carries `FX_STALE`.
         `valueScore` is never converted.
       required: [base, quote, rate, asOf, source, stale, status]
       properties:
