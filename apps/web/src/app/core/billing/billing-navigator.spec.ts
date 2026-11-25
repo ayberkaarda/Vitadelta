@@ -1,6 +1,6 @@
 import { DOCUMENT } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { of, throwError } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 
 import { ApiClient } from '../api/api-client';
 import { ApiProblem } from '../api/api-problem';
@@ -95,6 +95,27 @@ describe('BillingNavigator', () => {
     const failure = navigator().open('checkout');
     await expect(failure).rejects.toBeInstanceOf(ApiProblem);
     await expect(failure).rejects.toMatchObject({ code: null, messageKey: 'problem.generic' });
+    expect(assign).not.toHaveBeenCalled();
+  });
+
+  it('never leaves the app once the caller has given up on the request', async () => {
+    const answer = new Subject<{ url: string }>();
+    api.createCheckoutSession.mockReturnValue(answer);
+    const controller = new AbortController();
+    const opening = navigator().open('checkout', controller.signal);
+    controller.abort();
+    answer.next({ url: CHECKOUT_URL });
+    answer.complete();
+    await expect(opening).resolves.toBeUndefined();
+    expect(answer.observed).toBe(false);
+    expect(assign).not.toHaveBeenCalled();
+  });
+
+  it('does not even ask for a session when the caller has already given up', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    await navigator().open('portal', controller.signal);
+    expect(api.createBillingPortalSession).not.toHaveBeenCalled();
     expect(assign).not.toHaveBeenCalled();
   });
 

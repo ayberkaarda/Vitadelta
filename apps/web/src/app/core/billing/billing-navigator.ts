@@ -1,5 +1,5 @@
 import { DOCUMENT, Injectable, inject } from '@angular/core';
-import { firstValueFrom } from 'rxjs';
+import { EMPTY, firstValueFrom, fromEvent, takeUntil } from 'rxjs';
 
 import { ApiClient } from '../api/api-client';
 import { ApiProblem } from '../api/api-problem';
@@ -72,18 +72,30 @@ export type ProviderPage = 'checkout' | 'portal';
  * a session, checks the returned URL with {@link providerPageUrl} and sends the browser there.
  * The URL is never rendered. Fails with an {@link ApiProblem}: the API's problem, or a generic
  * one when the answer is not a provider URL.
+ *
+ * `signal` is aborted by the caller when the user leaves (the calling component is destroyed):
+ * the pending request is then cancelled and the browser is never moved, however late the answer.
  */
 @Injectable({ providedIn: 'root' })
 export class BillingNavigator {
   private readonly api = inject(ApiClient);
   private readonly navigation = inject(ExternalNavigation);
 
-  async open(page: ProviderPage): Promise<void> {
-    const redirect = await firstValueFrom(
+  async open(page: ProviderPage, signal?: AbortSignal): Promise<void> {
+    if (signal?.aborted) {
+      return;
+    }
+    const request =
       page === 'checkout'
         ? this.api.createCheckoutSession()
-        : this.api.createBillingPortalSession(),
+        : this.api.createBillingPortalSession();
+    const redirect = await firstValueFrom(
+      request.pipe(takeUntil(signal ? fromEvent(signal, 'abort') : EMPTY)),
+      { defaultValue: null },
     );
+    if (redirect === null || signal?.aborted) {
+      return;
+    }
     const url = providerPageUrl(redirect.url);
     if (url === null) {
       throw new ApiProblem({ kind: 'http', status: 502, code: null });
