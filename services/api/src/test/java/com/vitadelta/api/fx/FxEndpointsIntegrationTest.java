@@ -3,6 +3,7 @@ package com.vitadelta.api.fx;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.vitadelta.api.common.jobs.JobLockKeys;
+import com.vitadelta.api.common.jobs.JobRunRegistry;
 import com.vitadelta.api.identity.ContractSchemas;
 import com.vitadelta.api.identity.Role;
 import java.math.BigDecimal;
@@ -20,6 +21,7 @@ import tools.jackson.databind.JsonNode;
 class FxEndpointsIntegrationTest extends FxApiTestBase {
 
   @Autowired DataSource dataSource;
+  @Autowired JobRunRegistry jobRuns;
   @Autowired FxFreshness freshness;
 
   @Test
@@ -123,6 +125,8 @@ class FxEndpointsIntegrationTest extends FxApiTestBase {
     ContractSchemas.assertConforms("FxRefreshResult", result.getResponseBody());
     assertThat(json(result).get("upsertedRows").asInt()).isEqualTo(pairCount());
     assertThat(storedRowCount()).isEqualTo(pairCount());
+    assertThat(jobRuns.lastRun(JobLockKeys.FX_REFRESH).orElseThrow().lastOutcome())
+        .isEqualTo(JobRunRegistry.Outcome.SUCCEEDED);
   }
 
   @Test
@@ -137,6 +141,9 @@ class FxEndpointsIntegrationTest extends FxApiTestBase {
                 + String.join("\",\"", currencies.all())
                 + "\"]}");
     assertThat(job.lastRun().orElseThrow().succeeded()).isFalse();
+    assertThat(jobRuns.lastRun(JobLockKeys.FX_REFRESH).orElseThrow().lastOutcome())
+        .as("a refresh with failed bases is a failed job run")
+        .isEqualTo(JobRunRegistry.Outcome.FAILED);
   }
 
   @Test

@@ -13,6 +13,7 @@ import com.github.tomakehurst.wiremock.http.Fault;
 import com.github.tomakehurst.wiremock.verification.LoggedRequest;
 import com.vitadelta.api.fx.FxProviderException.Reason;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -175,6 +176,64 @@ class FrankfurterFxRateProviderTest {
 
     assertThat(e.reason()).isEqualTo(Reason.HTTP_STATUS);
     assertThat(e.getMessage()).contains("422").contains("invalid currency: XXQ");
+  }
+
+  @Test
+  void rejectionsNameTheUnpublishedQuotesOrTheRejectedBase() {
+    answer(422, "application/json", "{\"status\":422,\"message\":\"invalid currency: GBP\"}");
+    FxProviderException quote = failure();
+    assertThat(quote.status()).isEqualTo(422);
+    assertThat(quote.requestRejected()).isTrue();
+    assertThat(quote.unsupportedQuotes()).containsExactly("GBP");
+    assertThat(quote.baseRejected()).isFalse();
+
+    server.resetAll();
+    answer(422, "application/json", "{\"status\":422,\"message\":\"invalid currency: TRY\"}");
+    FxProviderException base = failure();
+    assertThat(base.unsupportedQuotes()).isEmpty();
+    assertThat(base.baseRejected()).isTrue();
+
+    server.resetAll();
+    answer(400, "application/json", "{\"message\":\"bad request\"}");
+    FxProviderException unnamed = failure();
+    assertThat(unnamed.requestRejected()).isTrue();
+    assertThat(unnamed.unsupportedQuotes()).isEmpty();
+    assertThat(unnamed.baseRejected()).isFalse();
+
+    // Server errors never name currencies, even when the body mentions requested codes.
+    server.resetAll();
+    answer(503, "application/json", "{\"message\":\"USD feed down\"}");
+    FxProviderException down = failure();
+    assertThat(down.requestRejected()).isFalse();
+    assertThat(down.unsupportedQuotes()).isEmpty();
+  }
+
+  @Test
+  void aQuoteLeftOutOfTheAnswerIsReportedAsUnpublished() {
+    // Verified on 2026-11-25: the ECB provider answers 200 without the row of an ISO code it does
+    // not publish (ARS); with only such codes requested the array is empty.
+    answer("[{\"date\":\"2026-11-23\",\"base\":\"TRY\",\"quote\":\"EUR\",\"rate\":0.01807}]");
+    assertThat(failure().unsupportedQuotes()).containsExactly("GBP", "USD");
+
+    server.resetAll();
+    answer("[]");
+    assertThat(failure().unsupportedQuotes()).isEmpty();
+    try {
+      provider.fetchLatest("TRY", Set.of("ARS"));
+      throw new AssertionError("the fetch was expected to fail");
+    } catch (FxProviderException e) {
+      assertThat(e.unsupportedQuotes()).containsExactly("ARS");
+      assertThat(e.status()).isZero();
+    }
+  }
+
+  @Test
+  void namedCodesAreWholeUpperCaseTokens() {
+    assertThat(
+            FrankfurterFxRateProvider.namedCodes(
+                "invalid currency: XYZ, ABCD and abc; (EUR)".getBytes(StandardCharsets.UTF_8)))
+        .containsExactly("EUR", "XYZ");
+    assertThat(FrankfurterFxRateProvider.namedCodes(null)).isEmpty();
   }
 
   @Test

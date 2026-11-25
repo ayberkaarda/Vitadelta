@@ -16,6 +16,9 @@ import java.sql.ResultSet;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -27,6 +30,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import tools.jackson.databind.JsonNode;
 
 /** {@link FxRefreshJob} against the WireMock provider and the real {@code fx_rate} table. */
 class FxRefreshIntegrationTest extends FxApiTestBase {
@@ -168,6 +172,115 @@ class FxRefreshIntegrationTest extends FxApiTestBase {
             .mapToDouble(c -> c.count())
             .sum();
     assertThat(failuresAfter - failuresBefore).isEqualTo(currencies.all().size());
+  }
+
+  private double unsupported(String currency) {
+    var counter =
+        meters.find("vitadelta.fx.refresh.unsupported").tag("currency", currency).counter();
+    return counter == null ? 0 : counter.count();
+  }
+
+  /** Stubs the answer to the request for {@code base} with exactly {@code quotes}. */
+  private void stubRequest(String base, SortedSet<String> quotes, int status, String body) {
+    FRANKFURTER.stubFor(
+        WireMock.get(urlPathEqualTo("/v2/rates"))
+            .withQueryParam("base", WireMock.equalTo(base))
+            .withQueryParam("quotes", WireMock.equalTo(String.join(",", quotes)))
+            .withQueryParam("providers", WireMock.equalTo("ECB"))
+            .willReturn(
+                aResponse()
+                    .withStatus(status)
+                    .withHeader("Content-Type", "application/json")
+                    .withBody(body)));
+  }
+
+  private SortedSet<String> without(SortedSet<String> quotes, String currency) {
+    SortedSet<String> rest = new TreeSet<>(quotes);
+    rest.remove(currency);
+    return rest;
+  }
+
+  /** Every pair is stored except those from or to {@link #EXTRA}; the extra has no rate. */
+  private void assertEveryPairButTheExtraIsStored(Result result) {
+    assertThat(result.ran()).isTrue();
+    assertThat(result.failedBases()).containsExactly(EXTRA);
+    int others = currencies.all().size() - 1;
+    assertThat(result.upsertedRows()).isEqualTo(others * (others - 1));
+    for (String base : currencies.all()) {
+      for (String quote : quotesFor(base)) {
+        boolean extra = base.equals(EXTRA) || quote.equals(EXTRA);
+        assertThat(repository.newest(base, quote).isPresent())
+            .as(base + ">" + quote)
+            .isEqualTo(!extra);
+      }
+    }
+    JsonNode items = json(get("/api/v1/fx/currencies", null)).get("items");
+    for (JsonNode item : items) {
+      String code = item.get("code").asString();
+      assertThat(item.get("asOf").isNull()).as(code).isEqualTo(code.equals(EXTRA));
+    }
+    assertThat(json(get("/api/v1/fx/rates?base=TRY", null)).get("rates").toString())
+        .doesNotContain(EXTRA);
+    JsonNode extraPlans = json(get("/api/v1/plans?displayCurrency=" + EXTRA, null));
+    assertThat(extraPlans.get("meta").get("fx").get("status").asString()).isEqualTo("UNAVAILABLE");
+    JsonNode usdPlans = json(get("/api/v1/plans?displayCurrency=USD", null));
+    assertThat(usdPlans.get("meta").get("fx").get("status").asString()).isEqualTo("OK");
+  }
+
+  @Test
+  void aQuoteTheProviderLeavesOutIsDroppedAndTheOtherQuotesAreStored() {
+    double before = unsupported(EXTRA);
+    for (String base : currencies.all()) {
+      SortedSet<String> quotes = quotesFor(base);
+      if (base.equals(EXTRA)) {
+        stubRequest(base, quotes, 200, "[]");
+        continue;
+      }
+      SortedSet<String> published = without(quotes, EXTRA);
+      // The verified ECB behaviour: an unpublished ISO code is left out of a 200 answer.
+      stubRequest(base, quotes, 200, verifiedBody(base, published, today()));
+      stubRequest(base, published, 200, verifiedBody(base, published, today()));
+    }
+
+    Result result = job.run();
+
+    assertEveryPairButTheExtraIsStored(result);
+    assertThat(unsupported(EXTRA) - before).isEqualTo(currencies.all().size() - 1);
+    // One request per base plus one retry per base that listed the extra currency.
+    assertThat(providerRequests()).isEqualTo(2 * currencies.all().size() - 1);
+  }
+
+  @Test
+  void anInvalidCurrencyRejectionIsRetriedWithoutItOrQuoteByQuote() {
+    String invalid = "{\"status\":422,\"message\":\"invalid currency: " + EXTRA + "\"}";
+    for (String base : currencies.all()) {
+      SortedSet<String> quotes = quotesFor(base);
+      if (base.equals(EXTRA)) {
+        stubRequest(base, quotes, 422, invalid);
+        continue;
+      }
+      if (base.equals("TRY")) {
+        // A rejection that names no currency: every quote is requested on its own.
+        stubRequest(base, quotes, 422, "{\"status\":422,\"message\":\"unsupported quotes\"}");
+        for (String quote : quotes) {
+          SortedSet<String> single = new TreeSet<>(Set.of(quote));
+          if (quote.equals(EXTRA)) {
+            stubRequest(base, single, 422, invalid);
+          } else {
+            stubRequest(base, single, 200, verifiedBody(base, single, today()));
+          }
+        }
+        continue;
+      }
+      SortedSet<String> published = without(quotes, EXTRA);
+      stubRequest(base, quotes, 422, invalid);
+      stubRequest(base, published, 200, verifiedBody(base, published, today()));
+    }
+
+    Result result = job.run();
+
+    assertEveryPairButTheExtraIsStored(result);
+    assertThat(lookup.newest("TRY", "USD").orElseThrow().rate()).isEqualTo(TRY_USD);
   }
 
   @Test

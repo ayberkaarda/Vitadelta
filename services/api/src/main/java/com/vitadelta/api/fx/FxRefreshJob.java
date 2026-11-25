@@ -11,6 +11,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicReference;
@@ -28,7 +29,9 @@ import org.springframework.transaction.support.TransactionTemplate;
  * {@link FxRateProvider} and upserts the rows with the provider's source in one short transaction
  * per base. A failed base (provider error, rejected answer, database error) is logged with a
  * bounded summary and counted, and the run continues with the next base; the stored rates stay in
- * use. A run never throws to its caller. After every run the lookup cache is cleared.
+ * use. A quote the provider does not publish (for example a mistyped extra currency) is dropped
+ * from the request of a base instead of failing it ({@link #fetchPublished}). A run never throws to
+ * its caller. After every run the lookup cache is cleared.
  *
  * <p>Scheduling ({@link FxRefreshSchedule}): at start-up only when {@link #isRefreshDue()}, then
  * every {@code vitadelta.fx.refresh-interval}. {@code POST /admin/fx/refresh} calls {@link #run()}.
@@ -173,7 +176,10 @@ public class FxRefreshJob {
     }
   }
 
-  /** One run under the lock: never throws, records its end and outcome. */
+  /**
+   * One run under the lock: never throws, records its end and outcome; a run with a failed base or
+   * an aborted run is reported to the job-run registry as {@code FAILED}.
+   */
   private Result guarded() {
     Result result;
     try {
@@ -182,6 +188,10 @@ public class FxRefreshJob {
       meters.counter("vitadelta.fx.refresh.failure", "reason", RUN_FAILURE).increment();
       LOG.warn("{}: run aborted ({})", NAME, e.getClass().getSimpleName());
       result = new Result(true, 0, List.of(), true);
+    }
+    if (!result.succeeded()) {
+      // The run handled its failures itself: the job-run registry must still record it as FAILED.
+      JobLock.reportFailure();
     }
     lastRun.set(new LastRun(clock.instant(), result.succeeded()));
     return result;
@@ -199,9 +209,15 @@ public class FxRefreshJob {
         continue;
       }
       try {
-        FxQuote quote = provider.fetchLatest(base, quotes);
+        List<FxQuote> fetched = fetchPublished(base, quotes);
         Integer written =
-            transactions.execute(status -> repository.upsert(quote, fetchedAt, provider.source()));
+            transactions.execute(status -> {
+              int upserted = 0;
+              for (FxQuote quote : fetched) {
+                upserted += repository.upsert(quote, fetchedAt, provider.source());
+              }
+              return upserted;
+            });
         rows += written == null ? 0 : written;
         meters.counter("vitadelta.fx.refresh.success").increment();
       } catch (FxProviderException e) {
@@ -222,6 +238,81 @@ public class FxRefreshJob {
         supported.size() - failed.size(),
         failed);
     return new Result(true, rows, failed, false);
+  }
+
+  /**
+   * Fetches the rates of {@code base}, dropping quotes the provider does not publish: when a
+   * rejection names requested quotes (or the answer leaves them out), the base is requested once
+   * more without them; when a 400 or 422 answer names none of them (or the second request is
+   * rejected again), every quote is requested on its own. Each dropped quote is logged as an
+   * operator warning and counted ({@code vitadelta.fx.refresh.unsupported}, tag {@code currency});
+   * its pair keeps no rate, so conversions to it stay {@code UNAVAILABLE}.
+   *
+   * @throws FxProviderException when no rate of the base could be fetched
+   */
+  private List<FxQuote> fetchPublished(String base, SortedSet<String> quotes) {
+    try {
+      return List.of(provider.fetchLatest(base, quotes));
+    } catch (FxProviderException e) {
+      SortedSet<String> offending = new TreeSet<>(e.unsupportedQuotes());
+      offending.retainAll(quotes);
+      if (!offending.isEmpty() && !e.baseRejected()) {
+        unsupported(base, offending);
+        SortedSet<String> remaining = new TreeSet<>(quotes);
+        remaining.removeAll(offending);
+        if (remaining.isEmpty()) {
+          throw e;
+        }
+        try {
+          return List.of(provider.fetchLatest(base, remaining));
+        } catch (FxProviderException again) {
+          if (rejectsQuotes(again) && remaining.size() > 1) {
+            return oneByOne(base, remaining, again);
+          }
+          throw again;
+        }
+      }
+      if (e.requestRejected() && !e.baseRejected() && quotes.size() > 1) {
+        return oneByOne(base, quotes, e);
+      }
+      throw e;
+    }
+  }
+
+  private List<FxQuote> oneByOne(String base, SortedSet<String> quotes, FxProviderException cause) {
+    List<FxQuote> fetched = new ArrayList<>();
+    for (String quote : quotes) {
+      try {
+        fetched.add(provider.fetchLatest(base, Set.of(quote)));
+      } catch (FxProviderException e) {
+        if (!rejectsQuotes(e) || e.baseRejected()) {
+          throw e;
+        }
+        unsupported(base, Set.of(quote));
+      }
+    }
+    if (fetched.isEmpty()) {
+      throw cause;
+    }
+    return fetched;
+  }
+
+  private static boolean rejectsQuotes(FxProviderException e) {
+    return e.requestRejected() || !e.unsupportedQuotes().isEmpty();
+  }
+
+  private void unsupported(String base, Set<String> quotes) {
+    for (String quote : quotes) {
+      meters.counter("vitadelta.fx.refresh.unsupported", "currency", quote).increment();
+      LOG.warn(
+          "{}: the provider publishes no rate from {} to {}; {} is left out of the request for {}"
+              + " and stays without a rate (check VITADELTA_FX_EXTRA_CURRENCIES)",
+          NAME,
+          base,
+          quote,
+          quote,
+          base);
+    }
   }
 
   private static double rateAgeDays(FxRateRepository repository, FxRateLookup lookup) {

@@ -9,6 +9,7 @@ import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpTimeoutException;
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
@@ -17,6 +18,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
@@ -56,8 +58,14 @@ import tools.jackson.databind.json.JsonMapper;
  *   <li>the date lies more than one day after today (UTC), which no real publication does.
  * </ul>
  *
- * Rates are parsed from the JSON text as decimals (never through a double) and rounded half-even to
- * the 8 stored decimals. Failure messages carry at most a {@link ResponseSummary} of the body.
+ * A rejection names what the provider does not publish, so the refresh job can request the base
+ * again without it: a 400 or 422 answer reports the requested quotes its body names (for example
+ * {@code {"status":422,"message":"invalid currency: XYZ"}}, verified on 2026-11-25) and whether it
+ * names the base; a 200 answer that leaves requested quotes out (the verified answer for an ISO
+ * code the ECB does not publish, such as {@code ARS}) reports the missing ones.
+ *
+ * <p>Rates are parsed from the JSON text as decimals (never through a double) and rounded half-even
+ * to the 8 stored decimals. Failure messages carry at most a {@link ResponseSummary} of the body.
  */
 @Component
 public class FrankfurterFxRateProvider implements FxRateProvider {
@@ -75,6 +83,8 @@ public class FrankfurterFxRateProvider implements FxRateProvider {
   static final int RATE_SCALE = 8;
 
   private static final Pattern CODE = Pattern.compile("^[A-Z]{3}$");
+
+  private static final Pattern NAMED_CODE = Pattern.compile("(?<![A-Za-z])[A-Z]{3}(?![A-Za-z])");
 
   private static final JsonMapper JSON =
       JsonMapper.builder()
@@ -127,10 +137,10 @@ public class FrankfurterFxRateProvider implements FxRateProvider {
             .queryParam("providers", PROVIDER)
             .build()
             .toUri();
-    return parse(baseCurrency, quotes, fetch(uri));
+    return parse(baseCurrency, quotes, fetch(uri, baseCurrency, quotes));
   }
 
-  private byte[] fetch(URI uri) {
+  private byte[] fetch(URI uri, String base, Set<String> quotes) {
     try {
       return client
           .get()
@@ -139,9 +149,16 @@ public class FrankfurterFxRateProvider implements FxRateProvider {
           .exchange((request, response) -> {
             byte[] body = readBounded(response.getBody());
             if (!response.getStatusCode().is2xxSuccessful()) {
+              int status = response.getStatusCode().value();
+              Set<String> named = namedCodes(body);
+              Set<String> unsupported = new TreeSet<>(quotes);
+              unsupported.retainAll(named);
               throw new FxProviderException(
                   Reason.HTTP_STATUS,
-                  "status " + response.getStatusCode().value() + ", " + ResponseSummary.of(body));
+                  "status " + status + ", " + ResponseSummary.of(body),
+                  status,
+                  status == 400 || status == 422 ? unsupported : Set.of(),
+                  (status == 400 || status == 422) && named.contains(base));
             }
             MediaType type = response.getHeaders().getContentType();
             if (type == null
@@ -194,7 +211,13 @@ public class FrankfurterFxRateProvider implements FxRateProvider {
           Reason.MALFORMED, "body is not a JSON array, " + ResponseSummary.of(body));
     }
     if (root.isEmpty()) {
-      throw new FxProviderException(Reason.INVALID_ROWS, "no rates in the answer");
+      // With a single requested quote, an empty answer means that pair is not published.
+      throw new FxProviderException(
+          Reason.INVALID_ROWS,
+          "no rates in the answer",
+          0,
+          quotes.size() == 1 ? quotes : Set.of(),
+          false);
     }
     LocalDate asOf = null;
     Map<String, BigDecimal> rates = new TreeMap<>();
@@ -244,7 +267,8 @@ public class FrankfurterFxRateProvider implements FxRateProvider {
     if (!rates.keySet().equals(quotes)) {
       Set<String> missing = new TreeSet<>(quotes);
       missing.removeAll(rates.keySet());
-      throw new FxProviderException(Reason.INVALID_ROWS, "quotes missing: " + missing);
+      throw new FxProviderException(
+          Reason.INVALID_ROWS, "quotes missing: " + missing, 0, missing, false);
     }
     LocalDate today = LocalDate.now(clock.withZone(ZoneOffset.UTC));
     if (asOf.isAfter(today.plusDays(1))) {
@@ -262,6 +286,19 @@ public class FrankfurterFxRateProvider implements FxRateProvider {
       throw new FxProviderException(Reason.INVALID_ROWS, where + " has a rate out of range");
     }
     return scaled;
+  }
+
+  /** The currency codes (three upper-case letters) an error body names. */
+  static Set<String> namedCodes(byte[] body) {
+    Set<String> codes = new TreeSet<>();
+    if (body == null) {
+      return codes;
+    }
+    Matcher matcher = NAMED_CODE.matcher(new String(body, StandardCharsets.UTF_8));
+    while (matcher.find()) {
+      codes.add(matcher.group());
+    }
+    return codes;
   }
 
   private static void requireCode(String code) {
