@@ -22,15 +22,28 @@
   },
   "formulation": {
     "title": "Formulation",
-    "units_note": "Canonical units · per serving and per day",
+    "units_note": "Canonical units · reference and upper limit per day",
     "caption": "Formulation of {{ name }}",
     "nutrient": "Nutrient",
     "form": "Form on label",
     "per_serving": "Per serving",
     "per_day": "Per day",
+    "of_reference": "Of reference",
+    "upper_limit": "Upper limit",
     "exceeded": "Above the upper limit",
     "conversion_assumed": "IU conversion assumed",
     "empty": "No nutrients are listed for this product.",
+    "reference_of": "of {{ amount }} · {{ set }}",
+    "reference_none": "no reference",
+    "ul_none": "none set",
+    "ul_exceeded": "exceeded",
+    "ul_basis": {
+      "TOTAL": "total intake",
+      "SUPPLEMENTAL": "supplements only"
+    },
+    "ul_amount": "Counts toward the limit: {{ amount }}",
+    "ul_source": "Source",
+    "ul_source_label": "Source of the upper limit for {{ code }}",
     "note": "Amounts above an upper limit are scored only up to the limit. The chemical form is shown for information; it changes the score only through form-specific upper limits and IU conversion."
   },
   "offers": {

@@ -228,10 +228,31 @@ describe('ProductDetailPageComponent', () => {
     };
     const { root, settle } = await setup(`/products/${GOLD_A_ID}`, { detail: flagged });
     const zinc = root().querySelector<HTMLElement>('tr[data-code="ZINC"]');
-    expect(zinc?.classList.contains('is-hl')).toBe(true);
+    // The row marker comes from `upperLimit.exceeded` only; the flag link adds the highlight.
+    expect(zinc?.classList.contains('is-hl')).toBe(false);
     root().querySelector<HTMLButtonElement>('vd-flag-badge button')?.click();
     await settle();
+    expect(zinc?.classList.contains('is-hl')).toBe(true);
     expect(document.activeElement).toBe(zinc);
+  });
+
+  it('shows reference and upper-limit columns next to the not-medical-advice disclaimer', async () => {
+    const { root } = await setup(`/products/${GOLD_A_ID}`);
+    const headers = Array.from(root().querySelectorAll('vd-formulation-table th')).map(text);
+    expect(headers).toEqual([
+      'Nutrient',
+      'Form on label',
+      'Per serving',
+      'Per day',
+      'Of reference',
+      'Upper limit',
+    ]);
+    const vitC = root().querySelector('tr[data-code="VIT_C"]');
+    expect(text(vitC?.querySelector('[data-col="reference"]') ?? null)).toBe(
+      '375% of 80 mg · EU NRV',
+    );
+    expect(text(vitC?.querySelector('[data-col="upper-limit"]') ?? null)).toBe('none set');
+    expect(root().querySelector('[data-key="disclaimer.not_medical_advice"]')).not.toBeNull();
   });
 
   it('saves optimistically and rolls back with the server limit notice', async () => {
