@@ -153,6 +153,13 @@ These versions were checked on 2026-11-24 and are the pins to use when the corre
 | Testcontainers core (`org.testcontainers:testcontainers`) | managed by the Spring Boot 4.2.0 BOM | `services/api/build.gradle.kts` | test scope; 2.0.5 as managed; `GenericContainer` and `ImageFromDockerfile` start the real scoring service |
 | Caffeine | managed by the Spring Boot 4.2.0 BOM | `services/api/build.gradle.kts` | 3.3.1 as managed; already present since Phase 3, now also used for the ranking and market-profile caches |
 
+### Added in Phase 5
+
+| Item | Pin | Where pinned | Notes |
+|---|---|---|---|
+| Mailpit as a test container | `axllent/mailpit:v1.34.0` | `services/api/src/test/java/com/vitadelta/api/alerts/AlertsIntegrationTest.java` | same tag as `infra/docker-compose.yml`; the alert e-mail tests deliver over real SMTP and read the message back through its HTTP API |
+| Runtime and test dependencies | unchanged | `services/api/build.gradle.kts` | no dependency was added in Phase 5; the FX client uses the JDK HTTP client, and WireMock, Caffeine, Thymeleaf and Testcontainers were already pinned |
+
 ## Consequences
 
 - Builds are reproducible from the manifests and lock files (`uv.lock`, `package-lock.json`, the Gradle wrapper checksum).

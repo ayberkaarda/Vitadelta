@@ -12,9 +12,12 @@ import com.vitadelta.api.common.problem.ProblemCode;
 import com.vitadelta.api.common.problem.ProblemException;
 import com.vitadelta.api.common.ratelimit.RateLimitPolicy;
 import com.vitadelta.api.common.ratelimit.RateLimiter;
+import com.vitadelta.api.common.watch.WatchState;
+import com.vitadelta.api.common.watch.WatchStateReader;
 import com.vitadelta.api.common.web.ClientIpResolver;
 import com.vitadelta.api.entitlement.PriceConversion;
 import com.vitadelta.api.identity.CurrentUser;
+import io.swagger.v3.oas.annotations.Parameter;
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.Clock;
 import java.time.Instant;
@@ -51,6 +54,7 @@ public class ProductController {
   private final ProductPresenter presenter;
   private final RateLimiter rateLimiter;
   private final ClientIpResolver clientIps;
+  private final WatchStateReader watchStates;
   private final Clock clock;
 
   public ProductController(
@@ -59,12 +63,14 @@ public class ProductController {
       ProductPresenter presenter,
       RateLimiter rateLimiter,
       ClientIpResolver clientIps,
+      WatchStateReader watchStates,
       Clock clock) {
     this.catalog = catalog;
     this.currencies = currencies;
     this.presenter = presenter;
     this.rateLimiter = rateLimiter;
     this.clientIps = clientIps;
+    this.watchStates = watchStates;
     this.clock = clock;
   }
 
@@ -90,7 +96,8 @@ public class ProductController {
 
   @GetMapping("/products")
   public ProductPage search(
-      @RequestParam(required = false) String country,
+      // Validated here (422 with field errors); documented as required like the contract.
+      @Parameter(required = true) @RequestParam(required = false) String country,
       @RequestParam(required = false) String q,
       @RequestParam(required = false) Integer page,
       @RequestParam(required = false) Integer pageSize,
@@ -118,24 +125,29 @@ public class ProductController {
         currencies.resolve(found.currency(), displayCurrency, authentication);
     ProductSearchResult result = catalog.searchProducts(found.code(), q, paging);
     Instant now = clock.instant();
-    List<ProductSummary> items =
-        result.items().stream().map(p -> presenter.summary(p, conversion, now)).toList();
-    return new ProductPage(
-        new ProductListMeta(
-            found.code(),
-            found.currency(),
-            conversion.currency(),
-            conversion.fx(),
-            paging.page(),
-            paging.pageSize(),
-            result.total()),
-        items);
+    return PriceConversion.present(
+        conversion,
+        shown -> {
+          List<ProductSummary> items =
+              result.items().stream().map(p -> presenter.summary(p, shown, now)).toList();
+          return new ProductPage(
+              new ProductListMeta(
+                  found.code(),
+                  found.currency(),
+                  shown.currency(),
+                  shown.fx(),
+                  paging.page(),
+                  paging.pageSize(),
+                  result.total()),
+              items);
+        });
   }
 
   @GetMapping("/products/{id}")
   public ProductDetailResponse detail(
       @PathVariable("id") String id,
-      @RequestParam(required = false) String country,
+      // Validated here (422 with field errors); documented as required like the contract.
+      @Parameter(required = true) @RequestParam(required = false) String country,
       @RequestParam(required = false) String displayCurrency,
       Authentication authentication,
       HttpServletRequest request) {
@@ -155,10 +167,25 @@ public class ProductController {
           ProblemCode.PRODUCT_NOT_AVAILABLE_IN_COUNTRY,
           "The product is not sold in " + found.code() + ".");
     }
-    return new ProductDetailResponse(
-        new ProductDetailMeta(
-            found.code(), found.currency(), conversion.currency(), conversion.fx()),
-        presenter.detail(product, conversion, clock.instant()));
+    Instant now = clock.instant();
+    ProductDetailResponse response =
+        PriceConversion.present(
+            conversion,
+            shown ->
+                new ProductDetailResponse(
+                    new ProductDetailMeta(
+                        found.code(), found.currency(), shown.currency(), shown.fx()),
+                    presenter.detail(product, shown, now)));
+    Optional<UUID> caller = CurrentUser.id(authentication);
+    if (caller.isPresent()) {
+      WatchState state =
+          watchStates
+              .forProducts(caller.get(), found.code(), List.of(productId))
+              .getOrDefault(productId, WatchState.NONE);
+      response =
+          new ProductDetailResponse(response.meta(), response.product().withWatchState(state));
+    }
+    return response;
   }
 
   private void limitAnonymous(Authentication authentication, HttpServletRequest request) {

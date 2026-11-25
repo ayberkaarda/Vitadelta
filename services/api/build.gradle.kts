@@ -117,6 +117,9 @@ val dataDirectory = layout.projectDirectory.dir("../../data")
 
 tasks.withType<Test>().configureEach {
     useJUnitPlatform()
+    // About thirty cached application contexts plus the 20 MB upload tests need more than the
+    // default 512 MB test heap.
+    maxHeapSize = "1536m"
     systemProperty("vitadelta.test.data-dir", dataDirectory.asFile.absolutePath)
     systemProperty("vitadelta.seed.data-dir", dataDirectory.asFile.absolutePath)
     inputs.dir(dataDirectory).withPropertyName("dataDirectory").optional()

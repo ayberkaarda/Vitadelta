@@ -4,9 +4,11 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.time.Clock;
 import javax.sql.DataSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
@@ -20,6 +22,10 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
  * (logged at INFO) and never blocks. The task itself uses its own (pooled) connections and may run
  * several short transactions; it must not be called inside a transaction.
  *
+ * <p>Every run that obtains the lock is recorded in the {@link JobRunRegistry}: its start, its end
+ * and its outcome ({@code FAILED} when the task throws or calls {@link #reportFailure()}, otherwise
+ * {@code SUCCEEDED}).
+ *
  * <pre>{@code
  * @Scheduled(cron = "0 5 0 * * *", zone = "UTC")
  * void run() {
@@ -32,10 +38,33 @@ public class JobLock {
 
   private static final Logger LOG = LoggerFactory.getLogger(JobLock.class);
 
-  private final DataSource dataSource;
+  /** Failure marker of the run executing on the current thread ({@code null} outside a run). */
+  private static final ThreadLocal<boolean[]> CURRENT_RUN_FAILED = new ThreadLocal<>();
 
-  public JobLock(DataSource dataSource) {
+  private final DataSource dataSource;
+  private final JobRunRegistry runs;
+
+  @Autowired
+  public JobLock(DataSource dataSource, JobRunRegistry runs) {
     this.dataSource = dataSource;
+    this.runs = runs;
+  }
+
+  /** A lock with its own registry on the UTC system clock (for code outside the context). */
+  public JobLock(DataSource dataSource) {
+    this(dataSource, new JobRunRegistry(Clock.systemUTC()));
+  }
+
+  /**
+   * Marks the run executing on the current thread as {@code FAILED} without ending it, for jobs
+   * that handle their errors themselves (for example a refresh in which one part failed). Has no
+   * effect outside {@link #runExclusive}.
+   */
+  public static void reportFailure() {
+    boolean[] failed = CURRENT_RUN_FAILED.get();
+    if (failed != null) {
+      failed[0] = true;
+    }
   }
 
   /**
@@ -56,7 +85,7 @@ public class JobLock {
         return false;
       }
       try {
-        task.run();
+        runRecorded(jobName, key, task);
         return true;
       } finally {
         if (!call(connection, "SELECT pg_advisory_unlock(?)", key)) {
@@ -65,6 +94,25 @@ public class JobLock {
       }
     } catch (SQLException e) {
       throw new JobLockException("advisory lock failed for job " + jobName, e);
+    }
+  }
+
+  private void runRecorded(String jobName, long key, Runnable task) {
+    boolean[] previous = CURRENT_RUN_FAILED.get();
+    boolean[] failed = {false};
+    CURRENT_RUN_FAILED.set(failed);
+    runs.started(key, jobName);
+    JobRunRegistry.Outcome outcome = JobRunRegistry.Outcome.FAILED;
+    try {
+      task.run();
+      outcome = failed[0] ? JobRunRegistry.Outcome.FAILED : JobRunRegistry.Outcome.SUCCEEDED;
+    } finally {
+      if (previous == null) {
+        CURRENT_RUN_FAILED.remove();
+      } else {
+        CURRENT_RUN_FAILED.set(previous);
+      }
+      runs.finished(key, jobName, outcome);
     }
   }
 

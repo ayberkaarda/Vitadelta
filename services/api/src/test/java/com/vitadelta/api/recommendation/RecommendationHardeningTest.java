@@ -203,6 +203,7 @@ class RecommendationHardeningTest {
             mock(RateLimiter.class),
             mock(ClientIpResolver.class),
             mock(ScoringGateway.class),
+            (userId, country, ids) -> java.util.Map.of(),
             new RecommendationCaches(properties, new SimpleMeterRegistry()),
             properties,
             new SimpleMeterRegistry());

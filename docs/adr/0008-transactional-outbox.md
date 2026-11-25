@@ -17,6 +17,7 @@ Price and stock alerts fire when an admin import changes offers. The import, the
 - **Crash recovery.** An expired lease makes the event claimable again.
 - **Skips.** E-mail dispatch marks events `SKIPPED_DELETED` when the notification or user no longer exists and `SKIPPED_INELIGIBLE` when the e-mail is unverified, the user is disabled or e-mail alerts are turned off.
 - **At-least-once delivery.** `OFFERS_CHANGED` handling is idempotent through the unique `alert_delivery (subscription_id, outbox_event_id)` row; `NOTIFICATION_CREATED` re-checks `notification.email_sent_at` before sending. A duplicate e-mail can therefore occur only when a crash happens between SMTP acceptance and the commit; this is documented and accepted.
+- **Implemented behaviour (Phase 5).** Claim and lease follow the rules above (batch of 100 ordered by creation time, 2-minute lease, `FOR UPDATE SKIP LOCKED`); no database transaction is open while SMTP is called; a failed attempt `n` is retried after `2^n` minutes (2, 4, 8, 16) and the fifth failure dead-letters the event. The outcomes are `DELIVERED`, `SKIPPED_DELETED`, `SKIPPED_INELIGIBLE` and `DEAD_LETTER`. Processed events are kept 30 days and dead letters 90 days. Offer-change events are written in the same transaction as the import or the seed run and carry the catalog version that transaction committed (a run that changes no row writes no event and does not bump the version). The stored error of a failed event or e-mail is the exception class name only.
 - Admin visibility: `GET /admin/outbox/stats` returns pending, failed and dead-letter counts. Housekeeping deletes processed events after 30 days and dead letters after 90 days (ADR-0011).
 
 ## Consequences
@@ -25,6 +26,9 @@ Price and stock alerts fire when an admin import changes offers. The import, the
 - Alerts are delivered with a delay of up to the processor interval plus processing time; this is acceptable for price alerts.
 - Handlers must be idempotent; tests cover claim and lease, lease-expiry re-claim, SMTP outside transactions, backoff and dead-lettering.
 - The database carries the event table load; batch size and housekeeping keep it bounded.
+- Per-pair ordering: an `OFFERS_CHANGED` event is claimed only when no older unprocessed event of the same `aggregate_id` (`<productId>:<countryCode>`) exists (`outbox_event.seq`, partial index `outbox_event_pending_pair_idx`, migration V6). A failing event delays only its own pair; a dead letter releases it.
+- Subscription boundary: `alert_subscription.catalog_version_boundary` is the committed catalog version at creation, re-activation, threshold change (read `FOR SHARE` before the baseline price) and at every baseline update or firing; an event applies only when its `catalogVersion` is greater.
+- Lock order of the e-mail completion: outbox event, then notification (the account deletion's order).
 
 ## Alternatives considered
 

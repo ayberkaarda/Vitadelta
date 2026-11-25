@@ -6,6 +6,8 @@ import com.vitadelta.api.catalog.NutrientCategory;
 import com.vitadelta.api.catalog.web.ProductPresenter.Cost;
 import com.vitadelta.api.catalog.web.ProductPresenter.Provenance;
 import com.vitadelta.api.catalog.web.ProductPresenter.SelectedOffer;
+import com.vitadelta.api.common.watch.WatchState;
+import com.vitadelta.api.common.watch.WatchedAlert;
 import com.vitadelta.api.entitlement.PlanCode;
 import com.vitadelta.api.entitlement.PriceConversion;
 import io.swagger.v3.oas.annotations.media.ArraySchema;
@@ -155,7 +157,32 @@ public final class RecommendationApi {
       List<BreakdownRow> topContributors,
       SelectedOffer selectedOffer,
       boolean saved,
-      List<Object> alerts) {}
+      List<WatchedAlert> alerts) {
+
+    /** This item with the caller's {@code saved} and {@code alerts}. */
+    public RankedProduct withWatchState(WatchState state) {
+      return new RankedProduct(
+          productId,
+          code,
+          rank,
+          brand,
+          name,
+          dosageForm,
+          provenance,
+          cost,
+          contentScore,
+          contentScoreDisplay,
+          valueScore,
+          valueScoreDisplay,
+          customScore,
+          flags,
+          breakdown,
+          topContributors,
+          selectedOffer,
+          state.saved(),
+          state.alerts());
+    }
+  }
 
   /** Contract schema {@code BreakdownRow}. */
   public record BreakdownRow(

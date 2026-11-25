@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.vitadelta.api.config.properties.ScoringProperties;
 import com.vitadelta.api.recommendation.scoring.ApiClient;
 import com.vitadelta.api.recommendation.scoring.api.ComparisonApi;
+import com.vitadelta.api.recommendation.scoring.api.HealthApi;
 import com.vitadelta.api.recommendation.scoring.api.ScoringApi;
 import java.net.http.HttpClient;
 import org.springframework.context.annotation.Bean;
@@ -60,5 +61,10 @@ public class ScoringClientConfig {
   @Bean
   ComparisonApi comparisonApi(ApiClient scoringApiClient) {
     return new ComparisonApi(scoringApiClient);
+  }
+
+  @Bean
+  HealthApi scoringHealthApi(ApiClient scoringApiClient) {
+    return new HealthApi(scoringApiClient);
   }
 }

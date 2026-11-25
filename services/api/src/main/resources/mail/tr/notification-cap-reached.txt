@@ -1,0 +1,15 @@
+Merhaba,
+
+Uyarılarınız [(${periodMonth})] içinde planınızın aylık sınırı olan [(${limit})] bildirime ulaştı. Bu ay sonraki uyarılar bildirim oluşturmaz.
+
+Sayaç gelecek ay yeniden başlar. PRO planında bildirimler sınırsızdır.
+
+VitaDelta'yı aç:
+[(${homeUrl})]
+
+VitaDelta yalnızca karşılaştırmalı bilgi sunar; tıbbi tavsiye değildir.
+
+--
+Bu e-postayı VitaDelta hesabınızdaki bir uyarı nedeniyle alıyorsunuz.
+Bildirim tercihlerinizi değiştirin: [(${preferencesUrl})]
+Gizlilik bildirimi: [(${privacyUrl})]

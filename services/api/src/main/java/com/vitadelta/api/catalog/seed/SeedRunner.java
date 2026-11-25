@@ -39,7 +39,11 @@ public class SeedRunner implements ApplicationRunner {
           result.report().tables().entrySet()) {
         LOG.info("seed: {} {}", table.getKey(), table.getValue());
       }
-      LOG.info("seed: done, catalog_version={}", result.catalogVersion());
+      LOG.info(
+          "seed: done, catalog_version={} ({}), {} changed offer pair(s)",
+          result.catalogVersion(),
+          result.versionBumped() ? "bumped" : "unchanged, no row changed",
+          result.changedPairs());
     } catch (SeedValidationException e) {
       e.problems().forEach(p -> LOG.error("seed: {}", p.describe()));
       LOG.error("seed: aborted, {} problem(s), nothing was written", e.problems().size());

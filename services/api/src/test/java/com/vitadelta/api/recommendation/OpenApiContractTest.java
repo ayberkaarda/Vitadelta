@@ -26,8 +26,8 @@ import tools.jackson.dataformat.yaml.YAMLMapper;
  * against the authoritative {@code contracts/public-api.openapi.yaml}.
  *
  * <ul>
- *   <li>Operations: the implemented operations (method and path) are exactly the contract's minus
- *       {@link #NOT_YET_IMPLEMENTED}; the list shrinks phase by phase.
+ *   <li>Operations: the implemented operations (method and path) are exactly the contract's (every
+ *       contract operation is implemented since the alerts module landed).
  *   <li>For every implemented operation: query and path parameters (name, location, required), the
  *       success status, and the request and success response bodies compared structurally after
  *       resolving references and {@code allOf}: property names, {@code required} lists,
@@ -43,26 +43,6 @@ import tools.jackson.dataformat.yaml.YAMLMapper;
  */
 class OpenApiContractTest extends RecommendationApiTestBase {
 
-  /** Contract operations that later phases implement. */
-  static final Set<String> NOT_YET_IMPLEMENTED =
-      Set.of(
-          "GET /admin/health",
-          "GET /fx/currencies",
-          "GET /fx/rates",
-          "POST /admin/fx/refresh",
-          "GET /admin/outbox/stats",
-          "GET /me/saved-products",
-          "POST /me/saved-products",
-          "DELETE /me/saved-products/{productId}",
-          "GET /me/alerts",
-          "POST /me/alerts",
-          "PATCH /me/alerts/{id}",
-          "DELETE /me/alerts/{id}",
-          "GET /me/notifications",
-          "POST /me/notifications/{id}/read",
-          "POST /me/notifications/read-all",
-          "GET /me/notifications/unread-count");
-
   /** Routes that exist only in the test sources (entitlement probes of the Phase 3 tests). */
   private static final String TEST_ONLY_SEGMENT = "/entitlement-probe/";
 
@@ -71,65 +51,21 @@ class OpenApiContractTest extends RecommendationApiTestBase {
 
   /**
    * Accepted differences between the generated description and the contract, by operation, with the
-   * reason. Each needs a change in code that the recommendation module does not own (requested in
-   * the Phase 4 shared diffs) or belongs to a later phase.
+   * reason. The remaining ones are in the identity and billing packages (status codes through
+   * {@code ResponseEntity} without {@code @ResponseStatus}, enumeration-valued Strings without
+   * {@code allowableValues}, cookie-scoped bodies) and in the multipart upload of the offers
+   * import.
    */
   static final Map<String, Set<String>> KNOWN_GAPS = new TreeMap<>();
 
   static {
-    // recommendation: fx.status: PriceConversion.Fx.status (entitlement) is a String without
-    // allowableValues; alerts: AlertSubscription items arrive with Phase 5.
-    gap(
-        "POST /recommendations/compare",
-        "response.meta.fx.status: enum contract=[OK, UNAVAILABLE] code=[]");
-    gap(
-        "POST /recommendations/query",
-        "response.items[].alerts[]: kind contract=object code=scalar",
-        "response.meta.fx.status: enum contract=[OK, UNAVAILABLE] code=[]");
-    // catalog: catalog controllers validate country themselves (required = false for the 422
-    // body); unit Strings without allowableValues; weights defaults
-    // as Map; forms always serialized; alerts arrive with Phase 5; Fx.status as above.
-    gap("GET /countries", "response.items[].defaultLocale: enum contract=[en, tr] code=[]");
-    gap(
-        "GET /nutrients",
-        "response.items[].canonicalUnit: enum contract=[mcg, mg] code=[]",
-        "response.items[]: required contract=[canonicalUnit, category, code, nameEn, presenceFloorPerDay, referenceSetCodes, sortOrder] code=[canonicalUnit, category, code, forms, nameEn, presenceFloorPerDay, referenceSetCodes, sortOrder]");
-    // The served document has one ProductFlag schema (the recommendation flag with the code
-    // enumeration), so the catalog flags no longer differ.
-    gap(
-        "GET /products",
-        "parameter query:country required contract=true code=false",
-        "response.meta.fx.status: enum contract=[OK, UNAVAILABLE] code=[]");
-    gap(
-        "GET /products/{id}",
-        "parameter query:country required contract=true code=false",
-        "response.meta.fx.status: enum contract=[OK, UNAVAILABLE] code=[]",
-        "response.product.alerts[]: kind contract=object code=scalar",
-        "response.product.nutrients[].unit: enum contract=[mcg, mg] code=[]");
-    gap(
-        "GET /weights/defaults",
-        "response.categories: map values contract=false code=true",
-        "response.categories: properties missing in code [COENZYME, MINERAL, OTHER, VITAMIN]",
-        "response.categories: required contract=[COENZYME, MINERAL, OTHER, VITAMIN] code=[]");
-    // imports: imports controllers answer 202 through ResponseEntity without @ResponseStatus; the
-    // multipart file part and ImportJobError.code are not annotated.
-    gap(
-        "GET /admin/imports/{jobId}",
-        "response.errors[]: required contract=[message, rowNumber] code=[code, message, rowNumber]");
-    gap(
-        "POST /admin/imports/offers",
-        "request: required contract=[file] code=[]",
-        "success status contract=202 code=200");
-    gap("POST /admin/imports/products", "success status contract=202 code=200");
+    // imports: springdoc builds the multipart body from the part and does not list it as required
+    // although @Parameter(required = true) is declared; the part itself stays optional in code so
+    // that a missing file is a 422 field error.
+    gap("POST /admin/imports/offers", "request: required contract=[file] code=[]");
     // entitlement/billing: status codes through ResponseEntity without @ResponseStatus; plan,
-    // status and source Strings without allowableValues; expiresAt nullable but sent; Fx.status as
-    // above.
+    // status and source Strings without allowableValues; expiresAt nullable but sent.
     gap("DELETE /admin/promo-codes/{code}", "success status contract=204 code=200");
-    gap(
-        "GET /plans",
-        "response.items[].code: enum contract=[FREE, PRO] code=[]",
-        "response.items[].price.billingPeriod: enum contract=[MONTHLY] code=[]",
-        "response.meta.fx.status: enum contract=[OK, UNAVAILABLE] code=[]");
     gap(
         "POST /admin/promo-codes",
         "request.planCode: enum contract=[PRO] code=[]",
@@ -232,12 +168,11 @@ class OpenApiContractTest extends RecommendationApiTestBase {
   }
 
   @Test
-  void implementedOperationsAreTheContractsMinusTheNotYetImplementedOnes() {
+  void implementedOperationsAreExactlyTheContractsOperations() {
     Set<String> contractOperations = operations(contract, "");
-    assertThat(contractOperations).containsAll(NOT_YET_IMPLEMENTED);
-    Set<String> expected = new TreeSet<>(contractOperations);
-    expected.removeAll(NOT_YET_IMPLEMENTED);
-    assertThat(operations(generated, "/api/v1")).containsExactlyInAnyOrderElementsOf(expected);
+    assertThat(contractOperations).isNotEmpty();
+    assertThat(operations(generated, "/api/v1"))
+        .containsExactlyInAnyOrderElementsOf(contractOperations);
   }
 
   @Test

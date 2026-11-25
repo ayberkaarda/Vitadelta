@@ -20,7 +20,7 @@ public class ImportSeamConfig {
   @Bean
   @ConditionalOnMissingBean(OfferChangeListener.class)
   OfferChangeListener noOfferChangeListener() {
-    return changes -> {};
+    return (changes, catalogVersion) -> {};
   }
 
   /**

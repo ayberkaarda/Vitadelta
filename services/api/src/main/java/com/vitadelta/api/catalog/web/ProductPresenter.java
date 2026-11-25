@@ -12,7 +12,10 @@ import com.vitadelta.api.catalog.read.CatalogViews.ProductInCountry;
 import com.vitadelta.api.catalog.read.CatalogViews.ProductNutrientView;
 import com.vitadelta.api.catalog.read.CatalogViews.ProvenanceView;
 import com.vitadelta.api.common.numeric.Rounding;
+import com.vitadelta.api.common.watch.WatchState;
+import com.vitadelta.api.common.watch.WatchedAlert;
 import com.vitadelta.api.entitlement.PriceConversion;
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
@@ -80,7 +83,7 @@ public class ProductPresenter {
       NutrientCategory category,
       BigDecimal amountPerServing,
       BigDecimal amountPerDay,
-      String unit,
+      @Schema(allowableValues = {"mg", "mcg"}) String unit,
       BigDecimal ulAmountPerServing,
       String formCode,
       String formLabel,
@@ -101,8 +104,9 @@ public class ProductPresenter {
   public record SelectedOffer(String retailer, String url, Instant checkedAt) {}
 
   /**
-   * Contract schema {@code ProductDetail}. {@code saved} and {@code alerts} are {@code false} and
-   * empty until saved products and alerts exist (Phase 5).
+   * Contract schema {@code ProductDetail}. {@code saved} and {@code alerts} come from the {@link
+   * com.vitadelta.api.common.watch.WatchStateReader} for a signed-in caller ({@link
+   * #withWatchState}); they are {@code false} and empty for anonymous callers.
    */
   public record ProductDetail(
       UUID id,
@@ -123,7 +127,32 @@ public class ProductPresenter {
       SelectedOffer selectedOffer,
       List<Flag> flags,
       boolean saved,
-      List<Object> alerts) {}
+      List<WatchedAlert> alerts) {
+
+    /** This detail with the caller's {@code saved} and {@code alerts}. */
+    public ProductDetail withWatchState(WatchState state) {
+      return new ProductDetail(
+          id,
+          code,
+          brand,
+          name,
+          dosageForm,
+          unitsPerContainer,
+          unitsPerServing,
+          servingsPerDay,
+          gtin,
+          synthetic,
+          provenance,
+          availability,
+          nutrients,
+          offers,
+          cost,
+          selectedOffer,
+          flags,
+          state.saved(),
+          state.alerts());
+    }
+  }
 
   private final EffectivePriceResolver resolver;
 

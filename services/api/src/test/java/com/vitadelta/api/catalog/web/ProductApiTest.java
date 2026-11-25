@@ -83,7 +83,7 @@ class ProductApiTest extends CatalogApiTest {
             "{\"categories\":{\"VITAMIN\":1.0,\"MINERAL\":1.0,\"COENZYME\":0.8,\"OTHER\":0.5},"
                 + "\"categoryRange\":{\"min\":0.0,\"max\":2.0},\"overrideDefault\":1.0,"
                 + "\"overrideRange\":{\"min\":0.0,\"max\":3.0},\"lambdaDefault\":0.5,"
-                + "\"lambdaRange\":{\"min\":0.0,\"max\":1.0}}");
+                + "\"lambdaRange\":{\"min\":0.0,\"max\":1.0},\"engine\":null}");
 
     EntityExchangeResult<String> legal = get("/api/v1/legal", null);
     assertStatus(legal, 200);

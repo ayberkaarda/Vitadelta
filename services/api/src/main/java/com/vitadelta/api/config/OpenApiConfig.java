@@ -76,6 +76,7 @@ public class OpenApiConfig {
           Map.entry(
               "com.vitadelta.api.catalog.web.ReferenceDataController.NutrientItem", "Nutrient"),
           Map.entry("com.vitadelta.api.common.HealthResponse", "Health"),
+          Map.entry("com.vitadelta.api.common.watch.WatchedAlert", "AlertSubscription"),
           Map.entry("com.vitadelta.api.entitlement.PlanController.PlanView", "Plan"),
           Map.entry("com.vitadelta.api.entitlement.PriceConversion", "MoneyMeta"),
           Map.entry("com.vitadelta.api.entitlement.PriceConversion.Fx", "FxMeta"),
@@ -113,12 +114,45 @@ public class OpenApiConfig {
   static final Set<String> PREFERRED_SCHEMAS =
       Set.of("com.vitadelta.api.recommendation.RecommendationApi.Flag");
 
+  /**
+   * Records that the contract describes as an inline object of a property rather than as a named
+   * schema: every property referencing one gets the schema itself, and the named schema is removed.
+   */
+  static final Set<String> INLINED_SCHEMAS =
+      Set.of("com.vitadelta.api.health.HealthViews.AdminHealthComponents");
+
   @Bean
   OpenApiCustomizer responseRecordsRequired() {
     return openApi -> {
       markResponseRecordsRequired(openApi);
+      inlineSchemas(openApi);
       renameSchemas(openApi);
     };
+  }
+
+  /** Replaces property references to {@link #INLINED_SCHEMAS} by the schemas themselves. */
+  @SuppressWarnings({"rawtypes", "unchecked"})
+  static void inlineSchemas(OpenAPI openApi) {
+    if (openApi.getComponents() == null || openApi.getComponents().getSchemas() == null) {
+      return;
+    }
+    Map<String, Schema> schemas = openApi.getComponents().getSchemas();
+    for (Schema schema : schemas.values()) {
+      if (schema.getProperties() == null) {
+        continue;
+      }
+      Map<String, Schema> properties = schema.getProperties();
+      for (Map.Entry<String, Schema> property : properties.entrySet()) {
+        String ref = property.getValue().get$ref();
+        if (ref != null && ref.startsWith(REF_PREFIX)) {
+          String target = ref.substring(REF_PREFIX.length());
+          if (INLINED_SCHEMAS.contains(target) && schemas.containsKey(target)) {
+            property.setValue(schemas.get(target));
+          }
+        }
+      }
+    }
+    INLINED_SCHEMAS.forEach(schemas::remove);
   }
 
   /**

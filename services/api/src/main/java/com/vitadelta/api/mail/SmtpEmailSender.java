@@ -4,6 +4,7 @@ import com.vitadelta.api.config.properties.MailSettingsProperties;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
 import org.springframework.mail.MailException;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
@@ -13,7 +14,8 @@ import org.springframework.stereotype.Component;
  * {@link EmailSender} over SMTP. The connection (host, port, optional username and password,
  * STARTTLS) comes from the {@code VITADELTA_SMTP_*} variables through the auto-configured {@link
  * JavaMailSender}; the sender address is {@code VITADELTA_MAIL_FROM}. Every message is a UTF-8
- * multipart message with a plain-text and an HTML alternative.
+ * multipart message with a plain-text and an HTML alternative, plus the validated extra headers of
+ * the message (for example {@code List-Unsubscribe}).
  */
 @Component
 public class SmtpEmailSender implements EmailSender {
@@ -38,6 +40,9 @@ public class SmtpEmailSender implements EmailSender {
       helper.setSubject(message.subject());
       helper.setText(message.textBody(), message.htmlBody());
       mime.setHeader("Content-Language", message.locale().toLanguageTag());
+      for (Map.Entry<String, String> header : message.headers().entrySet()) {
+        mime.setHeader(header.getKey(), header.getValue());
+      }
       mailSender.send(mime);
     } catch (MailException | MessagingException e) {
       throw new EmailDeliveryException("SMTP delivery failed: " + e.getClass().getSimpleName(), e);

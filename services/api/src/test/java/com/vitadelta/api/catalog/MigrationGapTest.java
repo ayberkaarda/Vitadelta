@@ -5,13 +5,17 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.vitadelta.api.support.PostgresIntegrationTest;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.UUID;
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.FlywayException;
@@ -21,11 +25,22 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * Migrations V1, V2 and V5 on a clean database, and the reserved gap: V3 and V4 arrive in Phase 5
- * after V5 has been applied. With {@code out-of-order} (as configured in {@code application.yml}) a
- * later V3 is applied and validation still passes; without it Flyway rejects the database.
+ * The delivered migrations V1 to V6 on a clean database, and the delivery order of ADR-0013: a
+ * database that is already at V5 without V3 (V3 was delivered after V4 and V5) applies V3 and V6
+ * later with {@code out-of-order} (as configured in {@code application.yml}) and ends in the same
+ * schema as a fresh database; without it Flyway rejects the database. An edited applied migration
+ * still fails validation.
  */
 class MigrationGapTest extends PostgresIntegrationTest {
+
+  private static final String[] MIGRATIONS = {
+    "V1__catalog.sql",
+    "V2__identity_and_plans.sql",
+    "V3__notifications_and_outbox.sql",
+    "V4__fx_rates.sql",
+    "V5__form_registry_and_ul_notes.sql",
+    "V6__alert_ordering.sql"
+  };
 
   @TempDir Path later;
 
@@ -50,29 +65,77 @@ class MigrationGapTest extends PostgresIntegrationTest {
         .load();
   }
 
+  private static String migration(String file) throws IOException {
+    try (var in = MigrationGapTest.class.getResourceAsStream("/db/migration/" + file)) {
+      return new String(in.readAllBytes(), StandardCharsets.UTF_8);
+    }
+  }
+
+  /** Columns, constraints and indexes of the public schema, in a stable order. */
+  private static List<String> schema(String url) throws SQLException {
+    List<String> lines = new ArrayList<>();
+    try (Connection connection =
+            DriverManager.getConnection(url, POSTGRES.getUsername(), POSTGRES.getPassword());
+        Statement statement = connection.createStatement()) {
+      for (String sql :
+          List.of(
+              "SELECT table_name || '.' || column_name || ' ' || data_type || ' '"
+                  + " || is_nullable || ' ' || coalesce(column_default, '')"
+                  + " FROM information_schema.columns WHERE table_schema = 'public'"
+                  + " AND table_name <> 'flyway_schema_history'",
+              "SELECT conrelid::regclass || ' ' || conname || ' ' || pg_get_constraintdef(oid)"
+                  + " FROM pg_constraint WHERE connamespace = 'public'::regnamespace",
+              "SELECT indexdef FROM pg_indexes WHERE schemaname = 'public'"
+                  + " AND tablename <> 'flyway_schema_history'")) {
+        try (ResultSet rows = statement.executeQuery(sql)) {
+          while (rows.next()) {
+            lines.add(rows.getString(1));
+          }
+        }
+      }
+    }
+    lines.sort(String::compareTo);
+    return lines;
+  }
+
   @Test
-  void aCleanDatabaseGetsV1V2AndV5AndAcceptsTheReservedVersionsLater() throws Exception {
+  void aCleanDatabaseGetsEveryMigrationInOrder() throws Exception {
     String url = createDatabase();
     Flyway current = flyway(url, true, "classpath:db/migration");
     current.migrate();
     MigrationInfo[] applied = current.info().applied();
     assertThat(Arrays.stream(applied).map(i -> i.getVersion().getVersion()))
-        .containsExactly("1", "2", "5");
+        .containsExactly("1", "2", "3", "4", "5", "6");
     assertThat(applied).allSatisfy(i -> assertThat(i.getState()).isEqualTo(MigrationState.SUCCESS));
     assertThat(current.info().pending()).isEmpty();
+  }
 
-    Files.writeString(later.resolve("V3__later_migration.sql"), "CREATE TABLE gap_probe (id int);");
-    String laterLocation = "filesystem:" + later.toAbsolutePath();
+  @Test
+  void aDatabaseAtV5AppliesTheLaterV3OutOfOrderAndEndsInTheSameSchema() throws Exception {
+    Path withoutV3 = later.resolve("without-v3");
+    Files.createDirectories(withoutV3);
+    for (String file : MIGRATIONS) {
+      // V6 builds on V3 and was delivered after it.
+      if (!file.startsWith("V3") && !file.startsWith("V6")) {
+        Files.writeString(withoutV3.resolve(file), migration(file));
+      }
+    }
+    String existing = createDatabase();
+    flyway(existing, true, "filesystem:" + withoutV3.toAbsolutePath()).migrate();
 
-    assertThatThrownBy(() -> flyway(url, false, "classpath:db/migration", laterLocation).migrate())
+    assertThatThrownBy(() -> flyway(existing, false, "classpath:db/migration").migrate())
         .isInstanceOf(FlywayException.class)
         .hasMessageContaining("3");
 
-    Flyway withLater = flyway(url, true, "classpath:db/migration", laterLocation);
-    withLater.migrate();
-    assertThat(Arrays.stream(withLater.info().applied()).map(i -> i.getVersion().getVersion()))
-        .contains("1", "2", "3", "5");
-    withLater.validate();
+    Flyway upgraded = flyway(existing, true, "classpath:db/migration");
+    upgraded.migrate();
+    assertThat(Arrays.stream(upgraded.info().applied()).map(i -> i.getVersion().getVersion()))
+        .containsExactly("1", "2", "4", "5", "3", "6");
+    upgraded.validate();
+
+    String fresh = createDatabase();
+    flyway(fresh, true, "classpath:db/migration").migrate();
+    assertThat(schema(existing)).isEqualTo(schema(fresh));
   }
 
   @Test
@@ -81,14 +144,9 @@ class MigrationGapTest extends PostgresIntegrationTest {
     flyway(url, true, "classpath:db/migration").migrate();
     Path copy = later.resolve("changed");
     Files.createDirectories(copy);
-    for (String file :
-        new String[] {
-          "V1__catalog.sql", "V2__identity_and_plans.sql", "V5__form_registry_and_ul_notes.sql"
-        }) {
-      try (var in = getClass().getResourceAsStream("/db/migration/" + file)) {
-        String sql = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
-        Files.writeString(copy.resolve(file), file.startsWith("V5") ? sql + "\n-- edited\n" : sql);
-      }
+    for (String file : MIGRATIONS) {
+      String sql = migration(file);
+      Files.writeString(copy.resolve(file), file.startsWith("V3") ? sql + "\n-- edited\n" : sql);
     }
     assertThatThrownBy(() -> flyway(url, true, "filesystem:" + copy.toAbsolutePath()).validate())
         .isInstanceOf(FlywayException.class)

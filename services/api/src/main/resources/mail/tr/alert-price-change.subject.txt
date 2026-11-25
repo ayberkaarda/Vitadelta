@@ -1,0 +1,1 @@
+Fiyat değişti: [(${productName})] artık [(${newPrice})]

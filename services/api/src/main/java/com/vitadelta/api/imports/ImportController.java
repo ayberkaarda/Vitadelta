@@ -2,6 +2,8 @@ package com.vitadelta.api.imports;
 
 import com.vitadelta.api.common.problem.FieldViolation;
 import com.vitadelta.api.common.problem.ProblemException;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.URI;
@@ -20,6 +22,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestPart;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
@@ -48,7 +51,10 @@ public class ImportController {
       Map<String, Long> summary) {}
 
   /** Contract schema {@code ImportJobError}. */
-  public record ImportJobErrorView(int rowNumber, String code, String message) {}
+  public record ImportJobErrorView(
+      @Schema(requiredMode = Schema.RequiredMode.REQUIRED) int rowNumber,
+      @Schema(requiredMode = Schema.RequiredMode.NOT_REQUIRED) String code,
+      @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String message) {}
 
   /** Contract schema {@code ImportJobDetail}. */
   public record ImportJobDetailView(
@@ -69,6 +75,7 @@ public class ImportController {
   }
 
   @PostMapping(path = "/products", consumes = MediaType.APPLICATION_JSON_VALUE)
+  @ResponseStatus(HttpStatus.ACCEPTED)
   public ResponseEntity<ImportJobView> importProducts(@RequestBody(required = false) byte[] body) {
     if (body == null || body.length == 0) {
       throw ProblemException.validation(
@@ -79,8 +86,12 @@ public class ImportController {
   }
 
   @PostMapping(path = "/offers", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+  @ResponseStatus(HttpStatus.ACCEPTED)
   public ResponseEntity<ImportJobView> importOffers(
-      @RequestPart(name = "file", required = false) MultipartFile file) {
+      // Checked here (422 with a field error); documented as required like the contract.
+      @Parameter(required = true, schema = @Schema(requiredMode = Schema.RequiredMode.REQUIRED))
+          @RequestPart(name = "file", required = false)
+          MultipartFile file) {
     if (file == null) {
       throw ProblemException.validation(
           "The request contains invalid fields.",

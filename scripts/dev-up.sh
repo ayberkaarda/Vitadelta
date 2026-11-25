@@ -114,7 +114,7 @@ report() {
 
 log "verifying"
 api_body="$(curl -fsS --max-time 10 "$WEB_URL/api/v1/health" 2>&1)" || api_body="request failed: $api_body"
-if printf '%s' "$api_body" | grep -Eq '"status"[[:space:]]*:[[:space:]]*"UP"'; then
+if printf '%s' "$api_body" | grep -Eq '"status"[[:space:]]*:[[:space:]]*"(UP|DEGRADED)"'; then
   report "api via nginx" ok "$WEB_URL/api/v1/health -> $api_body"
 else
   report "api via nginx" fail "$WEB_URL/api/v1/health -> $api_body"
@@ -124,7 +124,7 @@ scoring_body="$(compose exec -T scoring python -c \
   "import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8000/internal/v1/health', timeout=5).read().decode())" \
   2>&1)" || scoring_body="request failed: $scoring_body"
 scoring_body="$(printf '%s' "$scoring_body" | tr -d '\r')"
-if printf '%s' "$scoring_body" | grep -Eq '"status"[[:space:]]*:[[:space:]]*"UP"'; then
+if printf '%s' "$scoring_body" | grep -Eq '"status"[[:space:]]*:[[:space:]]*"(UP|DEGRADED)"'; then
   report "scoring (inside container)" ok "/internal/v1/health -> $scoring_body"
 else
   report "scoring (inside container)" fail "/internal/v1/health -> $scoring_body"

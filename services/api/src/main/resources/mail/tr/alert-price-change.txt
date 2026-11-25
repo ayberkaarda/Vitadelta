@@ -1,0 +1,13 @@
+Merhaba,
+
+[(${productName})] ([(${brand})], [(${productCode})]) ürününün [(${countryCode})] fiyatı [(${oldPrice})] iken [(${newPrice})] oldu ([(${retailer})]).
+
+VitaDelta'yı aç:
+[(${homeUrl})]
+
+VitaDelta yalnızca karşılaştırmalı bilgi sunar; tıbbi tavsiye değildir.
+
+--
+Bu e-postayı VitaDelta hesabınızdaki bir uyarı nedeniyle alıyorsunuz.
+Bildirim tercihlerinizi değiştirin: [(${preferencesUrl})]
+Gizlilik bildirimi: [(${privacyUrl})]

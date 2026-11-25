@@ -81,6 +81,32 @@ class SmtpEmailSenderMailpitTest {
   }
 
   @Test
+  void extraHeadersAreDeliveredAndAMessageWithoutThemHasNone() throws Exception {
+    String to = "smtp.hdr." + TestEnvironment.randomHex(4) + "@example.org";
+    EmailMessage message =
+        renderer
+            .render(OutgoingMail.verifyEmail(to, Locale.ENGLISH, TOKEN))
+            .withHeader("list-unsubscribe", "<" + TestEnvironment.WEB_BASE_URL + "/account>");
+
+    sender().send(message);
+
+    JsonNode stored = messageTo(to);
+    JsonNode headers =
+        json.readTree(get("/api/v1/message/" + stored.path("ID").asString() + "/headers"));
+    assertThat(headers.path("List-Unsubscribe")).hasSize(1);
+    assertThat(headers.path("List-Unsubscribe").get(0).asString())
+        .isEqualTo("<" + TestEnvironment.WEB_BASE_URL + "/account>");
+    assertThat(headers.path("Content-Language").get(0).asString()).isEqualTo("en");
+
+    String plain = "smtp.plain." + TestEnvironment.randomHex(4) + "@example.org";
+    sender().send(renderer.render(OutgoingMail.verifyEmail(plain, Locale.ENGLISH, TOKEN)));
+    JsonNode plainHeaders =
+        json.readTree(
+            get("/api/v1/message/" + messageTo(plain).path("ID").asString() + "/headers"));
+    assertThat(plainHeaders.has("List-Unsubscribe")).isFalse();
+  }
+
+  @Test
   void dispatcherDeliversAsynchronouslyToMailpit() throws Exception {
     String to = "smtp.en." + TestEnvironment.randomHex(4) + "@example.org";
     SimpleMeterRegistry registry = new SimpleMeterRegistry();

@@ -6,7 +6,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 /** Validation and log-safe string forms of the mail value types. */
@@ -35,6 +38,54 @@ class MailValuesTest {
         .contains("a***@example.org")
         .doesNotContain("alice")
         .doesNotContain(TOKEN);
+  }
+
+  @Test
+  void extraHeadersAreAllowListedSingleLineAndNeverPrinted() {
+    Locale en = Locale.ENGLISH;
+    EmailMessage plain = new EmailMessage("a@example.org", "s", "t", "h", en);
+    assertThat(plain.headers()).isEmpty();
+    assertThat(new EmailMessage("a@example.org", "s", "t", "h", en, null).headers()).isEmpty();
+
+    EmailMessage listed =
+        plain
+            .withHeader("list-unsubscribe", "<https://vitadelta.example/old>")
+            .withHeader(EmailMessage.LIST_UNSUBSCRIBE, "<https://vitadelta.example/account>");
+    assertThat(listed.headers())
+        .containsExactly(Map.entry("List-Unsubscribe", "<https://vitadelta.example/account>"));
+    assertThat(listed.toString())
+        .contains("headers=[List-Unsubscribe]")
+        .doesNotContain("vitadelta.example/account");
+    assertThatThrownBy(() -> listed.headers().put("Bcc", "x@example.org"))
+        .isInstanceOf(UnsupportedOperationException.class);
+    assertThat(plain.headers()).isEmpty();
+
+    for (String hostile :
+        List.of(
+            "<https://a.example>\r\nBcc: x@example.org",
+            "<https://a.example>\nBcc: x@example.org",
+            "<https://a.example>\rX: y",
+            "<https://a.example>\u0000",
+            "<https://a.example/ä>",
+            " ",
+            "x".repeat(EmailMessage.MAX_HEADER_VALUE_LENGTH + 1))) {
+      assertThatThrownBy(() -> plain.withHeader(EmailMessage.LIST_UNSUBSCRIBE, hostile))
+          .isInstanceOf(IllegalArgumentException.class);
+    }
+    assertThatThrownBy(() -> plain.withHeader(EmailMessage.LIST_UNSUBSCRIBE, null))
+        .isInstanceOf(IllegalArgumentException.class);
+    for (String name : List.of("Bcc", "To", "From", "Subject", "List-Unsubscribe\r\nBcc", "")) {
+      assertThatThrownBy(() -> plain.withHeader(name, "x@example.org"))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessageNotContaining("x@example.org");
+    }
+    assertThatThrownBy(() -> plain.withHeader(null, "x"))
+        .isInstanceOf(IllegalArgumentException.class);
+    Map<String, String> duplicate = new LinkedHashMap<>();
+    duplicate.put("List-Id", "<a.example>");
+    duplicate.put("list-id", "<b.example>");
+    assertThatThrownBy(() -> new EmailMessage("a@example.org", "s", "t", "h", en, duplicate))
+        .isInstanceOf(IllegalArgumentException.class);
   }
 
   @Test

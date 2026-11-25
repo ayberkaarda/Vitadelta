@@ -2,17 +2,9 @@ package com.vitadelta.api.imports;
 
 import com.vitadelta.api.catalog.CatalogWriteTransaction;
 import com.vitadelta.api.catalog.CatalogWriter;
-import com.vitadelta.api.catalog.Offer;
-import com.vitadelta.api.catalog.OfferRepository;
 import com.vitadelta.api.catalog.OfferValues;
-import com.vitadelta.api.catalog.Product;
 import com.vitadelta.api.catalog.ProductImport;
-import com.vitadelta.api.catalog.ProductRepository;
 import com.vitadelta.api.catalog.WriteReport;
-import com.vitadelta.api.catalog.price.EffectivePrice;
-import com.vitadelta.api.catalog.price.EffectivePriceResolver;
-import com.vitadelta.api.catalog.price.OfferSnapshot;
-import com.vitadelta.api.catalog.price.StockFilter;
 import com.vitadelta.api.common.jobs.JobLock;
 import com.vitadelta.api.common.jobs.JobLockKeys;
 import com.vitadelta.api.config.properties.ImportLimitsProperties;
@@ -21,15 +13,12 @@ import jakarta.annotation.PreDestroy;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -54,9 +43,10 @@ import org.springframework.stereotype.Service;
  *       not bumped;
  *   <li>otherwise applies the document in one {@link CatalogWriteTransaction}: products upserted by
  *       code, offers upserted by natural key with replace-set per (product, country) pair; the
- *       effective state of every pair is compared before and after and the changed pairs are passed
- *       to the {@link OfferChangeListener}; the job is marked {@code SUCCEEDED} in the same
- *       transaction; the version is bumped exactly once, and only when a catalog row changed.
+ *       effective state of every pair is compared before and after ({@link OfferChangeTracker});
+ *       the job is marked {@code SUCCEEDED} in the same transaction; the version is bumped exactly
+ *       once, and only when a catalog row changed; then the changed pairs are passed to the {@link
+ *       OfferChangeListener} with that version, still in the same transaction.
  * </ol>
  *
  * An unexpected failure rolls the write back and fails the job with {@code import_failed}.
@@ -75,9 +65,7 @@ public class ImportService {
   private final StoredRegistry registry;
   private final CatalogWriteTransaction writeTransaction;
   private final CatalogWriter writer;
-  private final ProductRepository products;
-  private final OfferRepository offers;
-  private final EffectivePriceResolver resolver;
+  private final OfferChangeTracker tracker;
   private final OfferChangeListener listener;
   private final JobLock jobLock;
   private final ThreadPoolExecutor executor;
@@ -89,9 +77,7 @@ public class ImportService {
       StoredRegistry registry,
       CatalogWriteTransaction writeTransaction,
       CatalogWriter writer,
-      ProductRepository products,
-      OfferRepository offers,
-      EffectivePriceResolver resolver,
+      OfferChangeTracker tracker,
       OfferChangeListener listener,
       JobLock jobLock,
       @Qualifier(ImportSeamConfig.IMPORT_EXECUTOR) ThreadPoolExecutor executor,
@@ -102,9 +88,7 @@ public class ImportService {
     this.registry = registry;
     this.writeTransaction = writeTransaction;
     this.writer = writer;
-    this.products = products;
-    this.offers = offers;
-    this.resolver = resolver;
+    this.tracker = tracker;
     this.listener = listener;
     this.jobLock = jobLock;
     this.executor = executor;
@@ -213,7 +197,10 @@ public class ImportService {
         jobId, result.products(), productOffers, "products", result.products().size(), now);
   }
 
-  /** Applies validated products and offers in one write transaction. */
+  /**
+   * Applies validated products and offers in one write transaction. The version is bumped once when
+   * a catalog row changed; the changed pairs then reach the listener with that version.
+   */
   private Outcome apply(
       UUID jobId,
       List<ProductImport> productImports,
@@ -221,80 +208,40 @@ public class ImportService {
       String countKey,
       int count,
       Instant now) {
-    return writeTransaction.execute(
-        () -> {
-          Set<String> codes = new LinkedHashSet<>();
-          productImports.forEach(p -> codes.add(p.details().code()));
-          offerRows.forEach(o -> codes.add(o.productCode()));
-          writer.lockProductsByCode(codes);
-          Set<PairKey> pairs = new LinkedHashSet<>();
-          offerRows.forEach(o -> pairs.add(new PairKey(o.productCode(), o.countryCode())));
-          Map<PairKey, EffectivePrice.State> before = states(pairs, now);
-          WriteReport report = new WriteReport();
-          if (!productImports.isEmpty()) {
-            writer.applyProducts(productImports, now, report);
-          } else {
-            writer.applyOffers(offerRows, report);
-          }
-          Map<PairKey, EffectivePrice.State> after = states(pairs, now);
-          List<OfferPairChange> changes = changes(pairs, before, after);
-          if (!changes.isEmpty()) {
-            listener.offersChanged(changes);
-          }
-          store.succeed(jobId, summary(countKey, count, report, changes.size()));
-          return new Outcome(true, report.changedRows(), changes.size());
-        },
-        outcome -> outcome.changedRows() > 0);
+    return writeTransaction
+        .execute(
+            () -> {
+              Set<String> codes = new LinkedHashSet<>();
+              productImports.forEach(p -> codes.add(p.details().code()));
+              offerRows.forEach(o -> codes.add(o.productCode()));
+              writer.lockProductsByCode(codes);
+              OfferChangeTracker.Before before = tracker.capture(offerRows, now);
+              WriteReport report = new WriteReport();
+              if (!productImports.isEmpty()) {
+                writer.applyProducts(productImports, now, report);
+              } else {
+                writer.applyOffers(offerRows, report);
+              }
+              List<OfferPairChange> changes = tracker.changes(before);
+              store.succeed(jobId, summary(countKey, count, report, changes.size()));
+              return new Applied(new Outcome(true, report.changedRows(), changes.size()), changes);
+            },
+            Applied::changed,
+            (applied, version) -> {
+              if (!applied.changes().isEmpty()) {
+                listener.offersChanged(applied.changes(), version);
+              }
+            })
+        .outcome();
   }
 
-  /** Effective state of each pair (INCLUDE_OUT_OF_STOCK basis); pairs without offers are absent. */
-  private Map<PairKey, EffectivePrice.State> states(Set<PairKey> pairs, Instant now) {
-    Map<PairKey, EffectivePrice.State> states = new LinkedHashMap<>();
-    Map<String, Optional<Product>> byCode = new LinkedHashMap<>();
-    for (PairKey pair : pairs) {
-      Optional<Product> product = byCode.computeIfAbsent(pair.productCode(), products::findByCode);
-      if (product.isEmpty()) {
-        continue;
-      }
-      List<OfferSnapshot> snapshots =
-          offers.findByProductIdAndCountryCode(product.get().getId(), pair.countryCode()).stream()
-              .map(ImportService::snapshot)
-              .toList();
-      resolver
-          .resolve(snapshots, StockFilter.INCLUDE_OUT_OF_STOCK, now)
-          .price()
-          .ifPresent(p -> states.put(pair, p.state()));
+  /** Result of the write transaction of one import. */
+  private record Applied(Outcome outcome, List<OfferPairChange> changes) {
+
+    /** Whether a catalog row changed (a changed pair always implies a changed offer row). */
+    boolean changed() {
+      return outcome.changedRows() > 0 || !changes.isEmpty();
     }
-    return states;
-  }
-
-  private List<OfferPairChange> changes(
-      Set<PairKey> pairs,
-      Map<PairKey, EffectivePrice.State> before,
-      Map<PairKey, EffectivePrice.State> after) {
-    Map<PairKey, OfferPairChange> changes =
-        new TreeMap<>(
-            Comparator.comparing(PairKey::productCode).thenComparing(PairKey::countryCode));
-    for (PairKey pair : pairs) {
-      EffectivePrice.State old = before.get(pair);
-      EffectivePrice.State now = after.get(pair);
-      if (!Objects.equals(old, now)) {
-        UUID productId = products.findByCode(pair.productCode()).map(Product::getId).orElse(null);
-        changes.put(
-            pair, new OfferPairChange(productId, pair.productCode(), pair.countryCode(), old, now));
-      }
-    }
-    return List.copyOf(changes.values());
-  }
-
-  private static OfferSnapshot snapshot(Offer offer) {
-    return new OfferSnapshot(
-        offer.getRetailer(),
-        offer.getPrice(),
-        offer.getCurrency(),
-        offer.isInStock(),
-        offer.getUrl(),
-        offer.getCheckedAt());
   }
 
   /** Summary of a successful import; counts are summed over every written table. */
@@ -343,6 +290,4 @@ public class ImportService {
 
   /** Result of one import run. */
   record Outcome(boolean succeeded, int changedRows, int changedPairs) {}
-
-  private record PairKey(String productCode, String countryCode) {}
 }

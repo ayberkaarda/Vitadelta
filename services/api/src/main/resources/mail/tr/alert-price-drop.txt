@@ -1,0 +1,15 @@
+Merhaba,
+
+[(${productName})] ([(${brand})], [(${productCode})]) ürününün [(${countryCode})] fiyatı [(${retailer})] satıcısında [(${newPrice})] seviyesine düştü.
+
+Bu fiyat, [(${baselinePrice})] olan referans fiyatınızın %[(${dropPercent})] altında; uyarı eşiğiniz %[(${thresholdPercent})]. Yeni fiyat artık referans fiyatınızdır.
+
+VitaDelta'yı aç:
+[(${homeUrl})]
+
+VitaDelta yalnızca karşılaştırmalı bilgi sunar; tıbbi tavsiye değildir.
+
+--
+Bu e-postayı VitaDelta hesabınızdaki bir uyarı nedeniyle alıyorsunuz.
+Bildirim tercihlerinizi değiştirin: [(${preferencesUrl})]
+Gizlilik bildirimi: [(${privacyUrl})]

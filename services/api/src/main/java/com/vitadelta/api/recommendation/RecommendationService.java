@@ -19,6 +19,8 @@ import com.vitadelta.api.common.problem.ProblemCode;
 import com.vitadelta.api.common.problem.ProblemException;
 import com.vitadelta.api.common.ratelimit.RateLimitPolicy;
 import com.vitadelta.api.common.ratelimit.RateLimiter;
+import com.vitadelta.api.common.watch.WatchState;
+import com.vitadelta.api.common.watch.WatchStateReader;
 import com.vitadelta.api.common.web.ClientIpResolver;
 import com.vitadelta.api.config.properties.RecommendationProperties;
 import com.vitadelta.api.entitlement.EntitlementService;
@@ -59,6 +61,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.regex.Matcher;
@@ -122,6 +125,7 @@ public class RecommendationService {
   private final RateLimiter rateLimiter;
   private final ClientIpResolver clientIps;
   private final ScoringGateway scoring;
+  private final WatchStateReader watchStates;
   private final RecommendationCaches caches;
   private final int maxProductsPerCountry;
   private final Counter quotaRejections;
@@ -136,6 +140,7 @@ public class RecommendationService {
       RateLimiter rateLimiter,
       ClientIpResolver clientIps,
       ScoringGateway scoring,
+      WatchStateReader watchStates,
       RecommendationCaches caches,
       RecommendationProperties properties,
       MeterRegistry meters) {
@@ -149,6 +154,7 @@ public class RecommendationService {
     this.rateLimiter = rateLimiter;
     this.clientIps = clientIps;
     this.scoring = scoring;
+    this.watchStates = watchStates;
     this.caches = caches;
     this.quotaRejections =
         Counter.builder(QUOTA_REJECTED_METRIC)
@@ -185,7 +191,14 @@ public class RecommendationService {
     boolean answered = false;
     try {
       NativeRanking ranking = ranking(query, country, version);
-      QueryResponse result = present(ranking, parsed, conversion, principal, anonymous != null);
+      Principal caller = principal;
+      boolean anonymousCaller = anonymous != null;
+      QueryResponse result =
+          PriceConversion.present(
+              conversion, shown -> present(ranking, parsed, shown, caller, anonymousCaller));
+      if (anonymous == null) {
+        result = withWatchStates(result, userId.get());
+      }
       answered = true;
       return result;
     } catch (RuntimeException e) {
@@ -197,6 +210,24 @@ public class RecommendationService {
         refund(anonymous);
       }
     }
+  }
+
+  /**
+   * The page with the caller's saved flags and alert subscriptions: one batched read for the page's
+   * products, after ranking and paging (never part of a cached ranking).
+   */
+  private QueryResponse withWatchStates(QueryResponse page, UUID userId) {
+    if (page.items().isEmpty()) {
+      return page;
+    }
+    List<UUID> ids = page.items().stream().map(RankedProduct::productId).toList();
+    Map<UUID, WatchState> states = watchStates.forProducts(userId, page.meta().country(), ids);
+    return new QueryResponse(
+        page.meta(),
+        page.items().stream()
+            .map(
+                item -> item.withWatchState(states.getOrDefault(item.productId(), WatchState.NONE)))
+            .toList());
   }
 
   private void refund(AnonymousIdentity anonymous) {
@@ -352,7 +383,9 @@ public class RecommendationService {
     com.vitadelta.api.recommendation.scoring.model.CompareResponse answer;
     try {
       answer = scoring.compare(scoringRequest);
-      return presentCompare(answer, snapshot, country, market, conversion);
+      com.vitadelta.api.recommendation.scoring.model.CompareResponse scored = answer;
+      return PriceConversion.present(
+          conversion, shown -> presentCompare(scored, snapshot, country, market, shown));
     } catch (RuntimeException e) {
       throw translate(e);
     }

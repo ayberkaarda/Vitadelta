@@ -47,12 +47,14 @@ class ImportApiTest extends CatalogApiTest {
   /** Records the changed pairs; can block the import worker to fill the queue. */
   static class RecordingListener implements OfferChangeListener {
     final List<List<OfferPairChange>> calls = new CopyOnWriteArrayList<>();
+    final List<Long> versions = new CopyOnWriteArrayList<>();
     final AtomicReference<CountDownLatch> gate = new AtomicReference<>();
     final AtomicReference<CountDownLatch> entered = new AtomicReference<>();
 
     @Override
-    public void offersChanged(List<OfferPairChange> changes) {
+    public void offersChanged(List<OfferPairChange> changes, long catalogVersion) {
       calls.add(changes);
+      versions.add(catalogVersion);
       CountDownLatch in = entered.get();
       if (in != null) {
         in.countDown();
@@ -84,6 +86,7 @@ class ImportApiTest extends CatalogApiTest {
   @AfterEach
   void removeImportTestRows() {
     listener.calls.clear();
+    listener.versions.clear();
     listener.gate.set(null);
     listener.entered.set(null);
     jdbc.sql("DELETE FROM product WHERE code LIKE ?").param(PREFIX + "%").update();
@@ -284,12 +287,16 @@ class ImportApiTest extends CatalogApiTest {
             c.countryCode() + ":" + (c.before() == null) + ":" + c.after().price().toPlainString())
         .containsExactly("DE:true:5", "TR:true:100");
     assertThat(listener.calls.getFirst()).allSatisfy(c -> assertThat(c.productId()).isEqualTo(id));
+    assertThat(listener.versions)
+        .as("the listener gets the version the import committed with")
+        .containsExactly(catalogVersion());
 
     JsonNode again = await(postProducts(productJson(code, "First name", offers), token), token);
     assertThat(again.get("status").asString()).isEqualTo("SUCCEEDED");
     assertThat(summary(again)).containsEntry("unchanged", 7L).containsEntry("inserted", 0L);
     assertThat(catalogVersion()).isEqualTo(start + 1);
     assertThat(listener.calls).hasSize(1);
+    assertThat(listener.versions).containsExactly(start + 1);
 
     JsonNode renamed = await(postProducts(productJson(code, "Second name", offers), token), token);
     assertThat(summary(renamed)).containsEntry("updated", 1L).containsEntry("changedPairs", 0L);
@@ -539,10 +546,13 @@ class ImportApiTest extends CatalogApiTest {
             .returnResult(String.class);
     assertProblem(json, 413, "validation_failed");
     assertProblem(postOffers(large, token), 413, "validation_failed");
-    // Just under the cap is accepted (and fails as a job: the document is empty JSON).
-    byte[] fits = new byte[19 * 1024 * 1024];
-    java.util.Arrays.fill(fits, (byte) ' ');
-    JsonNode job = await(postProducts(new String(fits, StandardCharsets.UTF_8), token), token);
+  }
+
+  @Test
+  void aBodyJustUnderTheCapIsAcceptedAndFailsAsAJob() {
+    String token = admin();
+    // One 19 MB string (one byte per character); the document is empty JSON, so the job fails.
+    JsonNode job = await(postProducts(" ".repeat(19 * 1024 * 1024), token), token);
     assertThat(job.get("status").asString()).isEqualTo("FAILED");
   }
 
