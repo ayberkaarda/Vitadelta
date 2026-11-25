@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Runs every test suite that exists in the repository and prints a summary.
-# Suites: contracts, scoring (services/scoring), api (services/api), web (apps/web).
+# Suites: contracts, scoring (services/scoring), api (services/api), web (apps/web) and the
+# opt-in e2e suite (apps/web/e2e; RUN_E2E=1 and a running, seeded stack).
 # A suite whose directory is absent is reported as SKIPPED. Exit status is non-zero
 # if any step fails. Requires bash (Git Bash or WSL on Windows) plus the toolchain
 # of each present suite: node/npx, uv, java.
@@ -115,9 +116,22 @@ fi
 # web
 if begin_suite web apps/web node npm; then
   run_step web "npm ci" apps/web npm ci --no-audit --no-fund
+  run_step web "npm run api:check" apps/web npm run api:check
   run_step web "npm run lint" apps/web npm run lint
   run_step web "npm test" apps/web npm test
   run_step web "npm run build" apps/web npm run build
+fi
+
+# e2e (opt-in): RUN_E2E=1 runs the Playwright suite of apps/web against an already running,
+# seeded stack (scripts/dev-up.sh, scripts/seed.sh); it is skipped while the stack is down.
+E2E_BASE_URL="${E2E_BASE_URL:-http://localhost:8080}"
+if [ "${RUN_E2E:-0}" != "1" ]; then
+  record e2e "(opt-in: set RUN_E2E=1)" "SKIPPED" "-"
+elif ! curl -fsS --max-time 10 "$E2E_BASE_URL/api/v1/health" >/dev/null 2>&1; then
+  record e2e "(stack not reachable)" "SKIPPED" "-"
+elif begin_suite e2e apps/web node npm; then
+  run_step e2e "install headless chromium" apps/web npm run e2e:install
+  run_step e2e "npm run e2e" apps/web npm run e2e
 fi
 
 printf '\n==== summary ====\n'
