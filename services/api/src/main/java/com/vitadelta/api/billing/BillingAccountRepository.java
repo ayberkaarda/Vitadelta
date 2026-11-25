@@ -188,16 +188,6 @@ public class BillingAccountRepository {
         .optional();
   }
 
-  /** Marks a subscription ended (canceled by this API); an end time already stored is kept. */
-  public void markEnded(String externalRef, Instant now) {
-    jdbc.sql(
-            "UPDATE billing_subscription SET status = CASE WHEN ended_at IS NULL"
-                + " THEN 'canceled' ELSE status END, ended_at = COALESCE(ended_at, ?),"
-                + " updated_at = ? WHERE provider = ? AND external_ref = ?")
-        .params(ts(now), ts(now), STRIPE, externalRef)
-        .update();
-  }
-
   /** Provider subscriptions of the user that have not ended. */
   public List<String> liveSubscriptions(UUID userId) {
     return jdbc.sql(

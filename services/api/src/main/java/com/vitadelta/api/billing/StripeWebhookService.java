@@ -13,7 +13,6 @@ import com.vitadelta.api.identity.UserRepository;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Clock;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -70,7 +69,7 @@ import tools.jackson.databind.json.JsonMapper;
  *
  * Metrics: {@code vitadelta.billing.webhook{outcome}}, {@code
  * vitadelta.billing.webhook.rejected{reason}}, {@code vitadelta.billing.payment_failed}, {@code
- * vitadelta.billing.duplicate_subscription}, {@code vitadelta.billing.stripe.failed}, {@code
+ * vitadelta.billing.surplus.detected}, {@code vitadelta.billing.stripe.failed}, {@code
  * vitadelta.billing.cancel_on_delete.canceled}, {@code vitadelta.billing.cancel_on_delete.failed}.
  */
 @Service
@@ -273,51 +272,11 @@ public class StripeWebhookService {
     if (userId.isEmpty()) {
       return Outcome.IGNORED_FOREIGN;
     }
-    List<String> surplus = new ArrayList<>();
-    Outcome outcome =
-        transactions.execute(status -> apply(event, subscription, userId.get(), surplus));
+    Outcome outcome = transactions.execute(status -> apply(event, subscription, userId.get()));
     if (outcome == Outcome.USER_MISSING && !subscription.terminal()) {
       cancelOrphan(event, subscription);
     }
-    if (!surplus.isEmpty()) {
-      cancelSurplus(event, userId.get(), surplus, outcome);
-    }
     return outcome;
-  }
-
-  /**
-   * Cancels at Stripe the live subscriptions of a user beyond the one that holds the entitlement
-   * (two checkouts paid before the first webhook, for example), outside any transaction, marks them
-   * ended and only then records the event. A failed cancellation is counted in {@code
-   * vitadelta.billing.surplus.cancel_failed} and answered {@code 503} without recording the event,
-   * so Stripe's redelivery retries it; reapplying the event is idempotent. The payment of a
-   * canceled subscription is not refunded automatically: the log line tells the operator.
-   */
-  private void cancelSurplus(Event event, UUID userId, List<String> surplus, Outcome outcome) {
-    for (String subscription : surplus) {
-      try {
-        stripe.cancelSubscription(subscription);
-      } catch (StripeApiException e) {
-        if (!e.notFound()) {
-          meters.counter("vitadelta.billing.surplus.cancel_failed").increment();
-          LOG.warn(
-              "Stripe event {}: surplus subscription {} of user {} could not be canceled: {}",
-              event.id(),
-              subscription,
-              userId,
-              e.getMessage());
-          throw ProviderCheckoutService.unavailable();
-        }
-      }
-      accounts.markEnded(subscription, clock.instant());
-      meters.counter("vitadelta.billing.surplus.canceled").increment();
-      LOG.warn(
-          "Stripe subscription {} of user {} duplicated the entitled subscription and was"
-              + " canceled; refund its payment in the Stripe dashboard (runbook)",
-          subscription,
-          userId);
-    }
-    accounts.recordEvent(event.id(), event.type(), outcome.tag(), clock.instant());
   }
 
   /**
@@ -398,12 +357,7 @@ public class StripeWebhookService {
     return userId;
   }
 
-  /**
-   * Applies the event under the user's row lock. When the user holds surplus live subscriptions,
-   * they are added to {@code surplus} and the event is left unrecorded for {@link #cancelSurplus}.
-   */
-  private Outcome apply(
-      Event event, StripeSubscription subscription, UUID userId, List<String> surplus) {
+  private Outcome apply(Event event, StripeSubscription subscription, UUID userId) {
     Instant now = clock.instant();
     if (users.findByIdForUpdate(userId).isEmpty()) {
       // A live subscription is canceled at Stripe after this transaction (cancelOrphan), and the
@@ -440,38 +394,36 @@ public class StripeWebhookService {
         now);
     boolean changed = reconcile(userId, now);
     mapCustomer(userId, subscription);
-    Outcome outcome = changed ? Outcome.APPLIED : Outcome.UNCHANGED;
-    surplus.addAll(surplus(userId));
-    return surplus.isEmpty() ? record(event, outcome, now) : outcome;
+    reportSurplus(userId);
+    return record(event, changed ? Outcome.APPLIED : Outcome.UNCHANGED, now);
   }
 
   /**
-   * The user's live provider subscriptions other than the one that holds the entitlement. Without a
-   * provider entitlement (for example every subscription past due) none is surplus: there is no
-   * paid subscription to keep.
+   * Reports a user who pays for more than one live provider subscription (for example two checkout
+   * sessions paid before the first webhook). Nothing is canceled automatically: canceling a paying
+   * subscription is worse than a temporary double charge. PRO stays on the subscription paid
+   * furthest ahead; the overlap is counted in {@code vitadelta.billing.surplus.detected} and one
+   * log line tells the operator which subscriptions to compare, cancel and refund.
    */
-  private List<String> surplus(UUID userId) {
+  private void reportSurplus(UUID userId) {
     List<String> live = accounts.liveSubscriptions(userId);
     if (live.size() < 2) {
-      return List.of();
+      return;
     }
-    meters.counter("vitadelta.billing.duplicate_subscription").increment();
-    Optional<String> keeper =
+    meters.counter("vitadelta.billing.surplus.detected").increment();
+    String entitled =
         activeSubscriptions
             .findActive(userId)
-            .filter(row -> row.planCode() == PlanCode.PRO)
             .filter(row -> row.source() == SubscriptionSource.PROVIDER)
             .map(Subscription::externalRef)
-            .filter(live::contains);
-    if (keeper.isEmpty()) {
-      LOG.warn(
-          "User {} has {} live Stripe subscriptions and none holds the entitlement; the operator"
-              + " decides which to cancel (runbook)",
-          userId,
-          live.size());
-      return List.of();
-    }
-    return live.stream().filter(ref -> !ref.equals(keeper.get())).toList();
+            .orElse("none");
+    LOG.warn(
+        "User {} has {} live Stripe subscriptions {} (PRO follows {}); cancel and refund the"
+            + " surplus one in the Stripe dashboard (runbook)",
+        userId,
+        live.size(),
+        live,
+        entitled);
   }
 
   /**

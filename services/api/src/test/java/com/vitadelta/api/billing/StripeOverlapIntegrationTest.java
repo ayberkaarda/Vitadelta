@@ -23,8 +23,9 @@ import org.springframework.test.web.servlet.client.EntityExchangeResult;
 /**
  * Overlapping checkouts and subscriptions of one user (ADR-0014). Checkout only refuses while a
  * Stripe subscription has not ended; a second subscription that slips through (two checkouts paid
- * before the first webhook, parallel requests, a late completion event) is resolved after the fact:
- * PRO follows the subscription paid furthest ahead and the surplus ones are canceled at Stripe.
+ * before the first webhook, parallel requests, a late completion event) is never canceled by the
+ * API: PRO follows the subscription paid furthest ahead, the overlap is counted and logged, and the
+ * operator cancels and refunds the surplus subscription.
  */
 class StripeOverlapIntegrationTest extends StripeIntegrationTest {
 
@@ -75,8 +76,42 @@ class StripeOverlapIntegrationTest extends StripeIntegrationTest {
         200);
   }
 
+  /** State as left by migration V8 for a PRO row applied before it: no paid_through. */
+  private void legacyProviderRow(
+      TestUser user, String subscription, String customer, Instant rowEnd) {
+    transactions.executeWithoutResult(status -> {
+      jdbc.sql(
+              "UPDATE subscription SET status = 'CANCELED', canceled_at = now()"
+                  + " WHERE user_id = ? AND status = 'ACTIVE'")
+          .param(user.id())
+          .update();
+      jdbc.sql(
+              "INSERT INTO subscription (id, user_id, plan_code, status, source, started_at,"
+                  + " current_period_end, canceled_at, external_ref)"
+                  + " VALUES (?, ?, 'PRO', 'ACTIVE', 'PROVIDER', now(), ?, NULL, ?)")
+          .params(UUID.randomUUID(), user.id(), SqlTime.ts(rowEnd), subscription)
+          .update();
+      jdbc.sql(
+              "INSERT INTO billing_subscription (provider, external_ref, user_id, customer_ref,"
+                  + " status, current_period_end, paid_through, ended_at, updated_at)"
+                  + " VALUES ('STRIPE', ?, ?, ?, 'active', ?, NULL, NULL, now())")
+          .params(subscription, user.id(), customer, SqlTime.ts(rowEnd))
+          .update();
+    });
+  }
+
+  private double detected() {
+    return meters.counter("vitadelta.billing.surplus.detected").count();
+  }
+
+  private void noCancellationOf(String... subscriptions) {
+    for (String subscription : subscriptions) {
+      assertThat(cancels(subscription)).as("cancellations of %s", subscription).isZero();
+    }
+  }
+
   @Test
-  void twoCheckoutsPaidBeforeTheFirstWebhookEndWithOneSubscription() {
+  void twoCheckoutsPaidBeforeTheFirstWebhookKeepBothAndAreReported() {
     TestUser user = user();
     sessionsAnswer(200);
     // The second checkout starts before the first one's webhook arrived: both are allowed.
@@ -90,7 +125,7 @@ class StripeOverlapIntegrationTest extends StripeIntegrationTest {
     subscription(second, secondCustomer, "active", user.id(), PRICE, end(31), "paid");
     cancelAnswers(first, 200);
     cancelAnswers(second, 200);
-    double canceledBefore = meters.counter("vitadelta.billing.surplus.canceled").count();
+    double before = detected();
 
     completed(user, first, firstCustomer);
     completed(user, second, secondCustomer);
@@ -98,10 +133,8 @@ class StripeOverlapIntegrationTest extends StripeIntegrationTest {
     Map<String, Object> active = active(user.id());
     assertThat(active.get("plan_code")).isEqualTo("PRO");
     assertThat(active.get("external_ref")).isEqualTo(second);
-    assertThat(cancels(first)).isEqualTo(1);
-    assertThat(cancels(second)).isZero();
-    assertThat(meters.counter("vitadelta.billing.surplus.canceled").count())
-        .isEqualTo(canceledBefore + 1);
+    noCancellationOf(first, second);
+    assertThat(detected()).isGreaterThan(before);
     assertThat(
             jdbc.sql("SELECT customer_ref FROM billing_customer WHERE user_id = ?")
                 .param(user.id())
@@ -109,14 +142,76 @@ class StripeOverlapIntegrationTest extends StripeIntegrationTest {
                 .single())
         .isEqualTo(secondCustomer);
 
-    // The cancellation's own webhook ends the surplus subscription without touching PRO.
+    // The operator cancels the surplus subscription; its webhook leaves PRO on the other one.
     subscription(first, firstCustomer, "canceled", user.id(), PRICE, end(30), "paid");
     assertStatus(
         webhook(subscriptionEvent(stripeId("evt_"), "customer.subscription.deleted", first)), 200);
     assertThat(active(user.id()).get("external_ref")).isEqualTo(second);
-    assertThat(cancels(first)).isEqualTo(1);
-    // Once the first subscription has ended, a further checkout is refused only by the PRO plan.
+    noCancellationOf(first, second);
     assertProblem(post(CHECKOUT, "", user.token()), 409, "plan_already_active");
+  }
+
+  @Test
+  void concurrentWebhooksOfTwoSubscriptionsNeverCancelEither() throws Exception {
+    TestUser user = user();
+    String first = stripeId("sub_");
+    String second = stripeId("sub_");
+    String firstCustomer = stripeId("cus_");
+    String secondCustomer = stripeId("cus_");
+    subscription(first, firstCustomer, "active", user.id(), PRICE, end(30), "paid");
+    subscription(second, secondCustomer, "active", user.id(), PRICE, end(30), "paid");
+    cancelAnswers(first, 200);
+    cancelAnswers(second, 200);
+    String firstBody =
+        checkoutCompleted(stripeId("evt_"), user.id().toString(), first, firstCustomer);
+    String secondBody =
+        checkoutCompleted(stripeId("evt_"), user.id().toString(), second, secondCustomer);
+    String firstSignature = signature(firstBody);
+    String secondSignature = signature(secondBody);
+
+    List<Integer> statuses =
+        parallel(
+            List.<Callable<Integer>>of(
+                () ->
+                    webhook(firstBody, Map.of("Stripe-Signature", firstSignature), randomIp())
+                        .getStatus()
+                        .value(),
+                () ->
+                    webhook(secondBody, Map.of("Stripe-Signature", secondSignature), randomIp())
+                        .getStatus()
+                        .value()));
+
+    assertThat(statuses).containsOnly(200);
+    noCancellationOf(first, second);
+    assertThat(active(user.id()).get("plan_code")).isEqualTo("PRO");
+    assertThat(activeCount(user.id())).isEqualTo(1);
+    assertThat(
+            jdbc.sql(
+                    "SELECT count(*) FROM billing_subscription WHERE user_id = ? AND ended_at IS NULL")
+                .param(user.id())
+                .query(Long.class)
+                .single())
+        .isEqualTo(2);
+  }
+
+  @Test
+  void aLegacyHolderWithoutAPaidHorizonNeverCausesAPaidSubscriptionToBeCanceled() {
+    TestUser user = user();
+    String legacy = stripeId("sub_");
+    String paid = stripeId("sub_");
+    String customer = stripeId("cus_");
+    Instant rowEnd = end(40);
+    legacyProviderRow(user, legacy, customer, rowEnd);
+    subscription(paid, customer, "active", user.id(), PRICE, end(30), "paid");
+    cancelAnswers(legacy, 200);
+    cancelAnswers(paid, 200);
+
+    completed(user, paid, customer);
+
+    // The legacy row still runs longer and keeps PRO; nothing is canceled.
+    assertThat(active(user.id()).get("external_ref")).isEqualTo(legacy);
+    assertThat(activeEnd(user.id())).isEqualTo(rowEnd);
+    noCancellationOf(legacy, paid);
   }
 
   @Test
@@ -133,7 +228,7 @@ class StripeOverlapIntegrationTest extends StripeIntegrationTest {
   }
 
   @Test
-  void aLateCompletionOfAnEarlierCheckoutIsResolvedToOneSubscription() {
+  void aLateCompletionOfAnEarlierCheckoutLeavesPROOnTheLaterOne() {
     TestUser user = user();
     String later = stripeId("sub_");
     String earlier = stripeId("sub_");
@@ -150,8 +245,7 @@ class StripeOverlapIntegrationTest extends StripeIntegrationTest {
 
     assertThat(active(user.id()).get("external_ref")).isEqualTo(later);
     assertThat(activeEnd(user.id())).isEqualTo(end(30));
-    assertThat(cancels(earlier)).isEqualTo(1);
-    assertThat(cancels(later)).isZero();
+    noCancellationOf(earlier, later);
     assertThat(
             jdbc.sql("SELECT customer_ref FROM billing_customer WHERE user_id = ?")
                 .param(user.id())
@@ -177,32 +271,28 @@ class StripeOverlapIntegrationTest extends StripeIntegrationTest {
   }
 
   @Test
-  void aFailedSurplusCancellationIsRetriedThroughTheRedelivery() {
+  void anActiveSubscriptionWithoutAPaidLatestInvoiceGrantsNothing() {
     TestUser user = user();
-    String first = stripeId("sub_");
-    String second = stripeId("sub_");
+    String subscription = stripeId("sub_");
     String customer = stripeId("cus_");
-    subscription(first, customer, "active", user.id(), PRICE, end(30), "paid");
-    subscription(second, customer, "active", user.id(), PRICE, end(45), "paid");
-    completed(user, first, customer);
-    cancelAnswers(first, 500);
-    double failedBefore = meters.counter("vitadelta.billing.surplus.cancel_failed").count();
-    String eventId = stripeId("evt_");
-    String body = checkoutCompleted(eventId, user.id().toString(), second, customer);
+    // Active, a future period, but no latest invoice in the read-back.
+    subscription(subscription, customer, "active", user.id(), PRICE, end(30), null);
+    completed(user, subscription, customer);
+    assertThat(active(user.id()).get("plan_code")).isEqualTo("FREE");
+    assertThat(
+            jdbc.sql("SELECT paid_through FROM billing_subscription WHERE external_ref = ?")
+                .param(subscription)
+                .query(java.sql.Timestamp.class)
+                .optional()
+                .orElse(null))
+        .isNull();
 
-    assertProblem(webhook(body), 503, "billing_unavailable");
-    assertThat(webhookEvents(eventId)).isZero();
-    assertThat(meters.counter("vitadelta.billing.surplus.cancel_failed").count())
-        .isEqualTo(failedBefore + 1);
-    // The entitlement already follows the subscription paid furthest ahead.
-    assertThat(active(user.id()).get("external_ref")).isEqualTo(second);
-
-    cancelAnswers(first, 200);
-    assertStatus(webhook(body), 200);
-    assertThat(webhookEvents(eventId)).isEqualTo(1);
-    assertThat(cancels(first)).isEqualTo(2);
-    assertThat(active(user.id()).get("external_ref")).isEqualTo(second);
-    assertThat(activeEnd(user.id())).isEqualTo(end(45));
+    // A trial with its paid zero-amount invoice grants PRO.
+    subscription(subscription, customer, "trialing", user.id(), PRICE, end(14), "paid");
+    assertStatus(
+        webhook(subscriptionEvent(stripeId("evt_"), "customer.subscription.updated", subscription)),
+        200);
+    assertThat(active(user.id()).get("plan_code")).isEqualTo("PRO");
   }
 
   @Test
@@ -211,26 +301,7 @@ class StripeOverlapIntegrationTest extends StripeIntegrationTest {
     String subscription = stripeId("sub_");
     String customer = stripeId("cus_");
     Instant rowEnd = end(20);
-    // State as left by migration V8 for a subscription applied before it: no paid_through.
-    transactions.executeWithoutResult(status -> {
-      jdbc.sql(
-              "UPDATE subscription SET status = 'CANCELED', canceled_at = now()"
-                  + " WHERE user_id = ? AND status = 'ACTIVE'")
-          .param(user.id())
-          .update();
-      jdbc.sql(
-              "INSERT INTO subscription (id, user_id, plan_code, status, source, started_at,"
-                  + " current_period_end, canceled_at, external_ref)"
-                  + " VALUES (?, ?, 'PRO', 'ACTIVE', 'PROVIDER', now(), ?, NULL, ?)")
-          .params(UUID.randomUUID(), user.id(), SqlTime.ts(rowEnd), subscription)
-          .update();
-      jdbc.sql(
-              "INSERT INTO billing_subscription (provider, external_ref, user_id, customer_ref,"
-                  + " status, current_period_end, paid_through, ended_at, updated_at)"
-                  + " VALUES ('STRIPE', ?, ?, ?, 'active', ?, NULL, NULL, now())")
-          .params(subscription, user.id(), customer, SqlTime.ts(rowEnd))
-          .update();
-    });
+    legacyProviderRow(user, subscription, customer, rowEnd);
 
     // A read-back without a paid invoice changes nothing: PRO stays as it was.
     subscription(subscription, customer, "active", user.id(), PRICE, end(50), "open");
