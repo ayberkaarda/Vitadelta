@@ -36,6 +36,12 @@ import org.springframework.transaction.support.TransactionTemplate;
  * last_triggered_at} nor the baseline changes. Otherwise the alert notification is created with the
  * native money snapshot, {@code last_triggered_at} is set, a {@code PRICE_DROP} baseline becomes
  * the triggering price, and a {@code NOTIFICATION_CREATED} event queues the e-mail.
+ *
+ * <p>An event applies to a subscription only when its {@code catalogVersion} is greater than the
+ * subscription's catalog version boundary ({@link #appliesTo}): a subscription created,
+ * re-activated or re-based after a change never reports that change. A baseline or firing taken
+ * from an event moves the boundary to the event's version. Events of one product and country arrive
+ * in version order (see {@link OutboxRepository#CLAIM_SQL}).
  */
 @Component
 public class AlertEvaluator {
@@ -135,7 +141,15 @@ public class AlertEvaluator {
         for (WatchlistRepository.AlertRow candidate :
             watchlist.activeAlertsFor(change.productId(), change.countryCode())) {
           Outcome outcome =
-              evaluate(event.id(), candidate, label.get(), currency.get(), before, after, now);
+              evaluate(
+                  event.id(),
+                  change.catalogVersion(),
+                  candidate,
+                  label.get(),
+                  currency.get(),
+                  before,
+                  after,
+                  now);
           if (outcome == Outcome.FIRED) {
             fired.add(candidate.trigger());
           } else if (outcome == Outcome.CAPPED) {
@@ -165,19 +179,33 @@ public class AlertEvaluator {
     CAPPED
   }
 
+  /**
+   * Whether an event of {@code catalogVersion} describes a change after the subscription's state:
+   * its version must be greater than the boundary. The boundary is the committed version read when
+   * the state was taken, and an import's events carry the version that import commits with, so an
+   * event of the boundary version itself is a change the state already includes.
+   */
+  static boolean appliesTo(long catalogVersion, WatchlistRepository.AlertRow subscription) {
+    return catalogVersion > subscription.catalogVersionBoundary();
+  }
+
   private Outcome evaluate(
       UUID eventId,
+      long catalogVersion,
       WatchlistRepository.AlertRow candidate,
       WatchlistRepository.ProductLabel label,
       String currency,
       OfferState before,
       OfferState after,
       Instant now) {
+    if (!appliesTo(catalogVersion, candidate)) {
+      return Outcome.SKIPPED;
+    }
     if (users.findByIdForUpdate(candidate.userId()).isEmpty()) {
       return Outcome.SKIPPED;
     }
     Optional<WatchlistRepository.AlertRow> locked = watchlist.lockActiveAlert(candidate.id());
-    if (locked.isEmpty()) {
+    if (locked.isEmpty() || !appliesTo(catalogVersion, locked.get())) {
       return Outcome.SKIPPED;
     }
     WatchlistRepository.AlertRow subscription = locked.get();
@@ -189,7 +217,7 @@ public class AlertEvaluator {
             before,
             after);
     if (decision == Decision.STORE_BASELINE) {
-      watchlist.updateBaseline(subscription.id(), after.effectivePrice());
+      watchlist.updateBaseline(subscription.id(), after.effectivePrice(), catalogVersion);
       return Outcome.SKIPPED;
     }
     if (decision == Decision.NONE) {
@@ -226,7 +254,8 @@ public class AlertEvaluator {
             OffersChangedEmitter.JSON.writeValueAsString(payload),
             now);
     watchlist.linkDelivery(subscription.id(), eventId, notificationId);
-    watchlist.markTriggered(subscription.id(), now, priceDrop ? after.effectivePrice() : null);
+    watchlist.markTriggered(
+        subscription.id(), now, priceDrop ? after.effectivePrice() : null, catalogVersion);
     queueEmail(notificationId, now);
     return Outcome.FIRED;
   }

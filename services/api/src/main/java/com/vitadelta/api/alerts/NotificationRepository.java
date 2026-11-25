@@ -41,7 +41,7 @@ public class NotificationRepository {
     if (type == NotificationType.NOTIFICATION_CAP_REACHED) {
       throw new IllegalArgumentException("cap notices are inserted with insertCapNotice");
     }
-    UUID id = UUID.randomUUID();
+    UUID id = TimeOrderedIds.next();
     jdbc.sql(
             "INSERT INTO notification (id, user_id, type, payload, created_at)"
                 + " VALUES (?, ?, ?, CAST(? AS jsonb), ?)")
@@ -58,7 +58,7 @@ public class NotificationRepository {
    */
   public Optional<UUID> insertCapNotice(
       UUID userId, LocalDate periodMonth, String payload, Instant now) {
-    UUID id = UUID.randomUUID();
+    UUID id = TimeOrderedIds.next();
     int rows =
         jdbc.sql(
                 "INSERT INTO notification (id, user_id, type, payload, cap_period_month,"

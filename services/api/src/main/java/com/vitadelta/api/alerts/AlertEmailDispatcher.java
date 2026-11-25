@@ -135,12 +135,23 @@ public class AlertEmailDispatcher {
         notificationId,
         notification.type(),
         EmailMasking.mask(user.get().email()));
-    OutboxOutcome outcome =
-        transactions.execute(status ->
-            notifications.markEmailSent(notificationId, clock.instant())
-                ? markProcessed(event, OutboxOutcome.DELIVERED)
-                : markProcessed(event, OutboxOutcome.SKIPPED_DELETED));
-    return outcome;
+    return transactions.execute(status -> complete(event, notificationId));
+  }
+
+  /**
+   * The completion after a successful send, inside one short transaction. Lock order: the outbox
+   * event first, then the notification, the order of the account deletion ({@link
+   * OutboxRepository#deletePendingForUser} before the cascade to {@code notification}); the
+   * opposite order could deadlock with a deletion that runs at the same moment. An event that the
+   * deletion removed (or another run finished) ends the completion without a write.
+   */
+  private OutboxOutcome complete(OutboxRepository.ClaimedEvent event, UUID notificationId) {
+    if (!outbox.lockPending(event.id())) {
+      return OutboxOutcome.SKIPPED_DELETED;
+    }
+    return notifications.markEmailSent(notificationId, clock.instant())
+        ? markProcessed(event, OutboxOutcome.DELIVERED)
+        : markProcessed(event, OutboxOutcome.SKIPPED_DELETED);
   }
 
   /** Whether the user may receive alert and cap e-mail (section 8.6). */

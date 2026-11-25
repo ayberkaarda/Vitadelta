@@ -44,7 +44,8 @@ public class OutboxRepository {
       String aggregateId,
       String payload,
       int attempts,
-      Instant createdAt) {}
+      Instant createdAt,
+      long seq) {}
 
   /** Inserts a due event; joins the caller's transaction. */
   public UUID insert(
@@ -60,30 +61,59 @@ public class OutboxRepository {
   }
 
   /**
-   * Claims up to {@code limit} due events (not processed, due, lease absent or expired) with {@code
-   * FOR UPDATE SKIP LOCKED} and leases them until {@code leaseUntil}. Must run in its own short
-   * transaction.
+   * The claim statement. An {@code OFFERS_CHANGED} event is claimable only while no older
+   * unprocessed event of the same (product, country) pair exists (older = lower {@code seq}, the
+   * insertion order, which for one pair is the order of the committed catalog versions: imports
+   * insert their events after the version bump, under its row lock). A failing event therefore
+   * holds back only the later events of its own pair until it succeeds or is dead-lettered, and a
+   * batch never contains two events of one pair. The anti-join probes the partial index {@code
+   * outbox_event_pending_pair_idx}.
+   */
+  static final String CLAIM_SQL =
+      "UPDATE outbox_event SET lease_until = :leaseUntil WHERE id IN ("
+          + " SELECT e.id FROM outbox_event e WHERE e.processed_at IS NULL"
+          + " AND e.next_attempt_at <= :now AND (e.lease_until IS NULL OR e.lease_until < :now)"
+          + " AND (e.event_type <> 'OFFERS_CHANGED' OR NOT EXISTS ("
+          + " SELECT 1 FROM outbox_event o WHERE o.processed_at IS NULL"
+          + " AND o.event_type = 'OFFERS_CHANGED' AND o.aggregate_id = e.aggregate_id"
+          + " AND o.seq < e.seq))"
+          + " ORDER BY e.next_attempt_at, e.seq LIMIT :limit"
+          + " FOR UPDATE OF e SKIP LOCKED)"
+          + " RETURNING id, event_type, aggregate_id, payload::text AS payload, attempts,"
+          + " created_at, seq";
+
+  /**
+   * Claims up to {@code limit} due events (not processed, due, lease absent or expired, and for
+   * {@code OFFERS_CHANGED} no older pending event of the same pair, see {@link #CLAIM_SQL}) with
+   * {@code FOR UPDATE SKIP LOCKED} and leases them until {@code leaseUntil}. Must run in its own
+   * short transaction.
    *
-   * @return the claimed events, oldest first
+   * @return the claimed events in insertion order
    */
   public List<ClaimedEvent> claim(Instant now, Instant leaseUntil, int limit) {
     List<ClaimedEvent> claimed =
-        jdbc.sql(
-                "UPDATE outbox_event SET lease_until = :leaseUntil WHERE id IN ("
-                    + " SELECT id FROM outbox_event WHERE processed_at IS NULL"
-                    + " AND next_attempt_at <= :now AND (lease_until IS NULL OR lease_until < :now)"
-                    + " ORDER BY next_attempt_at, created_at, id LIMIT :limit"
-                    + " FOR UPDATE SKIP LOCKED)"
-                    + " RETURNING id, event_type, aggregate_id, payload::text AS payload, attempts,"
-                    + " created_at")
+        jdbc.sql(CLAIM_SQL)
             .param("leaseUntil", ts(leaseUntil))
             .param("now", ts(now))
             .param("limit", limit)
             .query(OutboxRepository::claimed)
             .list();
-    return claimed.stream()
-        .sorted(Comparator.comparing(ClaimedEvent::createdAt).thenComparing(e -> e.id().toString()))
-        .toList();
+    return claimed.stream().sorted(Comparator.comparingLong(ClaimedEvent::seq)).toList();
+  }
+
+  /**
+   * Locks a still pending event ({@code FOR UPDATE}); joins the caller's transaction. The e-mail
+   * completion takes this lock before it touches the notification, the same order as the account
+   * deletion (outbox events, then the notifications of the cascade), so the two never deadlock.
+   *
+   * @return whether the event exists and is still pending
+   */
+  public boolean lockPending(UUID id) {
+    return jdbc.sql("SELECT id FROM outbox_event WHERE id = ? AND processed_at IS NULL FOR UPDATE")
+        .param(id)
+        .query(UUID.class)
+        .optional()
+        .isPresent();
   }
 
   /**
@@ -210,7 +240,8 @@ public class OutboxRepository {
         rs.getString("aggregate_id"),
         rs.getString("payload"),
         rs.getInt("attempts"),
-        instant(rs, "created_at"));
+        instant(rs, "created_at"),
+        rs.getLong("seq"));
   }
 
   private static String truncate(String error) {

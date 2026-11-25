@@ -26,7 +26,7 @@ public class WatchlistRepository {
   private static final String ALERT_COLUMNS =
       "s.id, s.user_id, s.product_id, s.country_code, s.trigger, s.threshold_percent,"
           + " s.baseline_price, s.active, s.created_at, s.last_triggered_at,"
-          + " c.currency AS baseline_currency";
+          + " s.catalog_version_boundary, c.currency AS baseline_currency";
 
   /** Ordering of a product's subscriptions: PRICE_DROP, BACK_IN_STOCK, PRICE_CHANGE. */
   static final String TRIGGER_ORDER =
@@ -38,7 +38,13 @@ public class WatchlistRepository {
     this.jdbc = jdbc;
   }
 
-  /** One {@code alert_subscription} row with the native currency of its country. */
+  /**
+   * One {@code alert_subscription} row with the native currency of its country.
+   *
+   * @param catalogVersionBoundary the catalog version the subscription's state reflects (creation,
+   *     re-activation, threshold change or baseline update); only {@code OFFERS_CHANGED} events
+   *     with a greater version apply to it
+   */
   public record AlertRow(
       UUID id,
       UUID userId,
@@ -50,6 +56,7 @@ public class WatchlistRepository {
       boolean active,
       Instant createdAt,
       Instant lastTriggeredAt,
+      long catalogVersionBoundary,
       String baselineCurrency) {
 
     /** Contract schema {@code AlertSubscription}. */
@@ -263,6 +270,21 @@ public class WatchlistRepository {
         .list();
   }
 
+  /**
+   * The committed catalog version, read {@code FOR SHARE} in the caller's transaction, before the
+   * offers that a new baseline is taken from. A catalog write holds the version row lock from its
+   * bump until its commit, so this read waits for a write that has already bumped and then returns
+   * its version (its offers are visible to every later statement of the caller), and a write that
+   * has not bumped yet cannot commit before the caller does (its offers stay invisible to the
+   * caller and its events carry a greater version). Either way the subscription's state is exactly
+   * the one of the version returned here.
+   */
+  public long catalogVersionForShare() {
+    return jdbc.sql("SELECT version FROM catalog_version WHERE id = 1 FOR SHARE")
+        .query(Long.class)
+        .single();
+  }
+
   public void insertAlert(
       UUID id,
       UUID userId,
@@ -271,11 +293,12 @@ public class WatchlistRepository {
       AlertTrigger trigger,
       BigDecimal thresholdPercent,
       BigDecimal baselinePrice,
+      long catalogVersionBoundary,
       Instant now) {
     jdbc.sql(
             "INSERT INTO alert_subscription (id, user_id, product_id, country_code, trigger,"
-                + " threshold_percent, baseline_price, active, created_at)"
-                + " VALUES (?, ?, ?, ?, ?, ?, ?, true, ?)")
+                + " threshold_percent, baseline_price, active, created_at, catalog_version_boundary)"
+                + " VALUES (?, ?, ?, ?, ?, ?, ?, true, ?, ?)")
         .params(
             id,
             userId,
@@ -284,32 +307,52 @@ public class WatchlistRepository {
             trigger.name(),
             thresholdPercent,
             baselinePrice,
-            OutboxRepository.ts(now))
+            OutboxRepository.ts(now),
+            catalogVersionBoundary)
         .update();
   }
 
+  /**
+   * Updates state, threshold and baseline.
+   *
+   * @param catalogVersionBoundary the new boundary (re-activation, threshold change), or {@code
+   *     null} to keep the stored one (deactivation)
+   */
   public void updateAlert(
-      UUID id, boolean active, BigDecimal thresholdPercent, BigDecimal baselinePrice) {
+      UUID id,
+      boolean active,
+      BigDecimal thresholdPercent,
+      BigDecimal baselinePrice,
+      Long catalogVersionBoundary) {
     jdbc.sql(
-            "UPDATE alert_subscription SET active = ?, threshold_percent = ?, baseline_price = ?"
-                + " WHERE id = ?")
-        .params(active, thresholdPercent, baselinePrice, id)
+            "UPDATE alert_subscription SET active = ?, threshold_percent = ?, baseline_price = ?,"
+                + " catalog_version_boundary = coalesce(?, catalog_version_boundary) WHERE id = ?")
+        .params(active, thresholdPercent, baselinePrice, catalogVersionBoundary, id)
         .update();
   }
 
-  /** Sets the baseline of a {@code PRICE_DROP} subscription (first price seen). */
-  public void updateBaseline(UUID id, BigDecimal baselinePrice) {
-    jdbc.sql("UPDATE alert_subscription SET baseline_price = ? WHERE id = ?")
-        .params(baselinePrice, id)
+  /**
+   * Sets the baseline of a {@code PRICE_DROP} subscription (first price seen) from the event of
+   * {@code catalogVersion}, which becomes the boundary.
+   */
+  public void updateBaseline(UUID id, BigDecimal baselinePrice, long catalogVersion) {
+    jdbc.sql(
+            "UPDATE alert_subscription SET baseline_price = ?,"
+                + " catalog_version_boundary = greatest(catalog_version_boundary, ?) WHERE id = ?")
+        .params(baselinePrice, catalogVersion, id)
         .update();
   }
 
-  /** Records a firing: {@code last_triggered_at} and, for {@code PRICE_DROP}, the new baseline. */
-  public void markTriggered(UUID id, Instant now, BigDecimal newBaseline) {
+  /**
+   * Records a firing of the event of {@code catalogVersion}: {@code last_triggered_at}, for {@code
+   * PRICE_DROP} the new baseline, and the boundary.
+   */
+  public void markTriggered(UUID id, Instant now, BigDecimal newBaseline, long catalogVersion) {
     jdbc.sql(
             "UPDATE alert_subscription SET last_triggered_at = ?,"
-                + " baseline_price = coalesce(?, baseline_price) WHERE id = ?")
-        .params(OutboxRepository.ts(now), newBaseline, id)
+                + " baseline_price = coalesce(?, baseline_price),"
+                + " catalog_version_boundary = greatest(catalog_version_boundary, ?) WHERE id = ?")
+        .params(OutboxRepository.ts(now), newBaseline, catalogVersion, id)
         .update();
   }
 
@@ -369,6 +412,7 @@ public class WatchlistRepository {
         rs.getBoolean("active"),
         OutboxRepository.instant(rs, "created_at"),
         OutboxRepository.instant(rs, "last_triggered_at"),
+        rs.getLong("catalog_version_boundary"),
         rs.getString("baseline_currency"));
   }
 }

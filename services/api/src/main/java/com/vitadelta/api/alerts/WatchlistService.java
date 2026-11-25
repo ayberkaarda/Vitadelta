@@ -26,6 +26,11 @@ import org.springframework.web.server.ResponseStatusException;
  * plan limits of {@link EntitlementService} and the insert or update of one user are serialized and
  * parallel requests can never exceed a limit. Invariant: every active subscription has a
  * saved-product row for its product and country.
+ *
+ * <p>Creation, re-activation and a threshold change store the committed catalog version as the
+ * subscription's boundary ({@link WatchlistRepository#catalogVersionForShare}, read before the
+ * baseline price): the subscription reports only changes of later catalog versions, never a change
+ * that happened before its current state was taken.
  */
 @Service
 public class WatchlistService {
@@ -138,6 +143,7 @@ public class WatchlistService {
       ensureSaved(userId, productId, countryCode, now);
       boolean priceDrop = trigger == AlertTrigger.PRICE_DROP;
       UUID id = UUID.randomUUID();
+      long boundary = watchlist.catalogVersionForShare();
       watchlist.insertAlert(
           id,
           userId,
@@ -146,6 +152,7 @@ public class WatchlistService {
           trigger,
           priceDrop ? (thresholdPercent == null ? DEFAULT_THRESHOLD : thresholdPercent) : null,
           priceDrop ? currentPrice(productId, countryCode) : null,
+          boundary,
           now);
       return new AlertResult(watchlist.alert(userId, id).orElseThrow().view(), true);
     });
@@ -192,10 +199,14 @@ public class WatchlistService {
         return stored.view();
       }
       BigDecimal baseline = stored.baselinePrice();
-      if (resetBaseline && stored.trigger() == AlertTrigger.PRICE_DROP) {
-        baseline = currentPrice(stored.productId(), stored.countryCode());
+      Long boundary = null;
+      if (resetBaseline) {
+        boundary = watchlist.catalogVersionForShare();
+        if (stored.trigger() == AlertTrigger.PRICE_DROP) {
+          baseline = currentPrice(stored.productId(), stored.countryCode());
+        }
       }
-      watchlist.updateAlert(id, newActive, newThreshold, baseline);
+      watchlist.updateAlert(id, newActive, newThreshold, baseline, boundary);
       return requireAlert(userId, id).view();
     });
   }

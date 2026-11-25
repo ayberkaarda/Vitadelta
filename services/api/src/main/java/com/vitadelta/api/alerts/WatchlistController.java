@@ -73,10 +73,13 @@ public class WatchlistController {
     String nativeCurrency = requireCountry(country);
     PriceConversion conversion =
         currencies.resolve(nativeCurrency, displayCurrency, authentication);
-    return new AlertViews.SavedProductList(
-        new AlertViews.SavedProductListMeta(
-            country, nativeCurrency, conversion.currency(), conversion.fx()),
-        queries.savedProducts(userId, country, conversion));
+    return PriceConversion.present(
+        conversion,
+        shown ->
+            new AlertViews.SavedProductList(
+                new AlertViews.SavedProductListMeta(
+                    country, nativeCurrency, shown.currency(), shown.fx()),
+                queries.savedProducts(userId, country, shown)));
   }
 
   @PostMapping(path = "/saved-products", consumes = MediaType.APPLICATION_JSON_VALUE)
