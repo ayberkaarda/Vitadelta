@@ -6,7 +6,7 @@ VitaDelta, bir ülkedeki multivitamin ve mineral ürünlerini karşılaştırır
 
 Sistem; nginx üzerinden sunulan bir Angular web uygulaması, PostgreSQL veritabanının tek sahibi olan bir Spring Boot API ve yalnızca API'nin erişebildiği durumsuz bir Python puanlama servisinden oluşur. Arayüz Türkçe ve İngilizce dillerini destekler.
 
-Geliştirme Faz 7'ye ulaşmıştır: tamamlanmış ürün özelliklerinin üzerine uçtan uca test paketleri, güvenlik taraması, şifreli yedekleme ve geri yükleme ile bir işletim kılavuzu getiren entegrasyon ve sağlamlaştırma fazı. Herhangi bir ödeme sağlayıcısı entegre edilmemiştir ve herkese açık bir kurulum yoktur; sistem Docker Compose ile yerel olarak çalışır. Ayrıntılar için [mimari](docs/architecture.md), [faz raporları](docs/reports/) ve [işletim kılavuzu](docs/runbook.md) belgelerine bakın.
+Geliştirme Faz 7'ye ulaşmıştır: tamamlanmış ürün özelliklerinin üzerine uçtan uca test paketleri, güvenlik taraması, şifreli yedekleme ve geri yükleme ile bir işletim kılavuzu getiren entegrasyon ve sağlamlaştırma fazı. Faz 8, PRO için test modunda isteğe bağlı bir Stripe ödeme sağlayıcısı ekler; yapılandırılmadıkça kapalıdır. Herkese açık bir kurulum yoktur; sistem Docker Compose ile yerel olarak çalışır. Ayrıntılar için [mimari](docs/architecture.md), [faz raporları](docs/reports/) ve [işletim kılavuzu](docs/runbook.md) belgelerine bakın.
 
 ## Ekran görüntüleri
 
@@ -33,6 +33,7 @@ Aşağıdaki ekranlarda tohumlanan fikstürlerden gelen sentetik demo verileri k
 | 5 | Uyarılar ve döviz kurları | Kaydedilen ürünler, işlemsel outbox üzerinden fiyat ve stok uyarıları, bildirim kutusu ve e-posta, gösterim para birimleri için ECB kurları, yönetici sağlık ekranı |
 | 6 | Web uygulaması | Sorgu oluşturucu, döküm ve kilitli satırlarla sıralı sonuçlar, karşılaştırma, ürün sayfaları, hesap, uyarılar, gelen kutusu, yönetici sayfaları; açık ve koyu tema |
 | 7 | Sağlamlaştırma | Güvenlik taraması, başlık ve yönlendirme doğrulamaları, kayıtlı tatbikatla şifreli yedekleme ve geri yükleme, işletim kılavuzu, istek kapsamlı loglar ve metrikler, sızıntı testleri, CI'da uçtan uca iş |
+| 8 | Ödeme sağlayıcısı (isteğe bağlı) | Test modunda Stripe: barındırılan Checkout ve Billing Portal oturumları, PRO aboneliklerini başlatan, yenileyen ve sonlandıran imzası doğrulanmış ve idempotent webhook'lar; varsayılan olarak kapalı |
 
 Kotalar, plan limitleri, sonuç kilitleme ve rol denetimleri yalnızca API tarafından kararlaştırılır; web uygulaması sunucunun kararlarını gösterir. Puanlama motoru saftır: aynı girdi aynı sıralamayı verir; rastgelelik, saat bağımlılığı yoktur ve eşitlikler kararlı biçimde bozulur. Bu davranışların ardındaki kurallar [mimari](docs/architecture.md) ve [puanlama servisi notları](services/scoring/README.md) belgelerinde açıklanır.
 
@@ -133,6 +134,10 @@ curl -s -X POST "$API/recommendations/query" -H "$JSON" -H "Authorization: Beare
 
 Fiyat düşüşü içe aktarımı (`POST /api/v1/admin/imports/offers`, multipart alanı `file`, yalnızca yönetici) Gold Standard Daily B'nin fiyatını 900.00 TRY'den 846.00 TRY'ye indirir ve yukarıdaki uyarıyı tetikler. İçe aktarım biçimleri [contracts/schemas](contracts/schemas/) altında tanımlıdır.
 
+### İsteğe bağlı çevrim içi ödeme (Stripe test modu)
+
+Çevrim içi ödeme varsayılan olarak kapalıdır (`VITADELTA_BILLING_PROVIDER` boş veya `none`): planlar `checkoutAvailable: false` bildirir ve faturalama uç noktaları `503 billing_unavailable` yanıtı verir. Denemek için Stripe panelinde test modunda aylık fiyatı olan bir ürün oluşturun, `.env` içinde `VITADELTA_BILLING_PROVIDER=stripe`, `VITADELTA_STRIPE_SECRET_KEY` (`sk_test_` anahtarı), `VITADELTA_STRIPE_PRICE_ID` ve `VITADELTA_STRIPE_WEBHOOK_SECRET` değerlerini ayarlayın, webhook'ları `stripe listen` ile yerel yığına yönlendirin ve API'yi yeniden oluşturun. Eksik bir yapılandırmayla veya canlı bir anahtarla API başlamayı reddeder. Adımlar, gizli anahtar rotasyonu ve sorun giderme [işletim kılavuzu bölüm 7.1](docs/runbook.md#71-online-payment-with-stripe-test-mode) içinde, tasarım ise [ADR-0014](docs/adr/0014-stripe-billing-provider.md) içindedir.
+
 ### TLS sonlandıran bir vekilin arkasında çalıştırma
 
 Bu yığındaki nginx ilk duraktır ve her bağlantının eş adresini istemci adresi olarak kaydeder; API yalnızca bu girdiye güvenir (`X-Forwarded-For` üzerine yazılır, hiçbir zaman eklenmez), böylece istemci başına hız sınırları istemci başına çalışır. TLS'i nginx'in önünde sonlandıran başka bir vekil (örneğin yük dengeleyici) varsa `.env` içinde `VITADELTA_REAL_IP_FROM` değerini onun adresine veya CIDR bloğuna (virgül ya da boşlukla ayrılmış liste) ve birlikte `VITADELTA_TLS=true` olarak ayarlayın. nginx bu durumda istemci adresini yalnızca bu eşlerden gelen bağlantıların `X-Forwarded-For` başlığından geri kazanır (listedeki vekillerden biri olmayan en sağdaki adres) ve API'ye iletir. Bu ayar olmadan vekilin arkasındaki tüm istemciler tek bir hız sınırı kovasını paylaşır. İstemciler nginx'e doğrudan bağlanıyorsa boş bırakın; kontrol etmediğiniz ağları asla listelemeyin, çünkü onların ilettiği başlıklara inanılır. `infra/nginx/check-routing.sh` bu davranışı bir API taklidine karşı doğrular.
@@ -143,7 +148,7 @@ VitaDelta yalnızca karşılaştırmalı bilgi sunar. Tıbbi tavsiye değildir v
 
 Gerçek ABD ürünleri, [NIH Dietary Supplement Label Database](https://dsld.od.nih.gov/) (DSLD) kaynağından 2026-11-24 tarihinde herkese açık API'si üzerinden alınmış ve depoya işlenmiş bir etiket verisi anlık görüntüsüdür; çalışma zamanında hiçbir zaman çekilmez. Marka ve ürün adları yalnızca tanımlama amacıyla kullanılır; VitaDelta'nın markalarla veya NIH ile bir bağı yoktur ve onlar tarafından desteklenmez. Her ürün etiketinin giriş tarihini gösterir; etiket görseli veya logo kullanılmaz. Depodaki tüm fiyatlar ve satıcılar, gerçek ürünlerin teklifleri dahil, sentetik demo verileridir; altın ve test fikstürleri kurgusal markalar kullanır. Ayrıntılar [ADR-0012](docs/adr/0012-real-label-data-source.md) ve [data/real](data/real/README.md) belgelerindedir.
 
-Döviz kurları Frankfurter üzerinden alınan ve altı saatte bir yenilenen ECB referans kurlarıdır. Yalnızca gösterge niteliğindedir; bir para birimi çifti için kayıtlı kur yoksa fiyatlar kendi para biriminde kalır ve yanıt bunu belirtir. Herhangi bir ödeme sağlayıcısı entegre değildir: PRO bir promosyon koduyla veya bir yönetici tarafından verilir ve yükseltme sayfası fiyatı bilgi amacıyla gösterir. Gizlilik bildirimi iki dilde de tamamlanmış bir taslaktır ve hukuki incelemeden geçmemiştir. Hız limitleri ve önbellekler bellekte tutulduğundan kurulum tam olarak tek bir API örneği varsayar ([ADR-0011](docs/adr/0011-single-instance-and-job-locks.md)).
+Döviz kurları Frankfurter üzerinden alınan ve altı saatte bir yenilenen ECB referans kurlarıdır. Yalnızca gösterge niteliğindedir; bir para birimi çifti için kayıtlı kur yoksa fiyatlar kendi para biriminde kalır ve yanıt bunu belirtir. PRO bir promosyon koduyla, bir yönetici tarafından veya isteğe bağlı Stripe sağlayıcısı etkinse Stripe'ın barındırılan ödeme sayfasında satın alınan bir abonelikle verilir; kart verileri VitaDelta'ya hiç ulaşmaz ve canlı anahtarlara açıkça izin verilmedikçe yalnızca test modu anahtarları kabul edilir. Gizlilik bildirimi iki dilde de tamamlanmış bir taslaktır ve hukuki incelemeden geçmemiştir. Hız limitleri ve önbellekler bellekte tutulduğundan kurulum tam olarak tek bir API örneği varsayar ([ADR-0011](docs/adr/0011-single-instance-and-job-locks.md)).
 
 ## Doğrulama
 
@@ -190,7 +195,7 @@ Son çalıştırmanın uçtan uca rakamları Faz 7 raporundadır; puanlama rakam
 ## Belgeler
 
 - [Mimari](docs/architecture.md) · [İşletim kılavuzu](docs/runbook.md) · [Sözleşmeler](contracts/)
-- Faz raporları: [0](docs/reports/phase-0.md) · [1](docs/reports/phase-1.md) · [2](docs/reports/phase-2.md) · [3](docs/reports/phase-3.md) · [4](docs/reports/phase-4.md) · [5](docs/reports/phase-5.md) · [6](docs/reports/phase-6.md) · [7](docs/reports/phase-7.md)
+- Faz raporları: [0](docs/reports/phase-0.md) · [1](docs/reports/phase-1.md) · [2](docs/reports/phase-2.md) · [3](docs/reports/phase-3.md) · [4](docs/reports/phase-4.md) · [5](docs/reports/phase-5.md) · [6](docs/reports/phase-6.md) · [7](docs/reports/phase-7.md) · [8](docs/reports/phase-8.md)
 - Servis notları: [puanlama](services/scoring/README.md) · [karar kalibrasyonu](services/scoring/calibration/verdict-calibration.md) · [web uygulaması](apps/web/README.md) · [etiket anlık görüntüsü](data/real/README.md)
 - [Mimari kararlar](docs/adr/):
   - [0001](docs/adr/0001-monorepo.md) Üç dağıtılabilir birim ve ortak sözleşmelerle monorepo
@@ -206,3 +211,4 @@ Son çalıştırmanın uçtan uca rakamları Faz 7 raporundadır; puanlama rakam
   - [0011](docs/adr/0011-single-instance-and-job-locks.md) Zamanlanmış işler için advisory lock ile tek API örneği
   - [0012](docs/adr/0012-real-label-data-source.md) Sentetik fiyatlarla anlık görüntü olarak NIH DSLD kaynaklı gerçek ABD etiket verisi
   - [0013](docs/adr/0013-migration-numbering.md) Modül başına ayrılmış migration numaraları
+  - [0014](docs/adr/0014-stripe-billing-provider.md) Barındırılan sayfalar ve doğrulanmış webhook'larla isteğe bağlı ödeme sağlayıcısı olarak Stripe

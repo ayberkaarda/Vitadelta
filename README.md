@@ -6,7 +6,7 @@ VitaDelta compares multivitamin and mineral products within a country. For each 
 
 The system consists of an Angular web app served by nginx, a Spring Boot API that is the only owner of the PostgreSQL database, and a stateless Python scoring service that only the API can reach. The interface is available in Turkish and English.
 
-Development has reached Phase 7: integration and hardening, with end-to-end suites, a security scan, encrypted backup and restore and an operations runbook on top of the complete product features. No payment provider is integrated, and there is no public deployment; the stack runs locally through Docker Compose. See the [architecture](docs/architecture.md), the [phase reports](docs/reports/) and the [runbook](docs/runbook.md).
+Development has reached Phase 7: integration and hardening, with end-to-end suites, a security scan, encrypted backup and restore and an operations runbook on top of the complete product features. Phase 8 adds an optional Stripe payment provider for PRO in test mode, off unless it is configured. There is no public deployment; the stack runs locally through Docker Compose. See the [architecture](docs/architecture.md), the [phase reports](docs/reports/) and the [runbook](docs/runbook.md).
 
 ## Screenshots
 
@@ -33,6 +33,7 @@ The following screens show synthetic demonstration data from the seeded fixtures
 | 5 | Alerts and exchange rates | Saved products, price and stock alerts through a transactional outbox, notification inbox and e-mail, ECB rates for display currencies, admin health |
 | 6 | Web application | Query builder, ranked results with breakdown and locked rows, comparison, product pages, account, alerts, inbox, admin pages; light and dark themes |
 | 7 | Hardening | Security scan, header and routing assertions, encrypted backup and restore with a recorded drill, runbook, request-scoped logs and metrics, leakage tests, end-to-end job in CI |
+| 8 | Payment provider (optional) | Stripe in test mode: hosted Checkout and Billing Portal sessions, signature-verified and idempotent webhooks that start, renew and end PRO subscriptions; off by default |
 
 Quotas, plan limits, result locking and role checks are decided by the API only; the web app renders the server's decisions. The scoring engine is pure: the same input gives the same ranking, with no randomness, no clock dependency and stable tie-breaks. Read the [architecture](docs/architecture.md) and the [scoring service notes](services/scoring/README.md) for the rules behind these behaviours.
 
@@ -133,6 +134,10 @@ curl -s -X POST "$API/recommendations/query" -H "$JSON" -H "Authorization: Beare
 
 The price-drop import (`POST /api/v1/admin/imports/offers`, multipart field `file`, administrator only) lowers the price of Gold Standard Daily B from 900.00 to 846.00 TRY, which fires the alert above. Import formats are defined in [contracts/schemas](contracts/schemas/).
 
+### Optional online payment (Stripe test mode)
+
+Online payment is off by default (`VITADELTA_BILLING_PROVIDER` empty or `none`): the plans report `checkoutAvailable: false` and the billing endpoints answer `503 billing_unavailable`. To try it, create a test-mode product with a monthly price in the Stripe dashboard, set `VITADELTA_BILLING_PROVIDER=stripe`, `VITADELTA_STRIPE_SECRET_KEY` (a `sk_test_` key), `VITADELTA_STRIPE_PRICE_ID` and `VITADELTA_STRIPE_WEBHOOK_SECRET` in `.env`, forward webhooks to the local stack with `stripe listen`, and recreate the API. The API refuses to start with an incomplete configuration or a live key. The steps, secret rotation and troubleshooting are in [runbook section 7.1](docs/runbook.md#71-online-payment-with-stripe-test-mode) and the design in [ADR-0014](docs/adr/0014-stripe-billing-provider.md).
+
 ### Running behind a TLS-terminating proxy
 
 nginx in this stack is the first hop and records the peer address of each connection as the client address; the API trusts only that entry (`X-Forwarded-For` is overwritten, never appended), so per-client rate limits work per client. When another proxy such as a load balancer terminates TLS in front of nginx, set `VITADELTA_REAL_IP_FROM` to its address or CIDR (comma- or space-separated list) in `.env`, together with `VITADELTA_TLS=true`. nginx then restores the client address from the `X-Forwarded-For` header of connections from those peers only (right-most address that is not itself a listed proxy) and passes it on to the API. Without it, all clients behind the proxy would share one rate-limit bucket. Leave it empty when clients connect to nginx directly; never list networks you do not control, because their forwarded headers are believed. `infra/nginx/check-routing.sh` verifies this behaviour against a stand-in API.
@@ -143,7 +148,7 @@ VitaDelta provides comparative information only. It is not medical advice and do
 
 The real US products are a committed snapshot of label data from the [NIH Dietary Supplement Label Database](https://dsld.od.nih.gov/) (DSLD), retrieved on 2026-11-24 through its public API, and are never fetched at run time. Brand and product names are used for identification only; VitaDelta is not affiliated with, or endorsed by, the brands or NIH. Each product shows its label entry date, and no label images or logos are used. Every price and retailer in the repository is synthetic demonstration data, including the offers of the real products, and the golden and test fixtures use fictional brands. Details are in [ADR-0012](docs/adr/0012-real-label-data-source.md) and [data/real](data/real/README.md).
 
-Exchange rates are ECB reference rates fetched through Frankfurter and refreshed every six hours. They are indicative only; when no rate is stored for a currency pair, prices stay in their native currency and the response says so. No payment provider is integrated: PRO is granted by a promo code or by an administrator, and the upgrade page shows the price for information. The privacy notice is a complete draft in both languages that has not had a legal review. The deployment assumes exactly one API instance, because rate limits and caches are held in memory ([ADR-0011](docs/adr/0011-single-instance-and-job-locks.md)).
+Exchange rates are ECB reference rates fetched through Frankfurter and refreshed every six hours. They are indicative only; when no rate is stored for a currency pair, prices stay in their native currency and the response says so. PRO is granted by a promo code, by an administrator, or, when the optional Stripe provider is enabled, by a subscription bought on Stripe's hosted checkout page; card data never reaches VitaDelta, and only test-mode keys are accepted unless live keys are allowed explicitly. The privacy notice is a complete draft in both languages that has not had a legal review. The deployment assumes exactly one API instance, because rate limits and caches are held in memory ([ADR-0011](docs/adr/0011-single-instance-and-job-locks.md)).
 
 ## Validation
 
@@ -190,7 +195,7 @@ The end-to-end figures of the final run are in the Phase 7 report; the scoring f
 ## Documentation
 
 - [Architecture](docs/architecture.md) · [Runbook](docs/runbook.md) · [Contracts](contracts/)
-- Phase reports: [0](docs/reports/phase-0.md) · [1](docs/reports/phase-1.md) · [2](docs/reports/phase-2.md) · [3](docs/reports/phase-3.md) · [4](docs/reports/phase-4.md) · [5](docs/reports/phase-5.md) · [6](docs/reports/phase-6.md) · [7](docs/reports/phase-7.md)
+- Phase reports: [0](docs/reports/phase-0.md) · [1](docs/reports/phase-1.md) · [2](docs/reports/phase-2.md) · [3](docs/reports/phase-3.md) · [4](docs/reports/phase-4.md) · [5](docs/reports/phase-5.md) · [6](docs/reports/phase-6.md) · [7](docs/reports/phase-7.md) · [8](docs/reports/phase-8.md)
 - Service notes: [scoring](services/scoring/README.md) · [verdict calibration](services/scoring/calibration/verdict-calibration.md) · [web app](apps/web/README.md) · [label snapshot](data/real/README.md)
 - [Architecture decisions](docs/adr/):
   - [0001](docs/adr/0001-monorepo.md) Monorepo with three deployables and shared contracts
@@ -206,3 +211,4 @@ The end-to-end figures of the final run are in the Phase 7 report; the scoring f
   - [0011](docs/adr/0011-single-instance-and-job-locks.md) Single API instance with advisory locks for scheduled jobs
   - [0012](docs/adr/0012-real-label-data-source.md) Real US label data from NIH DSLD as a snapshot with synthetic prices
   - [0013](docs/adr/0013-migration-numbering.md) Migration numbers reserved per module
+  - [0014](docs/adr/0014-stripe-billing-provider.md) Stripe as the optional payment provider, with hosted pages and verified webhooks
