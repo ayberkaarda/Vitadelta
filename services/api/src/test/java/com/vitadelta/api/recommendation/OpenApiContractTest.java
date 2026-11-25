@@ -111,6 +111,9 @@ class OpenApiContractTest extends RecommendationApiTestBase {
         "response.tokenType: enum contract=[Bearer] code=[]",
         "response.user.locale: enum contract=[en, tr] code=[]");
     gap("POST /auth/register", "request.locale: enum contract=[en, tr] code=[]");
+    // billing: the Stripe webhook binds the raw body as bytes (the signature is verified over the
+    // exact bytes before parsing); the contract documents the event object.
+    gap("POST /billing/webhooks/stripe", "request: kind contract=object code=scalar");
   }
 
   private static void gap(String operation, String... differences) {

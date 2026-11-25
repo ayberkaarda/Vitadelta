@@ -58,4 +58,18 @@ public final class BillingApi {
 
   /** Response of {@code GET /admin/promo-codes}. */
   public record PromoCodeList(List<PromoCodeRecord> items) {}
+
+  /**
+   * Response of {@code POST /billing/checkout-session} and {@code POST /billing/portal-session}.
+   *
+   * @param url absolute https URL of the provider's hosted page
+   */
+  public record BillingRedirect(String url) {}
+
+  /** Response of {@code POST /billing/webhooks/stripe}; {@code received} is always true. */
+  public record WebhookAck(boolean received) {
+
+    /** The acknowledgement of every accepted delivery. */
+    public static final WebhookAck RECEIVED = new WebhookAck(true);
+  }
 }
