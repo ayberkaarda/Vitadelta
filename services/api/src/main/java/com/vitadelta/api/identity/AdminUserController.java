@@ -9,6 +9,7 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import java.util.UUID;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -44,7 +45,10 @@ public class AdminUserController {
   }
 
   @PostMapping("/{id}/status")
-  AdminUser setStatus(@PathVariable UUID id, @Valid @RequestBody SetUserStatusRequest body) {
-    return users.setStatus(id, body.status());
+  AdminUser setStatus(
+      @PathVariable UUID id,
+      @Valid @RequestBody SetUserStatusRequest body,
+      Authentication authentication) {
+    return users.setStatus(CurrentUser.require(authentication), id, body.status());
   }
 }

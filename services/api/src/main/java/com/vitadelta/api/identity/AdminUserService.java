@@ -3,6 +3,8 @@ package com.vitadelta.api.identity;
 import static com.vitadelta.api.identity.UserRepository.instant;
 
 import com.vitadelta.api.common.paging.PageQuery;
+import com.vitadelta.api.common.problem.ProblemCode;
+import com.vitadelta.api.common.problem.ProblemException;
 import com.vitadelta.api.identity.IdentityApi.AdminUser;
 import com.vitadelta.api.identity.IdentityApi.AdminUserPage;
 import java.sql.ResultSet;
@@ -90,9 +92,16 @@ public class AdminUserService {
    * Sets the status; {@code DISABLED} revokes all refresh-token families of the user in the same
    * transaction (issued access tokens expire within 15 minutes).
    *
+   * @param callerId the administrator making the change; an administrator cannot change their own
+   *     status
+   * @throws ProblemException 403 when {@code userId} is the caller
    * @throws ResponseStatusException 404 when the user does not exist
    */
-  public AdminUser setStatus(UUID userId, UserStatus status) {
+  public AdminUser setStatus(UUID callerId, UUID userId, UserStatus status) {
+    if (callerId.equals(userId)) {
+      throw ProblemException.of(
+          ProblemCode.FORBIDDEN, "An administrator cannot change their own status.");
+    }
     transactions.executeWithoutResult(tx -> {
       Optional<UserAccount> user = users.findByIdForUpdate(userId);
       if (user.isEmpty()) {

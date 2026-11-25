@@ -2318,8 +2318,10 @@ paths:
       summary: Enable or disable a user
       description: |
         Requires role ADMIN. Setting `DISABLED` revokes all refresh-token
-        families of the user in the same transaction; issued access tokens
-        expire within 15 minutes.
+        families of the user in the same transaction. Every `/admin/**`
+        request re-reads the caller's role and status, so a disabled or
+        demoted administrator is rejected immediately (`forbidden`, 403). An
+        administrator cannot change their own status (`forbidden`, 403).
 
         Problem codes: `unauthorized` (401), `forbidden` (403), 404
         (`about:blank`), `validation_failed` (422).
