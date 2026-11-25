@@ -7,6 +7,7 @@ plugins {
     id("io.spring.dependency-management") version "1.1.7"
     id("com.diffplug.spotless") version "8.12.0"
     id("org.openapi.generator") version "7.27.0"
+    id("org.owasp.dependencycheck") version "13.0.0"
 }
 
 group = "com.vitadelta"
@@ -153,6 +154,17 @@ tasks.named<JacocoCoverageVerification>("jacocoTestCoverageVerification") {
 
 tasks.named("check") {
     dependsOn(tasks.named("jacocoTestCoverageVerification"))
+}
+
+// OWASP Dependency-Check (project specification section 15.3), run by scripts/security-scan.sh
+// only when NVD_API_KEY is set; fails at CVSS >= 7. NVD_DATA_DIR keeps the NVD feed between runs.
+// Not part of `check`: the analysis needs the NVD feed and runs on its own.
+dependencyCheck {
+    failBuildOnCVSS = 7.0f
+    scanConfigurations = listOf("runtimeClasspath")
+    nvd { apiKey = providers.environmentVariable("NVD_API_KEY").orNull }
+    providers.environmentVariable("NVD_DATA_DIR").orNull?.let { data { directory = it } }
+    analyzers { ossIndex { enabled = false } }
 }
 
 tasks.named<Jar>("jar") {
