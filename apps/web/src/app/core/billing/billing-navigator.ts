@@ -7,16 +7,31 @@ import { ApiProblem } from '../api/api-problem';
 /** Hosted pages of the payment provider live on subdomains of this domain (ADR-0014). */
 const PROVIDER_DOMAIN = 'stripe.com';
 const MAX_LENGTH = 4096;
+/**
+ * Scheme and authority as written: `https://` then a host of letters, digits, dots and hyphens
+ * and nothing else (no user info, no port, not even `:443`), followed by the end, a path, a
+ * query or a fragment. Checked on the raw string because `URL` normalises some of these away.
+ */
+const RAW_PREFIX = /^https:\/\/([a-z0-9.-]+)(?:[/?#]|$)/i;
+/** Whitespace, control characters and backslashes, which `URL` silently drops or rewrites. */
+// eslint-disable-next-line no-control-regex -- control characters are exactly what is refused
+const UNSAFE_CHARACTERS = /[\s\\\u0000-\u001f\u007f-\u009f]/;
 
 /**
  * Returns `value` as a normalised URL when it is a hosted page of the payment provider: an
  * absolute `https:` URL on a subdomain of `stripe.com` (Checkout on `checkout.stripe.com`, the
- * Billing Portal on `billing.stripe.com`), without credentials or an explicit port. Anything
- * else (another host, `http:`, `javascript:`, a relative or malformed value) is `null`, so a
- * tampered or unexpected API answer never moves the browser elsewhere.
+ * Billing Portal on `billing.stripe.com`), without credentials or any explicit port. The raw
+ * string must already have that shape (see {@link RAW_PREFIX}) and contain no whitespace, control
+ * character or backslash. Anything else (another host, `http:`, `javascript:`, a relative or
+ * malformed value) is `null`, so a tampered or unexpected API answer never moves the browser
+ * elsewhere.
  */
 export function providerPageUrl(value: unknown): string | null {
   if (typeof value !== 'string' || value.length === 0 || value.length > MAX_LENGTH) {
+    return null;
+  }
+  const raw = RAW_PREFIX.exec(value);
+  if (raw === null || UNSAFE_CHARACTERS.test(value)) {
     return null;
   }
   let parsed: URL;
@@ -30,7 +45,8 @@ export function providerPageUrl(value: unknown): string | null {
     !parsed.hostname.toLowerCase().endsWith(`.${PROVIDER_DOMAIN}`) ||
     parsed.username !== '' ||
     parsed.password !== '' ||
-    parsed.port !== ''
+    parsed.port !== '' ||
+    parsed.hostname !== raw[1].toLowerCase()
   ) {
     return null;
   }
