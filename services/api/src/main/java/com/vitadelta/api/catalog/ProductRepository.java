@@ -3,6 +3,7 @@ package com.vitadelta.api.catalog;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;
 
 /**
@@ -16,4 +17,8 @@ public interface ProductRepository extends Repository<Product, UUID> {
   Optional<Product> findById(UUID id);
 
   Optional<Product> findByCode(String code);
+
+  /** Codes of every stored product. */
+  @Query("select p.code from Product p")
+  List<String> findAllCodes();
 }

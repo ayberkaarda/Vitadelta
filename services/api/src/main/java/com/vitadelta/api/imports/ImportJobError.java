@@ -24,13 +24,20 @@ public class ImportJobError {
   @Column(name = "message", nullable = false, length = 2000)
   private String message;
 
+  @Column(name = "seq", nullable = false)
+  private int seq;
+
   protected ImportJobError() {}
 
-  public ImportJobError(UUID id, UUID jobId, int rowNumber, String message) {
+  /**
+   * @param seq detection order of the error within its job (0-based)
+   */
+  public ImportJobError(UUID id, UUID jobId, int rowNumber, String message, int seq) {
     this.id = id;
     this.jobId = jobId;
     this.rowNumber = rowNumber;
     this.message = message;
+    this.seq = seq;
   }
 
   public UUID getId() {
@@ -47,5 +54,9 @@ public class ImportJobError {
 
   public String getMessage() {
     return message;
+  }
+
+  public int getSeq() {
+    return seq;
   }
 }

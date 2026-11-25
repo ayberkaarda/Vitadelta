@@ -97,7 +97,7 @@ class JobLockTest extends PostgresIntegrationTest {
         count++;
       }
     }
-    assertThat(count).isEqualTo(6);
+    assertThat(count).isEqualTo(7);
     assertThat(keys).hasSize(count);
     assertThat(keys).allSatisfy(k -> assertThat(k >>> 32).isEqualTo(0x5644_4A42L));
   }

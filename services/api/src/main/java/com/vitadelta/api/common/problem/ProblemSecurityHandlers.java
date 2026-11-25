@@ -1,5 +1,6 @@
 package com.vitadelta.api.common.problem;
 
+import com.vitadelta.api.common.web.ApiHeaders;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
@@ -10,6 +11,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.access.AccessDeniedHandler;
+import org.springframework.security.web.firewall.RequestRejectedHandler;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsProcessor;
 import org.springframework.web.cors.DefaultCorsProcessor;
@@ -33,6 +35,26 @@ public final class ProblemSecurityHandlers {
   /** The {@code 403} access-denied handler. */
   public static AccessDeniedHandler accessDeniedHandler() {
     return ProblemSecurityHandlers::forbidden;
+  }
+
+  /** Detail of a request the HTTP firewall or the container rejected. */
+  public static final String REJECTED_DETAIL = "The request URL is not accepted.";
+
+  /**
+   * The handler of requests rejected by the HTTP firewall: {@code 400} problem ({@code
+   * about:blank}) with the API security headers, written directly because the rejection happens
+   * before the header writer of the filter chain runs. The rejected path is not echoed (no {@code
+   * instance}).
+   */
+  public static RequestRejectedHandler requestRejectedHandler() {
+    return (request, response, exception) -> {
+      if (response.isCommitted()) {
+        return;
+      }
+      ApiHeaders.apply(response);
+      ProblemBodies.write(
+          response, Problems.generic(HttpStatus.BAD_REQUEST, REJECTED_DETAIL, null));
+    };
   }
 
   /**

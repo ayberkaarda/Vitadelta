@@ -1,10 +1,16 @@
 # syntax=docker/dockerfile:1
 
+# The scoring client is generated at build time from contracts/scoring-api.openapi.yaml, which lives
+# outside this build context. It comes from the named build context "contracts" (the repository's
+# contracts directory): infra/docker-compose.yml declares it as an additional context; a manual
+# build passes it explicitly, from the repository root:
+#   docker build --build-context contracts=contracts services/api
 FROM eclipse-temurin:25.0.5.1_2-jdk-noble AS build
-WORKDIR /workspace
+WORKDIR /workspace/services/api
 COPY gradlew settings.gradle.kts build.gradle.kts ./
 COPY gradle ./gradle
 RUN chmod +x gradlew && ./gradlew --no-daemon --quiet help
+COPY --from=contracts scoring-api.openapi.yaml /workspace/contracts/scoring-api.openapi.yaml
 COPY src ./src
 RUN ./gradlew --no-daemon bootJar \
     && java -Djarmode=tools -jar build/libs/vitadelta-api-0.0.1.jar extract --layers --launcher --destination /workspace/extracted

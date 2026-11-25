@@ -32,27 +32,38 @@ public class UpperLimit {
   @Column(name = "basis", length = 20)
   private UlBasis basis;
 
+  @Column(name = "note", nullable = false, columnDefinition = "text")
+  private String note;
+
   protected UpperLimit() {}
 
-  public UpperLimit(UpperLimitId id, BigDecimal amount, Unit unit, UlBasis basis) {
+  public UpperLimit(UpperLimitId id, BigDecimal amount, Unit unit, UlBasis basis, String note) {
     this.id = id;
     this.amount = amount;
     this.unit = unit;
     this.basis = basis;
+    this.note = note;
   }
 
   /** Copies the given values; returns whether anything changed. */
-  public boolean update(BigDecimal amount, Unit unit, UlBasis basis) {
+  public boolean update(BigDecimal amount, Unit unit, UlBasis basis, String note) {
     boolean changed =
         Changes.differ(this.amount, amount)
             || Changes.differ(this.unit, unit)
-            || Changes.differ(this.basis, basis);
+            || Changes.differ(this.basis, basis)
+            || Changes.differ(this.note, note);
     if (changed) {
       this.amount = amount;
       this.unit = unit;
       this.basis = basis;
+      this.note = note;
     }
     return changed;
+  }
+
+  /** Citation note of the row ({@code upper_limits.csv} column {@code note}). */
+  public String getNote() {
+    return note;
   }
 
   public UpperLimitId getId() {

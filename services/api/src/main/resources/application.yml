@@ -18,6 +18,10 @@ spring:
   flyway:
     locations: classpath:db/migration
     validate-on-migrate: true
+    # V3 and V4 are reserved for Phase 5 while V5 already exists: out-of-order lets a database
+    # that is at V5 apply them later. Validation is unchanged (checksums, missing and failed
+    # migrations are still errors; only the version order of pending migrations is relaxed).
+    out-of-order: true
     clean-disabled: true
   mail:
     host: ${VITADELTA_SMTP_HOST:}
@@ -82,6 +86,39 @@ vitadelta:
     jobs-enabled: ${VITADELTA_JOBS_ENABLED:true}
     unverified-account-ttl-days: ${VITADELTA_UNVERIFIED_ACCOUNT_TTL_DAYS:30}
     privacy-contact: ${VITADELTA_PRIVACY_CONTACT:}
+    # The privacy notice needs a contact: startup fails without VITADELTA_PRIVACY_CONTACT except in
+    # the dev profile (section 15.9).
+    require-privacy-contact: true
+  catalog:
+    # Age after which the selected offer of a product is flagged PRICE_STALE (section 7.4).
+    price-stale-after-days: 30
+    # Admin imports run on a bounded executor: workers and imports that may wait for one (a full
+    # queue fails the new import job at once). Waiting imports hold no database connection.
+    import-threads: 1
+    import-queue-capacity: 4
+    # Bounds of one import file: data rows of an offers CSV, products of a products document,
+    # characters of one field, and collected errors (a failing job stores at most this many,
+    # plus one summary error when more were found).
+    import-limits:
+      max-offer-rows: 200000
+      max-products: 50000
+      max-field-length: 4096
+      max-errors: 1000
+  scoring:
+    # Scoring service (section 7.6); retry and circuit breaker: resilience4j.*.instances.scoring.
+    base-url: ${VITADELTA_SCORING_BASE_URL:}
+    connect-timeout: 500ms
+    read-timeout: 2s
+    # Bulkhead: scoring calls in flight at once; a call beyond it is answered 503 at once.
+    max-concurrent-calls: 16
+  recommendation:
+    # Ranking cache (section 7.5): full native rankings per canonical query and catalog version,
+    # bounded by entries and by the ranked products held in total.
+    cache-ttl: 10m
+    cache-max-entries: 500
+    cache-max-ranked-items: 100000
+    # Largest country catalog a recommendation or comparison loads (more: operator error, 503).
+    max-products-per-country: 5000
   http:
     # Request body limits of /api/v1/** (query body 64 kB; import JSON and CSV 20 MB).
     max-body: 64KB
@@ -134,6 +171,41 @@ management:
       # SMTP outages are handled by the asynchronous mail dispatch and reported in
       # /api/v1/admin/health; they do not make the service unhealthy.
       enabled: false
+
+resilience4j:
+  # Scoring client resilience (section 7.6, ADR-0003). Retry wraps the circuit breaker, so every
+  # attempt is recorded by the breaker.
+  retry:
+    instances:
+      scoring:
+        # One retry, on connection errors only (never on a response, a 4xx/5xx or a read timeout).
+        max-attempts: 2
+        wait-duration: 100ms
+        retry-exception-predicate: com.vitadelta.api.recommendation.ConnectionErrors
+  circuitbreaker:
+    instances:
+      scoring:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 20
+        minimum-number-of-calls: 20
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 30s
+        # Only unavailability counts as failure: I/O errors (connect, timeouts) and 5xx answers.
+        record-exceptions:
+          - org.springframework.web.client.ResourceAccessException
+          - org.springframework.web.client.HttpServerErrorException
+        ignore-exceptions:
+          - org.springframework.web.client.HttpClientErrorException
+
+springdoc:
+  # The API description is served at /api/v1/openapi.json (no UI); it is compared with
+  # contracts/public-api.openapi.yaml by OpenApiContractTest.
+  api-docs:
+    path: /api/v1/openapi.json
+    version: openapi_3_1
+  use-fqn: true
+  paths-to-match: /api/v1/**
+  writer-with-order-by-keys: true
 
 logging:
   structured:

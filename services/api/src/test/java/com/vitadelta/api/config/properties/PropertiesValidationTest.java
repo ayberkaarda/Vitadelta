@@ -134,11 +134,18 @@ class PropertiesValidationTest {
 
   @Test
   void operationsAreValidated() {
-    OperationsProperties operations = new OperationsProperties(false, 30, " privacy@example.org ");
+    OperationsProperties operations =
+        new OperationsProperties(false, 30, " privacy@example.org ", true);
     assertThat(operations.jobsEnabled()).isFalse();
     assertThat(operations.privacyContact()).isEqualTo("privacy@example.org");
-    assertThat(new OperationsProperties(true, 1, " ").privacyContact()).isNull();
-    assertThatThrownBy(() -> new OperationsProperties(true, 0, null))
+    assertThat(new OperationsProperties(true, 1, " ", false).privacyContact()).isNull();
+    assertThatThrownBy(() -> new OperationsProperties(true, 1, " ", true))
+        .hasMessageContaining("VITADELTA_PRIVACY_CONTACT is not set");
+    assertThatThrownBy(() -> new OperationsProperties(true, 1, "a\u0007b", true))
+        .hasMessageContaining("without control characters");
+    assertThatThrownBy(() -> new OperationsProperties(true, 1, "x".repeat(501), true))
+        .hasMessageContaining("at most 500");
+    assertThatThrownBy(() -> new OperationsProperties(true, 0, "p@example.org", true))
         .hasMessageContaining("VITADELTA_UNVERIFIED_ACCOUNT_TTL_DAYS");
   }
 

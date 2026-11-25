@@ -5,6 +5,7 @@ import com.vitadelta.api.catalog.NutrientCategory;
 import com.vitadelta.api.catalog.OfferValues;
 import com.vitadelta.api.catalog.ProductImport;
 import com.vitadelta.api.catalog.ReferenceValues.CountryRow;
+import com.vitadelta.api.catalog.ReferenceValues.FormRow;
 import com.vitadelta.api.catalog.ReferenceValues.NutrientRow;
 import com.vitadelta.api.catalog.ReferenceValues.ReferenceValueRow;
 import com.vitadelta.api.catalog.ReferenceValues.SetRow;
@@ -78,6 +79,9 @@ public final class SeedDataReader {
   private static final Pattern LOCALE = Pattern.compile("^[a-z]{2}(-[A-Z]{2})?$");
   private static final Pattern DECIMAL = Pattern.compile("^[0-9]+(?:\\.[0-9]+)?$");
   private static final Pattern INTEGER = Pattern.compile("^-?[0-9]{1,9}$");
+
+  /** Longest upper-limit citation note accepted. */
+  static final int MAX_NOTE_LENGTH = 2000;
 
   private final Path dataDir;
   private final List<SeedProblem> problems = new ArrayList<>();
@@ -218,7 +222,9 @@ public final class SeedDataReader {
     List<NutrientRow> nutrients = nutrients();
     Map<String, Unit> canonical = new HashMap<>();
     nutrients.forEach(n -> canonical.put(n.code(), n.canonicalUnit()));
-    Map<String, String> forms = forms(canonical.keySet());
+    List<FormRow> formRows = forms(canonical.keySet());
+    Map<String, String> forms = new HashMap<>();
+    formRows.forEach(f -> forms.put(f.code(), f.nutrientCode()));
     List<ConversionRule> conversions = conversions(canonical.keySet(), forms);
     List<SetRow> referenceSets = sets(REFERENCE_SETS);
     List<SetRow> ulSets = sets(UL_SETS);
@@ -227,6 +233,7 @@ public final class SeedDataReader {
     List<CountryRow> countries = countries(codes(referenceSets), codes(ulSets));
     return new ReferenceData(
         nutrients,
+        formRows,
         forms,
         conversions,
         referenceSets,
@@ -289,8 +296,9 @@ public final class SeedDataReader {
     return result;
   }
 
-  private Map<String, String> forms(Set<String> nutrients) {
-    Map<String, String> result = new HashMap<>();
+  private List<FormRow> forms(Set<String> nutrients) {
+    List<FormRow> result = new ArrayList<>();
+    Set<String> seen = new HashSet<>();
     for (CsvTable.Row row : table(FORMS, List.of("code", "nutrient_code", "name_en"))) {
       Consumer<String[]> report = reporter(FORMS, row.number());
       int before = problems.size();
@@ -299,16 +307,16 @@ public final class SeedDataReader {
           || FormCodes.ANY.equals(code)
           || FormCodes.UNKNOWN.equals(code)) {
         report.accept(new String[] {"invalid_form_code", "invalid form code " + code});
-      } else if (result.containsKey(code)) {
+      } else if (!seen.add(code)) {
         report.accept(new String[] {"duplicate_code", "form " + code + " appears twice"});
       }
       String nutrient = row.get("nutrient_code");
       if (!nutrients.contains(nutrient)) {
         report.accept(new String[] {"unknown_nutrient", "nutrient " + nutrient + " is unknown"});
       }
-      text(row, "name_en", 200, report);
+      String name = text(row, "name_en", 200, report);
       if (problems.size() == before) {
-        result.put(code, nutrient);
+        result.add(new FormRow(code, nutrient, name));
       }
     }
     return result;
@@ -458,12 +466,18 @@ public final class SeedDataReader {
         amount = amount(amountText, "amount", 4, report);
         basis = enumValue(basisText, UlBasis.class, report);
       }
-      if (row.optional("note") == null) {
+      String note = row.optional("note");
+      if (note == null) {
         report.accept(new String[] {"missing_note", "every upper limit needs a citation note"});
+      } else if (note.length() > MAX_NOTE_LENGTH) {
+        report.accept(
+            new String[] {
+              "invalid_text", "note must have at most " + MAX_NOTE_LENGTH + " characters"
+            });
       }
       if (problems.size() == before) {
         if (seen.add(set + "|" + nutrient + "|" + form)) {
-          result.add(new UpperLimitRow(set, nutrient, form, amount, unit, basis));
+          result.add(new UpperLimitRow(set, nutrient, form, amount, unit, basis, note));
         } else {
           report.accept(new String[] {"duplicate_key", "upper limit appears twice"});
         }

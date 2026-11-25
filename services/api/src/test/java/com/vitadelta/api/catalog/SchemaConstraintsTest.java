@@ -38,6 +38,8 @@ class SchemaConstraintsTest extends PostgresIntegrationTest {
           "INSERT INTO nutrient VALUES ('TST_A', 'Test A', 'VITAMIN', 'mcg', 5, 2)",
           "INSERT INTO reference_set VALUES ('TST_REF', 'Test reference', 'Test citation')",
           "INSERT INTO ul_set VALUES ('TST_UL', 'Test UL', 'Test citation')",
+          "INSERT INTO nutrient_form VALUES ('TST_A_FORM', 'TST_A', 'Test form of A')",
+          "INSERT INTO nutrient_form VALUES ('TST_E_FORM', 'TST_E', 'Test form of E')",
           "INSERT INTO country VALUES ('ZZ', 'Testland', 'ZZD', 'TST_REF', 'TST_UL', 'en')",
           "INSERT INTO country VALUES ('ZY', 'Otherland', 'ZYD', 'TST_REF', 'TST_UL', 'en-GB')",
           "INSERT INTO product (id, code, brand, name, dosage_form, units_per_container,"
@@ -161,6 +163,7 @@ class SchemaConstraintsTest extends PostgresIntegrationTest {
             "import_job",
             "import_job_error",
             "nutrient",
+            "nutrient_form",
             "offer",
             "product",
             "product_availability",
@@ -229,11 +232,13 @@ class SchemaConstraintsTest extends PostgresIntegrationTest {
   void validRowsAreAccepted() {
     assertAccepted(
         productNutrient("TST_E", "10", "NULL", "'UNKNOWN'"),
-        productNutrient("TST_A", "10", "10", "'RETINOL'"),
+        productNutrient("TST_A", "10", "10", "'TST_A_FORM'"),
         "INSERT INTO product_availability VALUES ('" + PRODUCT_ID + "', 'ZZ', 'AVAILABLE', NULL)",
         "INSERT INTO reference_value VALUES ('TST_REF', 'TST_E', 12, 'mg')",
-        "INSERT INTO upper_limit VALUES ('TST_UL', 'TST_E', 'ANY', 300, 'mg', 'TOTAL')",
-        "INSERT INTO upper_limit VALUES ('TST_UL', 'TST_A', 'BETA_CAROTENE', NULL, 'mcg', NULL)",
+        "INSERT INTO upper_limit (ul_set_code, nutrient_code, form_code, amount, unit, basis, note)"
+            + " VALUES ('TST_UL', 'TST_E', 'ANY', 300, 'mg', 'TOTAL', 'Test citation')",
+        "INSERT INTO upper_limit (ul_set_code, nutrient_code, form_code, amount, unit, basis, note)"
+            + " VALUES ('TST_UL', 'TST_A', 'TST_A_FORM', NULL, 'mcg', NULL, 'Test citation')",
         "INSERT INTO unit_conversion (nutrient_code, from_unit, to_unit, factor, form_code, note)"
             + " VALUES ('TST_E', 'IU', 'mg', 0.67, 'ANY', 'test')",
         "INSERT INTO unit_conversion (nutrient_code, from_unit, to_unit, factor, form_code, note)"
@@ -276,15 +281,24 @@ class SchemaConstraintsTest extends PostgresIntegrationTest {
         "INSERT INTO reference_value VALUES ('TST_REF', 'TST_E', 12, 'IU')",
         "INSERT INTO reference_value VALUES ('NOPE', 'TST_E', 12, 'mg')",
         "INSERT INTO reference_value VALUES ('TST_REF', 'NOPE', 12, 'mg')",
-        "INSERT INTO upper_limit VALUES ('TST_UL', 'TST_E', 'UNKNOWN', 300, 'mg', 'TOTAL')",
-        "INSERT INTO upper_limit VALUES ('TST_UL', 'TST_E', NULL, 300, 'mg', 'TOTAL')",
-        "INSERT INTO upper_limit VALUES ('TST_UL', 'TST_E', 'ANY', 300, 'mg', NULL)",
-        "INSERT INTO upper_limit VALUES ('TST_UL', 'TST_E', 'ANY', NULL, 'mg', 'TOTAL')",
-        "INSERT INTO upper_limit VALUES ('TST_UL', 'TST_E', 'ANY', 300, 'mg', 'DIETARY')",
-        "INSERT INTO upper_limit VALUES ('TST_UL', 'TST_E', 'ANY', 0, 'mg', 'TOTAL')",
-        "INSERT INTO upper_limit VALUES ('TST_UL', 'TST_E', 'ANY', 300, 'IU', 'TOTAL')",
-        "INSERT INTO upper_limit VALUES ('TST_UL', 'TST_E', 'any', 300, 'mg', 'TOTAL')",
-        "INSERT INTO upper_limit VALUES ('NOPE', 'TST_E', 'ANY', 300, 'mg', 'TOTAL')"
+        "INSERT INTO upper_limit (ul_set_code, nutrient_code, form_code, amount, unit, basis, note)"
+            + " VALUES ('TST_UL', 'TST_E', 'UNKNOWN', 300, 'mg', 'TOTAL', 'Test citation')",
+        "INSERT INTO upper_limit (ul_set_code, nutrient_code, form_code, amount, unit, basis, note)"
+            + " VALUES ('TST_UL', 'TST_E', NULL, 300, 'mg', 'TOTAL', 'Test citation')",
+        "INSERT INTO upper_limit (ul_set_code, nutrient_code, form_code, amount, unit, basis, note)"
+            + " VALUES ('TST_UL', 'TST_E', 'ANY', 300, 'mg', NULL, 'Test citation')",
+        "INSERT INTO upper_limit (ul_set_code, nutrient_code, form_code, amount, unit, basis, note)"
+            + " VALUES ('TST_UL', 'TST_E', 'ANY', NULL, 'mg', 'TOTAL', 'Test citation')",
+        "INSERT INTO upper_limit (ul_set_code, nutrient_code, form_code, amount, unit, basis, note)"
+            + " VALUES ('TST_UL', 'TST_E', 'ANY', 300, 'mg', 'DIETARY', 'Test citation')",
+        "INSERT INTO upper_limit (ul_set_code, nutrient_code, form_code, amount, unit, basis, note)"
+            + " VALUES ('TST_UL', 'TST_E', 'ANY', 0, 'mg', 'TOTAL', 'Test citation')",
+        "INSERT INTO upper_limit (ul_set_code, nutrient_code, form_code, amount, unit, basis, note)"
+            + " VALUES ('TST_UL', 'TST_E', 'ANY', 300, 'IU', 'TOTAL', 'Test citation')",
+        "INSERT INTO upper_limit (ul_set_code, nutrient_code, form_code, amount, unit, basis, note)"
+            + " VALUES ('TST_UL', 'TST_E', 'any', 300, 'mg', 'TOTAL', 'Test citation')",
+        "INSERT INTO upper_limit (ul_set_code, nutrient_code, form_code, amount, unit, basis, note)"
+            + " VALUES ('NOPE', 'TST_E', 'ANY', 300, 'mg', 'TOTAL', 'Test citation')"
       })
   void referenceRulesRejectBadRows(String statement) {
     assertRejected(statement);
@@ -292,7 +306,9 @@ class SchemaConstraintsTest extends PostgresIntegrationTest {
 
   @Test
   void upperLimitKeyIsUnique() {
-    String row = "INSERT INTO upper_limit VALUES ('TST_UL', 'TST_E', 'ANY', 300, 'mg', 'TOTAL')";
+    String row =
+        "INSERT INTO upper_limit (ul_set_code, nutrient_code, form_code, amount, unit, basis, note)"
+            + " VALUES ('TST_UL', 'TST_E', 'ANY', 300, 'mg', 'TOTAL', 'Test citation')";
     assertRejected(row, row);
   }
 
@@ -321,7 +337,7 @@ class SchemaConstraintsTest extends PostgresIntegrationTest {
   void unitConversionKeyIsUnique() {
     String row =
         "INSERT INTO unit_conversion (nutrient_code, from_unit, to_unit, factor, form_code, note)"
-            + " VALUES ('*', 'g', 'mg', 1000, 'ANY', NULL)";
+            + " VALUES ('TST_E', 'g', 'mg', 1000, 'ANY', NULL)";
     assertRejected(row, row);
   }
 
@@ -549,6 +565,11 @@ class SchemaConstraintsTest extends PostgresIntegrationTest {
     "INSERT INTO nutrient VALUES ('VIT_D', 'Vitamin D', 'VITAMIN', 'mcg', NULL, 30)"
         + " ON CONFLICT DO NOTHING",
     "INSERT INTO nutrient VALUES ('VIT_E', 'Vitamin E', 'VITAMIN', 'mg', NULL, 40)"
+        + " ON CONFLICT DO NOTHING",
+    "INSERT INTO nutrient_form VALUES ('RETINOL', 'VIT_A', 'Retinol') ON CONFLICT DO NOTHING",
+    "INSERT INTO nutrient_form VALUES ('RETINYL_ACETATE', 'VIT_A', 'Retinyl acetate')"
+        + " ON CONFLICT DO NOTHING",
+    "INSERT INTO nutrient_form VALUES ('RETINYL_PALMITATE', 'VIT_A', 'Retinyl palmitate')"
         + " ON CONFLICT DO NOTHING"
   };
 
@@ -569,6 +590,7 @@ class SchemaConstraintsTest extends PostgresIntegrationTest {
         IU_NUTRIENTS[0],
         IU_NUTRIENTS[1],
         IU_NUTRIENTS[2],
+        IU_NUTRIENTS[5],
         iuRow("VIT_D", "UNKNOWN"),
         iuRow("VIT_E", "UNKNOWN"),
         iuRow("VIT_A", "RETINYL_PALMITATE"));
@@ -583,7 +605,8 @@ class SchemaConstraintsTest extends PostgresIntegrationTest {
   @ParameterizedTest
   @ValueSource(strings = {"RETINOL", "RETINYL_ACETATE", "RETINYL_PALMITATE"})
   void vitaminAInIuWithRetinolFormIsAccepted(String form) {
-    assertAccepted(IU_NUTRIENTS[0], iuRow("VIT_A", form));
+    assertAccepted(
+        IU_NUTRIENTS[0], IU_NUTRIENTS[3], IU_NUTRIENTS[4], IU_NUTRIENTS[5], iuRow("VIT_A", form));
   }
 
   // NaN is not a valid amount anywhere
@@ -593,7 +616,8 @@ class SchemaConstraintsTest extends PostgresIntegrationTest {
       strings = {
         "INSERT INTO nutrient VALUES ('TST_NAN', 'NaN', 'OTHER', 'mg', 'NaN', 1)",
         "INSERT INTO reference_value VALUES ('TST_REF', 'TST_E', 'NaN', 'mg')",
-        "INSERT INTO upper_limit VALUES ('TST_UL', 'TST_E', 'ANY', 'NaN', 'mg', 'TOTAL')",
+        "INSERT INTO upper_limit (ul_set_code, nutrient_code, form_code, amount, unit, basis, note)"
+            + " VALUES ('TST_UL', 'TST_E', 'ANY', 'NaN', 'mg', 'TOTAL', 'Test citation')",
         "INSERT INTO unit_conversion (nutrient_code, from_unit, to_unit, factor, form_code, note)"
             + " VALUES ('TST_E', 'IU', 'mg', 'NaN', 'ANY', NULL)",
         "INSERT INTO product_nutrient VALUES ('"

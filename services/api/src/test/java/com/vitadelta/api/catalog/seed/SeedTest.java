@@ -27,6 +27,7 @@ class SeedTest extends PostgresIntegrationTest {
   private static final List<String> TABLES =
       List.of(
           "nutrient",
+          "nutrient_form",
           "reference_set",
           "ul_set",
           "unit_conversion",
@@ -68,7 +69,7 @@ class SeedTest extends PostgresIntegrationTest {
   }
 
   @Test
-  void seedingTwiceKeepsCountsAndIdsAndBumpsOncePerRun() {
+  void seedingTwiceKeepsCountsAndIdsAndBumpsOncePerRun() throws IOException {
     Path dataDir = TestData.dataDir();
     long start = version();
     SeedService.Result first = seedService.seed(dataDir);
@@ -89,6 +90,24 @@ class SeedTest extends PostgresIntegrationTest {
                 "SELECT count(*) FROM product_nutrient WHERE unit = 'IU'", Integer.class))
         .isPositive();
 
+    int formRows = Files.readAllLines(dataDir.resolve("reference/forms.csv")).size() - 1;
+    assertThat(countsAfterFirst.get("nutrient_form")).isEqualTo(formRows);
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT count(*) FROM upper_limit WHERE btrim(note) = ''", Integer.class))
+        .isZero();
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT note FROM upper_limit WHERE ul_set_code = 'EFSA'"
+                    + " AND nutrient_code = 'VIT_A' AND form_code = 'BETA_CAROTENE'",
+                String.class))
+        .startsWith("exempt: EFSA UL Overview");
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT name_en FROM nutrient_form WHERE code = 'D3_CHOLECALCIFEROL'",
+                String.class))
+        .isEqualTo("Vitamin D3 (cholecalciferol)");
+
     SeedService.Result second = seedService.seed(dataDir);
     assertThat(version()).isEqualTo(start + 2);
     assertThat(second.catalogVersion()).isEqualTo(start + 2);
@@ -96,6 +115,33 @@ class SeedTest extends PostgresIntegrationTest {
     assertThat(ids()).isEqualTo(idsAfterFirst);
     assertThat(second.report().changedRows()).isZero();
     assertThat(second.report().tables().keySet()).containsAll(TABLES);
+  }
+
+  @Test
+  void seedRestoresChangedNotesAndFormNamesFromTheFiles() {
+    Path dataDir = TestData.dataDir();
+    seedService.seed(dataDir);
+    String expected =
+        jdbc.queryForObject(
+            "SELECT note FROM upper_limit WHERE ul_set_code = 'IOM' AND nutrient_code = 'ZINC'",
+            String.class);
+    jdbc.update(
+        "UPDATE upper_limit SET note = 'changed' WHERE ul_set_code = 'IOM'"
+            + " AND nutrient_code = 'ZINC'");
+    jdbc.update("UPDATE nutrient_form SET name_en = 'changed' WHERE code = 'UBIQUINOL'");
+    SeedService.Result result = seedService.seed(dataDir);
+    assertThat(result.report().table("upper_limit").updated()).isEqualTo(1);
+    assertThat(result.report().table("nutrient_form").updated()).isEqualTo(1);
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT note FROM upper_limit WHERE ul_set_code = 'IOM'"
+                    + " AND nutrient_code = 'ZINC'",
+                String.class))
+        .isEqualTo(expected);
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT name_en FROM nutrient_form WHERE code = 'UBIQUINOL'", String.class))
+        .isEqualTo("Ubiquinol (reduced coenzyme Q10)");
   }
 
   @Test

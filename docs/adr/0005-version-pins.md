@@ -97,9 +97,9 @@ These versions were checked on 2026-11-24 and are the pins to use when the corre
 
 ### Unverified
 
-- **Resilience4j against Boot 4.2.** `resilience4j-spring-boot4` 2.4.0 (2026-03-14) is compiled against Spring Boot 4.0.0; there is no release targeting 4.2. Runtime compatibility with Boot 4.2.0 is confirmed only when the module is added and the build with a context-load test passes. If it fails, the circuit breaker and retry are configured with the core Resilience4j modules without the Boot integration.
+- **Resilience4j against Boot 4.2.** Resolved in Phase 4: `resilience4j-spring-boot4` 2.4.0 (2026-03-14) is compiled against Spring Boot 4.0.0, and it works with Spring Boot 4.2.0, verified by a context-load test and behaviour tests (configuration binding, retry, circuit breaker, state gauge). The fallback to the core modules was not needed.
 - **OWASP Dependency-Check without an NVD API key.** The plugin uses the NVD API; without a key the initial download is rate limited (5 requests per 30 seconds, about 216 pages for the current CVE count) and takes at least about 25 minutes, realistically longer. A full run without a key was not executed. Until an NVD API key secret and a cached data directory are provided, `scripts/security-scan.sh` reports this check as `SKIPPED(no NVD_API_KEY)`. The Sonatype OSS Index analyzer is disabled without credentials.
-- **WireMock Spring Boot integration** `wiremock-spring-boot` 4.4.3 with Boot 4.2: not tested.
+- **WireMock Spring Boot integration** `wiremock-spring-boot` 4.4.3 with Boot 4.2: not tested. The decision in Deviations item 5 is applied: Phase 4 uses only the standalone server in test scope.
 - **Dependabot with uv 0.13.9 lock files:** not tested (see Deviations).
 - **Image digests:** images are pinned by exact tag, not by digest. The index digests of the exact tags were recorded during verification; floating tags can show a different index digest for identical content.
 - **Runtime image packages:** the API runtime image installs `curl` from the Ubuntu noble package archive without a pinned package version.
@@ -141,6 +141,17 @@ These versions were checked on 2026-11-24 and are the pins to use when the corre
 | `org.bouncycastle:bcprov-jdk18on` | 1.87 | `services/api/build.gradle.kts` | explicit, not BOM-managed; Maven Central latest release, jar dated 2026-11-11 |
 | `com.bucket4j:bucket4j_jdk17-core` | 8.23.0 | `services/api/build.gradle.kts` | explicit, not BOM-managed; Maven Central latest release, jar dated 2026-11-22 |
 | Structured JSON logging | Spring Boot 4.2.0 built-in (`logging.structured.format.console=logstash`) | `services/api/src/main/resources/application.yml` | no dependency added; logback-classic 1.6.6 as managed |
+
+### Added in Phase 4
+
+| Item | Pin | Where pinned | Notes |
+|---|---|---|---|
+| openapi-generator Gradle plugin `org.openapi.generator` | 7.27.0 | `services/api/build.gradle.kts` | generator `java`, library `restclient`, `useSpringBoot4`, `useJackson3`, `openApiNullable=false`; output under `build/generated/scoring-client` in its own source set (no `-Werror`, no Spotless, not in JaCoCo) |
+| springdoc-openapi | `org.springdoc:springdoc-openapi-starter-webmvc-api:3.2.1` | `services/api/build.gradle.kts` | brings swagger-core 3.0.0; API document only, no UI |
+| Resilience4j | `io.github.resilience4j:resilience4j-spring-boot4:2.4.0` | `services/api/build.gradle.kts` | context load and behaviour tests pass on Spring Boot 4.2.0 (configuration binding from `resilience4j.*`, registries, Micrometer state gauge) |
+| WireMock | `org.wiremock:wiremock-standalone:4.0.0-beta.44` | `services/api/build.gradle.kts` | test scope; standalone server, no Spring integration |
+| Testcontainers core (`org.testcontainers:testcontainers`) | managed by the Spring Boot 4.2.0 BOM | `services/api/build.gradle.kts` | test scope; 2.0.5 as managed; `GenericContainer` and `ImageFromDockerfile` start the real scoring service |
+| Caffeine | managed by the Spring Boot 4.2.0 BOM | `services/api/build.gradle.kts` | 3.3.1 as managed; already present since Phase 3, now also used for the ranking and market-profile caches |
 
 ## Consequences
 

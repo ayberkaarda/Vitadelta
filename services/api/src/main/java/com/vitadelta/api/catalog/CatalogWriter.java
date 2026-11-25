@@ -1,6 +1,7 @@
 package com.vitadelta.api.catalog;
 
 import com.vitadelta.api.catalog.ReferenceValues.CountryRow;
+import com.vitadelta.api.catalog.ReferenceValues.FormRow;
 import com.vitadelta.api.catalog.ReferenceValues.NutrientRow;
 import com.vitadelta.api.catalog.ReferenceValues.ReferenceValueRow;
 import com.vitadelta.api.catalog.ReferenceValues.SetRow;
@@ -22,9 +23,9 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Component;
 
 /**
- * Upserts catalog and reference rows by their business keys. Every method must run inside {@link
- * CatalogWriteTransaction#execute}; a call outside it is rejected, so no catalog write can skip the
- * catalog version bump.
+ * Upserts catalog and reference rows by their business keys (nutrient_form included). Every method
+ * must run inside {@link CatalogWriteTransaction#execute}; a call outside it is rejected, so no
+ * catalog write can skip the catalog version bump.
  *
  * <p>Semantics: registry tables (nutrient, reference_set, ul_set, country) are upserted and never
  * deleted (other rows reference them). Reference rows without dependents (reference_value,
@@ -40,6 +41,7 @@ public class CatalogWriter {
 
   private final EntityManager entityManager;
   private final NutrientRepository nutrients;
+  private final NutrientFormRepository forms;
   private final ReferenceSetRepository referenceSets;
   private final UlSetRepository ulSets;
   private final ReferenceValueRepository referenceValues;
@@ -54,6 +56,7 @@ public class CatalogWriter {
   public CatalogWriter(
       EntityManager entityManager,
       NutrientRepository nutrients,
+      NutrientFormRepository forms,
       ReferenceSetRepository referenceSets,
       UlSetRepository ulSets,
       ReferenceValueRepository referenceValues,
@@ -66,6 +69,7 @@ public class CatalogWriter {
       OfferRepository offers) {
     this.entityManager = entityManager;
     this.nutrients = nutrients;
+    this.forms = forms;
     this.referenceSets = referenceSets;
     this.ulSets = ulSets;
     this.referenceValues = referenceValues;
@@ -104,6 +108,26 @@ public class CatalogWriter {
                 row.canonicalUnit(),
                 row.presenceFloorPerDay(),
                 row.sortOrder()));
+      }
+    }
+    entityManager.flush();
+  }
+
+  /**
+   * Upserts the form registry by code. Forms are never deleted: product, upper-limit and
+   * unit-conversion rows reference them.
+   */
+  public void upsertForms(List<FormRow> rows, WriteReport report) {
+    CatalogWriteTransaction.requireActive();
+    Map<String, NutrientForm> existing = index(forms.findAll(), NutrientForm::getCode);
+    WriteReport.TableCounts counts = report.table("nutrient_form");
+    for (FormRow row : rows) {
+      NutrientForm current = existing.get(row.code());
+      if (current == null) {
+        entityManager.persist(new NutrientForm(row.code(), row.nutrientCode(), row.nameEn()));
+        counts.upserted(true, false);
+      } else {
+        counts.upserted(false, current.update(row.nutrientCode(), row.nameEn()));
       }
     }
     entityManager.flush();
@@ -173,10 +197,11 @@ public class CatalogWriter {
       UpperLimitId id = new UpperLimitId(row.ulSetCode(), row.nutrientCode(), row.formCode());
       UpperLimit current = existing.remove(id);
       if (current == null) {
-        entityManager.persist(new UpperLimit(id, row.amount(), row.unit(), row.basis()));
+        entityManager.persist(
+            new UpperLimit(id, row.amount(), row.unit(), row.basis(), row.note()));
         counts.upserted(true, false);
       } else {
-        counts.upserted(false, current.update(row.amount(), row.unit(), row.basis()));
+        counts.upserted(false, current.update(row.amount(), row.unit(), row.basis(), row.note()));
       }
     }
     existing.values().forEach(entityManager::remove);
@@ -356,7 +381,8 @@ public class CatalogWriter {
    * deadlocks) before their nutrient or offer sets are read, so that concurrent replace-set writes
    * of the same product serialise instead of merging.
    */
-  private void lockProducts(Collection<UUID> productIds) {
+  public void lockProducts(Collection<UUID> productIds) {
+    CatalogWriteTransaction.requireActive();
     if (productIds.isEmpty()) {
       return;
     }
@@ -366,7 +392,9 @@ public class CatalogWriter {
         .getResultList();
   }
 
-  private void lockProductsByCode(Collection<String> codes) {
+  /** Locks the rows of the products with the given codes, like {@link #lockProducts}. */
+  public void lockProductsByCode(Collection<String> codes) {
+    CatalogWriteTransaction.requireActive();
     if (codes.isEmpty()) {
       return;
     }

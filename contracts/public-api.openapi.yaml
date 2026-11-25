@@ -29,6 +29,9 @@ info:
       (bearer access token). Operations with `security: []` need no credentials.
       Operations that list an empty security requirement next to `bearerAuth`
       and `anonCookie` accept every principal and adapt the response to it.
+    - A request URL the server rejects before routing (encoded slashes or
+      backslashes, dot segments, path parameters, empty segments) is answered
+      400 with an `about:blank` problem.
 servers:
   - url: /api/v1
     description: Same-origin deployment; the web server proxies `/api/` to the API.
@@ -147,7 +150,11 @@ paths:
       tags: [Reference]
       operationId: listNutrients
       summary: Nutrient registry
-      description: Registry with categories, canonical units and the reference sets that define a value for each nutrient.
+      description: |
+        Registry with categories, canonical units, the reference sets that
+        define a value for each nutrient and the registered forms of each
+        nutrient (form registry; `ANY` and `UNKNOWN` are sentinels and are
+        never listed).
       security: []
       parameters:
         - $ref: '#/components/parameters/XRequestId'
@@ -161,8 +168,18 @@ paths:
               schema: { $ref: '#/components/schemas/NutrientList' }
               example:
                 items:
-                  - { code: VIT_C, nameEn: Vitamin C, category: VITAMIN, canonicalUnit: mg, presenceFloorPerDay: null, sortOrder: 30, referenceSetCodes: [EU_NRV, US_DV] }
-                  - { code: COQ10, nameEn: Coenzyme Q10, category: COENZYME, canonicalUnit: mg, presenceFloorPerDay: null, sortOrder: 300, referenceSetCodes: [] }
+                  - { code: VIT_C, nameEn: Vitamin C, category: VITAMIN, canonicalUnit: mg, presenceFloorPerDay: null, sortOrder: 20, referenceSetCodes: [EU_NRV, US_DV], forms: [] }
+                  - code: VIT_D
+                    nameEn: Vitamin D
+                    category: VITAMIN
+                    canonicalUnit: mcg
+                    presenceFloorPerDay: null
+                    sortOrder: 30
+                    referenceSetCodes: [EU_NRV, US_DV]
+                    forms:
+                      - { code: D2_ERGOCALCIFEROL, nameEn: Vitamin D2 (ergocalciferol) }
+                      - { code: D3_CHOLECALCIFEROL, nameEn: Vitamin D3 (cholecalciferol) }
+                  - { code: COQ10, nameEn: Coenzyme Q10, category: COENZYME, canonicalUnit: mg, presenceFloorPerDay: null, sortOrder: 290, referenceSetCodes: [], forms: [] }
         '500': { $ref: '#/components/responses/InternalError' }
 
   /weights/defaults:
@@ -202,7 +219,8 @@ paths:
         For anonymous callers returns the trial counters and creates the `vd_anon`
         cookie when it is missing. A missing or invalid (tampered) cookie
         creates a new identity; creation is limited to 60 per hour per client
-        IP, while requests with a valid cookie are never limited by it. For
+        IP (one limit shared with `POST /recommendations/query`), while
+        requests with a valid cookie are never limited by it. For
         signed-in users returns the plan usage summary of `GET /me`.
 
         Problem codes: `unauthorized` (401, invalid bearer token),
@@ -246,21 +264,54 @@ paths:
       summary: Ranked recommendations
       description: |
         Scores every in-market product of the country and returns the ranking.
+        Products without an offer, and under `IN_STOCK_ONLY` products without
+        an in-stock offer, are not scored and are counted in `meta.excluded`.
 
         - ANONYMOUS: consumes one trial query (3 per anonymous identity); the
           response contains only the top 3 items of the full ranking regardless
           of `page`; `page > 1` returns an empty `items` array with the same
           `meta.visibility`. Locked items are not sent in any form. The `vd_anon`
-          cookie is created when missing. A query failing with 503 does not
-          consume quota.
-        - USER / ADMIN: unlimited, full paged results.
+          cookie is created when missing or invalid; creating it shares the
+          limit of `GET /session/quota` (60 identities per hour per client IP).
+          The request is validated before the quota is reserved, and only a
+          200 response consumes quota: a 422, 500 or 503 after the reservation
+          refunds it.
+        - USER / ADMIN: unlimited, full paged results; a page beyond the last
+          returns an empty `items` array.
+
+        Money is in `meta.currency`. Until a rate exists for the requested
+        display currency, money stays native, `meta.fx.status` is `UNAVAILABLE`
+        and every item carries the `FX_UNAVAILABLE` flag; a stale rate adds
+        `FX_STALE`.
+
+        Scoring-service rejections: a scoring `422` whose errors all point at
+        client-supplied values (weights, `ranking.lambda`,
+        `requiredNutrients[].minAmountPerDay`), for example
+        `value_out_of_range` or `out_of_range`, is returned as 422
+        `validation_failed` with the same `errors[].code` and the field
+        translated to the public path; any other scoring `422` (for example
+        `duplicate_product_id`, inconsistent catalog input) or scoring `4xx`
+        is 500 `internal_error`. Scoring timeouts, connection errors, `5xx`
+        and an open circuit are 503 `scoring_unavailable`.
+
+        Every number of the request (weights, overrides, `ranking.lambda`,
+        `requiredNutrients[].minAmountPerDay`) may have at most 12 integer
+        digits and at most 9 decimal places once trailing zeros are removed;
+        a number beyond that (for example `1e-1073741824`) is 422
+        `validation_failed` with `errors[].code = out_of_range`, before any
+        quota is reserved.
 
         Problem codes: `validation_failed` (422; `errors[].code` includes
-        `weights_all_zero`, `unit_requires_form`), `country_not_found` (422),
-        `fx_unsupported_currency` (422), `quota_exceeded` (403),
-        `unauthorized` (401, invalid bearer token), `rate_limited` (429,
-        anonymous callers 30 per day per IP), `scoring_unavailable` (503),
-        request body larger than 64 kB (413).
+        `weights_all_zero`, `unit_requires_form`, `unknown_nutrient_code`,
+        `lambda_requires_custom`, `duplicate_nutrient`, `out_of_range`,
+        `value_out_of_range`; also a malformed `displayCurrency`),
+        `country_not_found` (422), `fx_unsupported_currency` (422),
+        `quota_exceeded` (403, anonymous only, with `upgradeHint`),
+        `unauthorized` (401, invalid bearer token), `rate_limited` (429 with
+        `Retry-After`: anonymous callers 30 queries per day per client IP, or
+        anonymous identity creation), `scoring_unavailable` (503), request
+        body larger than 64 kB (413), body not `application/json` (415),
+        `internal_error` (500).
       security:
         - {}
         - bearerAuth: []
@@ -296,7 +347,7 @@ paths:
               schema: { $ref: '#/components/schemas/RecommendationQueryResponse' }
               examples:
                 goldenPairValueMode:
-                  summary: GOLD-A / GOLD-B in TR, VALUE mode, FREE user, native currency
+                  summary: GOLD-A / GOLD-B in TR, VALUE mode, FREE user, native currency (fewer than 3 products with content, so `mRef` is null)
                   value:
                     meta:
                       country: TR
@@ -305,7 +356,7 @@ paths:
                       fx: { base: TRY, quote: TRY, rate: 1, asOf: null, source: null, stale: false, status: OK }
                       catalogVersion: 42
                       marketSize: 2
-                      mRef: 2.8381
+                      mRef: null
                       excluded: { noStock: 0, noOffer: 0, requiredNutrients: 0, exceedsUl: 0 }
                       visibility: { shown: 2, total: 2, locked: 0, reason: null }
                       principal: { type: USER, plan: FREE }
@@ -319,22 +370,21 @@ paths:
                         brand: Gold
                         name: Gold A Multivitamin
                         dosageForm: TABLET
+                        provenance: &syntheticProvenance { synthetic: true, source: Synthetic fixture set (fictional brand and formulation), sourceRef: null, sourceEntryDate: null }
                         cost: { effectivePrice: 800.0, effectivePriceNative: 800.0, currency: TRY, servingsPerContainer: 60, daysSupply: 60, costPerDay: 13.3333, costPerDayNative: 13.3333, priceStale: false, outOfStock: false }
                         contentScore: 4.9719
-                        contentScoreDisplay: 99.2534
+                        contentScoreDisplay: 99.2537
                         valueScore: 0.3729
                         valueScoreDisplay: 100.0
                         customScore: null
                         flags: []
                         breakdown:
-                          - { code: VIT_C, category: VITAMIN, amountPerDay: 300, ulAmountPerDay: 300, unit: mg, reference: 80, referenceSource: REGULATORY, coverageRatio: 3.75, utility: 1.4626, weight: 1.0, contribution: 1.4626, cappedAtUl: false, cappedAtUMax: false, ulBelowReference: false }
-                          - { code: VIT_D, category: VITAMIN, amountPerDay: 10, ulAmountPerDay: 10, unit: mcg, reference: 5, referenceSource: REGULATORY, coverageRatio: 2.0, utility: 1.2426, weight: 1.0, contribution: 1.2426, cappedAtUl: false, cappedAtUMax: false, ulBelowReference: false }
-                          - { code: VIT_B12, category: VITAMIN, amountPerDay: 2.5, ulAmountPerDay: 2.5, unit: mcg, reference: 2.5, referenceSource: REGULATORY, coverageRatio: 1.0, utility: 1.0, weight: 1.0, contribution: 1.0, cappedAtUl: false, cappedAtUMax: false, ulBelowReference: false }
-                          - { code: ZINC, category: MINERAL, amountPerDay: 10, ulAmountPerDay: 10, unit: mg, reference: 10, referenceSource: REGULATORY, coverageRatio: 1.0, utility: 1.0, weight: 1.0, contribution: 1.0, cappedAtUl: false, cappedAtUMax: false, ulBelowReference: false }
-                          - { code: MAGNESIUM, category: MINERAL, amountPerDay: 100, ulAmountPerDay: 100, unit: mg, reference: 375, referenceSource: REGULATORY, coverageRatio: 0.2667, utility: 0.2667, weight: 1.0, contribution: 0.2667, cappedAtUl: false, cappedAtUMax: false, ulBelowReference: false }
-                        topContributors:
-                          - { code: VIT_C, category: VITAMIN, amountPerDay: 300, ulAmountPerDay: 300, unit: mg, reference: 80, referenceSource: REGULATORY, coverageRatio: 3.75, utility: 1.4626, weight: 1.0, contribution: 1.4626, cappedAtUl: false, cappedAtUMax: false, ulBelowReference: false }
-                          - { code: VIT_D, category: VITAMIN, amountPerDay: 10, ulAmountPerDay: 10, unit: mcg, reference: 5, referenceSource: REGULATORY, coverageRatio: 2.0, utility: 1.2426, weight: 1.0, contribution: 1.2426, cappedAtUl: false, cappedAtUMax: false, ulBelowReference: false }
+                          - &mgRow { code: MAGNESIUM, category: MINERAL, amountPerDay: 100, ulAmountPerDay: 100, unit: mg, reference: 375, referenceSource: REGULATORY, coverageRatio: 0.2667, utility: 0.2667, weight: 1.0, contribution: 0.2667, cappedAtUl: false, cappedAtUMax: false, ulBelowReference: true, belowPresenceFloor: false }
+                          - &b12Row { code: VIT_B12, category: VITAMIN, amountPerDay: 2.5, ulAmountPerDay: 2.5, unit: mcg, reference: 2.5, referenceSource: REGULATORY, coverageRatio: 1.0, utility: 1.0, weight: 1.0, contribution: 1.0, cappedAtUl: false, cappedAtUMax: false, ulBelowReference: false, belowPresenceFloor: false }
+                          - &vitCRowA { code: VIT_C, category: VITAMIN, amountPerDay: 300, ulAmountPerDay: 300, unit: mg, reference: 80, referenceSource: REGULATORY, coverageRatio: 3.75, utility: 1.4626, weight: 1.0, contribution: 1.4626, cappedAtUl: false, cappedAtUMax: false, ulBelowReference: false, belowPresenceFloor: false }
+                          - &vitDRow { code: VIT_D, category: VITAMIN, amountPerDay: 10, ulAmountPerDay: 10, unit: mcg, reference: 5, referenceSource: REGULATORY, coverageRatio: 2.0, utility: 1.2426, weight: 1.0, contribution: 1.2426, cappedAtUl: false, cappedAtUMax: false, ulBelowReference: false, belowPresenceFloor: false }
+                          - &znRow { code: ZINC, category: MINERAL, amountPerDay: 10, ulAmountPerDay: 10, unit: mg, reference: 10, referenceSource: REGULATORY, coverageRatio: 1.0, utility: 1.0, weight: 1.0, contribution: 1.0, cappedAtUl: false, cappedAtUMax: false, ulBelowReference: false, belowPresenceFloor: false }
+                        topContributors: [*vitCRowA, *vitDRow, *b12Row, *znRow, *mgRow]
                         selectedOffer: { retailer: Retailer One, url: 'https://shop.example.com/products/gold-a', checkedAt: '2026-11-20T09:00:00Z' }
                         saved: false
                         alerts: []
@@ -344,22 +394,21 @@ paths:
                         brand: Gold
                         name: Gold B Multivitamin
                         dosageForm: TABLET
+                        provenance: *syntheticProvenance
                         cost: { effectivePrice: 900.0, effectivePriceNative: 900.0, currency: TRY, servingsPerContainer: 60, daysSupply: 60, costPerDay: 15.0, costPerDayNative: 15.0, priceStale: false, outOfStock: false }
                         contentScore: 5.0093
                         contentScoreDisplay: 100.0
                         valueScore: 0.334
-                        valueScoreDisplay: 89.5682
+                        valueScoreDisplay: 89.5573
                         customScore: null
                         flags: []
                         breakdown:
-                          - { code: VIT_C, category: VITAMIN, amountPerDay: 350, ulAmountPerDay: 350, unit: mg, reference: 80, referenceSource: REGULATORY, coverageRatio: 4.375, utility: 1.5, weight: 1.0, contribution: 1.5, cappedAtUl: false, cappedAtUMax: true, ulBelowReference: false }
-                          - { code: VIT_D, category: VITAMIN, amountPerDay: 10, ulAmountPerDay: 10, unit: mcg, reference: 5, referenceSource: REGULATORY, coverageRatio: 2.0, utility: 1.2426, weight: 1.0, contribution: 1.2426, cappedAtUl: false, cappedAtUMax: false, ulBelowReference: false }
-                          - { code: VIT_B12, category: VITAMIN, amountPerDay: 2.5, ulAmountPerDay: 2.5, unit: mcg, reference: 2.5, referenceSource: REGULATORY, coverageRatio: 1.0, utility: 1.0, weight: 1.0, contribution: 1.0, cappedAtUl: false, cappedAtUMax: false, ulBelowReference: false }
-                          - { code: ZINC, category: MINERAL, amountPerDay: 10, ulAmountPerDay: 10, unit: mg, reference: 10, referenceSource: REGULATORY, coverageRatio: 1.0, utility: 1.0, weight: 1.0, contribution: 1.0, cappedAtUl: false, cappedAtUMax: false, ulBelowReference: false }
-                          - { code: MAGNESIUM, category: MINERAL, amountPerDay: 100, ulAmountPerDay: 100, unit: mg, reference: 375, referenceSource: REGULATORY, coverageRatio: 0.2667, utility: 0.2667, weight: 1.0, contribution: 0.2667, cappedAtUl: false, cappedAtUMax: false, ulBelowReference: false }
-                        topContributors:
-                          - { code: VIT_C, category: VITAMIN, amountPerDay: 350, ulAmountPerDay: 350, unit: mg, reference: 80, referenceSource: REGULATORY, coverageRatio: 4.375, utility: 1.5, weight: 1.0, contribution: 1.5, cappedAtUl: false, cappedAtUMax: true, ulBelowReference: false }
-                          - { code: VIT_D, category: VITAMIN, amountPerDay: 10, ulAmountPerDay: 10, unit: mcg, reference: 5, referenceSource: REGULATORY, coverageRatio: 2.0, utility: 1.2426, weight: 1.0, contribution: 1.2426, cappedAtUl: false, cappedAtUMax: false, ulBelowReference: false }
+                          - *mgRow
+                          - *b12Row
+                          - &vitCRowB { code: VIT_C, category: VITAMIN, amountPerDay: 350, ulAmountPerDay: 350, unit: mg, reference: 80, referenceSource: REGULATORY, coverageRatio: 4.375, utility: 1.5, weight: 1.0, contribution: 1.5, cappedAtUl: false, cappedAtUMax: true, ulBelowReference: false, belowPresenceFloor: false }
+                          - *vitDRow
+                          - *znRow
+                        topContributors: [*vitCRowB, *vitDRow, *b12Row, *znRow, *mgRow]
                         selectedOffer: { retailer: Retailer One, url: 'https://shop.example.com/products/gold-b', checkedAt: '2026-11-20T09:00:00Z' }
                         saved: false
                         alerts: []
@@ -375,15 +424,16 @@ paths:
                       marketSize: 18
                       mRef: 0.0646
                       excluded: { noStock: 2, noOffer: 1, requiredNutrients: 5, exceedsUl: 0 }
-                      visibility: { shown: 3, total: 18, locked: 15, reason: SIGN_UP_REQUIRED }
+                      visibility: { shown: 3, total: 13, locked: 10, reason: SIGN_UP_REQUIRED }
                       principal: { type: ANONYMOUS, queriesUsed: 1, queriesLimit: 3 }
                       page: 2
                       pageSize: 20
-                      total: 18
+                      total: 13
                     items: []
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/QuotaExceeded' }
         '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalError' }
@@ -399,13 +449,41 @@ paths:
         lower content score, then lower product id) and returns a verdict on
         whether B is worth its extra cost. `swapped = true` when A is not the
         requested baseline. Allowed for every principal and not counted against
-        the anonymous quota.
+        the anonymous quota; it never creates the `vd_anon` cookie.
 
-        Problem codes: `validation_failed` (422, includes `weights_all_zero`),
+        The market used for `mRef` is every scoreable product of the country
+        under `stockFilter`, including both products. Both products must be
+        in market and have an effective price under `stockFilter`: a product
+        without any offer is 422 `validation_failed` with `errors[].code =
+        no_offer`, and under `IN_STOCK_ONLY` a product without an in-stock
+        offer is `no_stock` (field `baselineProductId` or
+        `candidateProductId`). Comparing a product with itself is 422
+        `validation_failed` with `errors[].code = same_product` (field
+        `candidateProductId`). `mRef`, `marginalRate` and `ratio` are
+        nullable (verdict `INSUFFICIENT_DATA` when `mRef` is null).
+
+        Money is in `meta.currency`. Until a rate exists for the requested
+        display currency, money stays native, `meta.fx.status` is
+        `UNAVAILABLE` and both products carry the `FX_UNAVAILABLE` flag; a
+        stale rate adds `FX_STALE`. Scoring-service rejections are mapped as
+        for `POST /recommendations/query`.
+
+        Every weight and override may have at most 12 integer digits and at
+        most 9 decimal places once trailing zeros are removed; a number beyond
+        that (for example `1e-1073741824`) is 422 `validation_failed` with
+        `errors[].code = out_of_range`.
+
+        Problem codes: `validation_failed` (422; `errors[].code` includes
+        `weights_all_zero`, `same_product`, `no_offer`, `no_stock`,
+        `unknown_nutrient_code`, `out_of_range`, `value_out_of_range`),
         `country_not_found` (422), `fx_unsupported_currency` (422),
-        `product_not_found` (404), `product_not_available_in_country` (404),
-        `unauthorized` (401), `rate_limited` (429, anonymous callers 120 per
-        minute per IP), `scoring_unavailable` (503).
+        `product_not_found` (404), `product_not_available_in_country` (404,
+        status `NOT_SOLD` or `DISCONTINUED` or no availability row),
+        `unauthorized` (401, invalid bearer token), `rate_limited` (429 with
+        `Retry-After`, anonymous callers 120 per minute per client IP, shared
+        with `/products/**`), `scoring_unavailable` (503), request body larger
+        than 64 kB (413), body not `application/json` (415), `internal_error`
+        (500).
       security:
         - {}
         - bearerAuth: []
@@ -449,6 +527,7 @@ paths:
                   brand: Gold
                   name: Gold A Multivitamin
                   dosageForm: TABLET
+                  provenance: &compareProvenance { synthetic: true, source: Synthetic fixture set (fictional brand and formulation), sourceRef: null, sourceEntryDate: null }
                   cost: { effectivePrice: 800.0, effectivePriceNative: 800.0, currency: TRY, servingsPerContainer: 60, daysSupply: 60, costPerDay: 13.3333, costPerDayNative: 13.3333, priceStale: false, outOfStock: false }
                   contentScore: 4.9719
                   valueScore: 0.3729
@@ -460,6 +539,7 @@ paths:
                   brand: Gold
                   name: Gold B Multivitamin
                   dosageForm: TABLET
+                  provenance: *compareProvenance
                   cost: { effectivePrice: 900.0, effectivePriceNative: 900.0, currency: TRY, servingsPerContainer: 60, daysSupply: 60, costPerDay: 15.0, costPerDayNative: 15.0, priceStale: false, outOfStock: false }
                   contentScore: 5.0093
                   valueScore: 0.334
@@ -468,21 +548,22 @@ paths:
                 deltaCost: 1.6667
                 deltaCostNative: 1.6667
                 deltaContent: 0.0374
-                marginalRate: 44.5798
+                marginalRate: 44.5806
                 mRef: 2.6817
                 ratio: 16.6237
                 rows:
+                  - { code: MAGNESIUM, category: MINERAL, amountA: 100, amountB: 100, deltaAmount: 0, unit: mg, rA: 0.2667, rB: 0.2667, uA: 0.2667, uB: 0.2667, weight: 1.0, deltaContribution: 0, flags: [] }
+                  - { code: VIT_B12, category: VITAMIN, amountA: 2.5, amountB: 2.5, deltaAmount: 0, unit: mcg, rA: 1.0, rB: 1.0, uA: 1.0, uB: 1.0, weight: 1.0, deltaContribution: 0, flags: [] }
                   - { code: VIT_C, category: VITAMIN, amountA: 300, amountB: 350, deltaAmount: 50, unit: mg, rA: 3.75, rB: 4.375, uA: 1.4626, uB: 1.5, weight: 1.0, deltaContribution: 0.0374, flags: [DIMINISHING, ABOVE_CEILING_NO_CREDIT] }
                   - { code: VIT_D, category: VITAMIN, amountA: 10, amountB: 10, deltaAmount: 0, unit: mcg, rA: 2.0, rB: 2.0, uA: 1.2426, uB: 1.2426, weight: 1.0, deltaContribution: 0, flags: [] }
-                  - { code: VIT_B12, category: VITAMIN, amountA: 2.5, amountB: 2.5, deltaAmount: 0, unit: mcg, rA: 1.0, rB: 1.0, uA: 1.0, uB: 1.0, weight: 1.0, deltaContribution: 0, flags: [] }
                   - { code: ZINC, category: MINERAL, amountA: 10, amountB: 10, deltaAmount: 0, unit: mg, rA: 1.0, rB: 1.0, uA: 1.0, uB: 1.0, weight: 1.0, deltaContribution: 0, flags: [] }
-                  - { code: MAGNESIUM, category: MINERAL, amountA: 100, amountB: 100, deltaAmount: 0, unit: mg, rA: 0.2667, rB: 0.2667, uA: 0.2667, uB: 0.2667, weight: 1.0, deltaContribution: 0, flags: [] }
                 explanation:
                   key: explain.verdict.not_worth_it
-                  params: { deltaCostPerDay: 1.6667, currency: TRY, ratio: 16.6237 }
+                  params: { currency: TRY, deltaCostPerDay: 1.6667, deltaContent: 0.0374, marginalRate: 44.5806, mRef: 2.6817, ratio: 16.6237 }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
         '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalError' }
@@ -497,11 +578,24 @@ paths:
         Returns in-market (AVAILABLE) products of the country. Products that are
         `NOT_SOLD` or `DISCONTINUED` in the country are never returned. The cost
         object uses the effective price with out-of-stock offers included and is
-        `null` when the product has no offer.
+        `null` when the product has no offer. Results are ordered by `brand`,
+        then `name`, then `code` (ascending, binary order); `q` matches a
+        case-insensitive substring of brand, name or code. A page beyond the
+        last returns an empty `items` array.
 
-        Problem codes: `validation_failed` (422), `country_not_found` (422),
-        `fx_unsupported_currency` (422), `unauthorized` (401), `rate_limited`
-        (429, anonymous callers 120 per minute per IP).
+        This operation does not call the scoring service (no 503). Flags are
+        limited to the ones the API derives itself: `PRICE_STALE`,
+        `OUT_OF_STOCK`, `CONVERSION_ASSUMED`, `FX_STALE` and `FX_UNAVAILABLE`.
+        Until a rate exists for the requested display currency, money stays
+        native, `meta.fx.status` is `UNAVAILABLE` and every item with a cost
+        carries `FX_UNAVAILABLE`.
+
+        Problem codes: `validation_failed` (422; malformed `country`,
+        `displayCurrency`, `page`, `pageSize` or `q`), `country_not_found`
+        (422), `fx_unsupported_currency` (422), `unauthorized` (401, invalid
+        bearer token), `rate_limited` (429 with `Retry-After`, anonymous
+        callers 120 per minute per client IP, shared with
+        `/recommendations/compare`), `internal_error` (500).
       security:
         - {}
         - bearerAuth: []
@@ -512,8 +606,8 @@ paths:
         - name: q
           in: query
           required: false
-          description: Free-text search over brand, name and product code.
-          schema: { type: string, minLength: 1, maxLength: 200 }
+          description: Free-text search over brand, name and product code (case-insensitive substring). Control characters are rejected with 422.
+          schema: { type: string, minLength: 1, maxLength: 200, pattern: '^[^\x00-\x1F\x7F]*$' }
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/PageSize'
         - $ref: '#/components/parameters/DisplayCurrencyQuery'
@@ -525,6 +619,30 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ProductPage' }
+              examples:
+                fxUnavailable:
+                  summary: Display currency requested while no rate exists (money stays native)
+                  value:
+                    meta:
+                      country: TR
+                      nativeCurrency: TRY
+                      currency: TRY
+                      fx: { base: TRY, quote: EUR, rate: null, asOf: null, source: null, stale: false, status: UNAVAILABLE }
+                      page: 1
+                      pageSize: 20
+                      total: 1
+                    items:
+                      - id: 3b2f0c4e-6a1d-4f0e-9c3a-1a2b3c4d5e01
+                        code: GOLD-A
+                        brand: Gold
+                        name: Gold A Multivitamin
+                        dosageForm: TABLET
+                        unitsPerContainer: 60
+                        unitsPerServing: 1
+                        servingsPerDay: 1
+                        provenance: { synthetic: true, source: Synthetic fixture set (fictional brand and formulation), sourceRef: null, sourceEntryDate: null }
+                        cost: { effectivePrice: 800.0, effectivePriceNative: 800.0, currency: TRY, servingsPerContainer: 60, daysSupply: 60, costPerDay: 13.3333, costPerDayNative: 13.3333, priceStale: false, outOfStock: false }
+                        flags: [{ code: FX_UNAVAILABLE, nutrientCodes: [] }]
         '401': { $ref: '#/components/responses/Unauthorized' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
@@ -539,12 +657,27 @@ paths:
         Formulation, availability, offers and flags of one product in the given
         country. For signed-in users `saved` and `alerts` reflect the caller's
         saved state and alert subscriptions in that country; for anonymous
-        callers they are `false` and `[]`.
+        callers they are `false` and `[]`. Saved products and alerts arrive
+        with Phase 5; until then `saved` is `false` and `alerts` is `[]` for
+        every principal.
 
-        Problem codes: `product_not_found` (404), `product_not_available_in_country`
-        (404, status `NOT_SOLD` or `DISCONTINUED`), `validation_failed` (422),
-        `country_not_found` (422), `fx_unsupported_currency` (422),
-        `unauthorized` (401), `rate_limited` (429).
+        `offers` lists every offer of the product in the country (in stock
+        and out of stock), ordered by `price` ascending, then `checkedAt`
+        descending, then `retailer` ascending. `cost` and `selectedOffer` use
+        the effective price with out-of-stock offers included. This operation
+        does not call the scoring service (no 503); flags are limited to
+        `PRICE_STALE`, `OUT_OF_STOCK`, `CONVERSION_ASSUMED`, `FX_STALE` and
+        `FX_UNAVAILABLE`. Until a rate exists for the requested display
+        currency, money stays native and `meta.fx.status` is `UNAVAILABLE`.
+
+        Problem codes: `product_not_found` (404, unknown id or an id that is
+        not a UUID),
+        `product_not_available_in_country` (404, status `NOT_SOLD` or
+        `DISCONTINUED` or no availability row), `validation_failed` (422;
+        malformed `country` or `displayCurrency`), `country_not_found` (422),
+        `fx_unsupported_currency` (422), `unauthorized` (401, invalid bearer
+        token), `rate_limited` (429 with `Retry-After`, anonymous callers 120
+        per minute per client IP), `internal_error` (500).
       security:
         - {}
         - bearerAuth: []
@@ -1572,14 +1705,32 @@ paths:
       description: |
         Requires role ADMIN. Accepts the products JSON document (products,
         nutrients, availability and offers) defined by the JSON Schema
-        `contracts/schemas/import-products.schema.json`. The document is
-        validated against that schema before any write; products are upserted
-        by `code`. Creates an import job of kind `PRODUCTS_JSON`; the job status,
-        summary and row errors are read with `GET /admin/imports/{jobId}`.
+        `contracts/schemas/import-products.schema.json`; products are upserted
+        by `code`. The import is asynchronous: the response is `202` with the
+        job as created (normally `RUNNING`) and its URL in `Location`; the job
+        status, summary and row errors are read with
+        `GET /admin/imports/{jobId}`.
+
+        The document is validated as a whole before any write: invalid UTF-8
+        (`invalid_encoding`), invalid JSON (`invalid_json`), schema violations
+        (`schema_violation`) and the semantic rules of the schema (for example
+        `unknown_nutrient`, `invalid_form_code`, `form_nutrient_mismatch`,
+        `unsupported_iu_form`, `currency_mismatch`, `invalid_offer_url`,
+        `checked_at_in_future`) are reported as job errors. A document with
+        more than 50 000 products fails with the single error
+        `too_many_records`; a string value longer than 4096 characters or a
+        nesting deeper than 64 levels is `invalid_json`. Parser failures carry
+        a fixed message with line and column only. Validation stops after
+        1000 errors: the job then lists those errors and one `too_many_errors`
+        error. Any error fails the whole job: nothing is written,
+        `catalog_version` is not bumped and no outbox event is written. Form codes are validated against the form
+        registry table. A successful import bumps `catalog_version` exactly
+        once; re-importing the same document changes no row.
 
         Problem codes: `unauthorized` (401), `forbidden` (403), body larger than
-        20 MB (413), `validation_failed` (422, schema violations listed in
-        `errors[]`).
+        20 MB (413), body not `application/json` (415), `validation_failed`
+        (422, empty request body only; content errors are job errors),
+        `internal_error` (500).
       x-required-role: ADMIN
       security:
         - bearerAuth: []
@@ -1604,6 +1755,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '500': { $ref: '#/components/responses/InternalError' }
 
@@ -1616,13 +1768,30 @@ paths:
         Requires role ADMIN. Upserts offers by natural key (product, country,
         retailer) within the countries covered by the file; for every
         (product, country) pair in the file, offers of retailers absent from the
-        file are deleted. Rows reference products by `product_code`. Creates an
-        import job of kind `OFFERS_CSV`; row errors such as `currency_mismatch`
-        and `invalid_offer_url` are reported on the job.
+        file are deleted. Rows reference products by `product_code`. The file
+        format and every error code are defined in
+        `contracts/schemas/offers-csv.columns.md`. The import is asynchronous:
+        the response is `202` with the job as created (normally `RUNNING`) and
+        its URL in `Location`.
+
+        File-level failures (`invalid_encoding`, `invalid_csv` for an
+        unparseable file such as an unterminated quoted field,
+        `invalid_header`, `too_many_records` for more than 200 000 data rows)
+        and row errors (for example `wrong_column_count`, `field_too_long`,
+        `currency_mismatch`, `invalid_offer_url`, `checked_at_in_future`) are
+        reported on the job; validation stops after 1000 errors and adds one
+        `too_many_errors` error. Any error fails the whole job: nothing is
+        written, `catalog_version` is not bumped and no `OFFERS_CHANGED` event
+        is written. A successful import bumps `catalog_version` exactly once;
+        re-importing the same file changes no row.
 
         Problem codes: `unauthorized` (401), `forbidden` (403), file larger than
-        20 MB (413), `validation_failed` (422, missing file or unreadable CSV
-        header).
+        20 MB (413), request not `multipart/form-data` (415),
+        `validation_failed` (422: missing `file` part, or a multipart body the
+        server cannot parse, for example a part whose file name contains
+        control characters - field `file`, code `invalid_format`; the file
+        name is never used; content errors are job errors),
+        `internal_error` (500).
       x-required-role: ADMIN
       security:
         - bearerAuth: []
@@ -1645,9 +1814,11 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ImportJob' }
+              example: { id: 2c3d4e5f-6a7b-4c8d-9e0f-1a2b3c4d5e6f, kind: OFFERS_CSV, status: RUNNING, createdAt: '2026-11-24T08:30:00Z', finishedAt: null, summary: null }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '500': { $ref: '#/components/responses/InternalError' }
 
@@ -1657,10 +1828,14 @@ paths:
       operationId: getImportJob
       summary: Import job status, summary and row errors
       description: |
-        Requires role ADMIN.
+        Requires role ADMIN. A `RUNNING` job has `finishedAt` and `summary`
+        `null` and an empty `errors` array; a `SUCCEEDED` job has the write counts in `summary` and
+        no errors; a `FAILED` job lists every error, ordered by `rowNumber`
+        and then by detection order, and its `summary` carries the rows read
+        with all write counts 0.
 
         Problem codes: `unauthorized` (401), `forbidden` (403), 404
-        (`about:blank`).
+        (`about:blank`, unknown id or an id that is not a UUID).
       x-required-role: ADMIN
       security:
         - bearerAuth: []
@@ -1685,9 +1860,10 @@ paths:
                 status: FAILED
                 createdAt: '2026-11-24T08:30:00Z'
                 finishedAt: '2026-11-24T08:30:02Z'
-                summary: { rowsRead: 120, inserted: 0, updated: 0, deleted: 0 }
+                summary: { rows: 120, inserted: 0, updated: 0, unchanged: 0, deleted: 0, changedPairs: 0 }
                 errors:
-                  - { rowNumber: 17, message: 'currency_mismatch: offer currency EUR does not match country currency TRY' }
+                  - { rowNumber: 17, code: currency_mismatch, message: 'currency_mismatch: currency EUR differs from the country currency TRY (row 17)' }
+                  - { rowNumber: 42, code: invalid_offer_url, message: 'invalid_offer_url: url must be an absolute http or https URI (row 42)' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
@@ -2240,7 +2416,11 @@ components:
       description: |
         The request is syntactically or semantically invalid. Codes:
         `validation_failed` (with `errors[]`), `country_not_found`,
-        `fx_unsupported_currency`.
+        `fx_unsupported_currency`. A malformed value (for example a country
+        or currency code that does not match its pattern) is
+        `validation_failed`; a well-formed but unknown country is
+        `country_not_found`; a well-formed currency outside the supported
+        set is `fx_unsupported_currency`.
       headers:
         X-Request-Id: { $ref: '#/components/headers/XRequestId' }
       content:
@@ -2300,7 +2480,7 @@ components:
             instance: /api/v1/auth/login
             requestId: 8c1d2e3f-4a5b-4c6d-9e7f-0a1b2c3d4e5f
     ScoringUnavailable:
-      description: The scoring service is unavailable or the circuit is open. Code `scoring_unavailable`. Anonymous quota is not consumed.
+      description: The scoring service is unavailable, the circuit is open, the API instance has reached its limit of concurrent scoring calls, or the country's catalog exceeds the supported size (an operator error, logged). Code `scoring_unavailable`. Anonymous quota is not consumed.
       headers:
         X-Request-Id: { $ref: '#/components/headers/XRequestId' }
       content:
@@ -2407,7 +2587,12 @@ components:
       description: |
         Product-level safety and data flags. `FX_STALE`, `FX_UNAVAILABLE` and
         `UNAVAILABLE_IN_COUNTRY` are added by the API; the others come from the
-        scoring engine or the effective-price resolution.
+        scoring engine or the effective-price resolution. `FX_STALE` is set
+        on every money-bearing item when `meta.fx.stale` is `true`,
+        `FX_UNAVAILABLE` when `meta.fx.status` is `UNAVAILABLE`.
+        `UNAVAILABLE_IN_COUNTRY` is used only on saved products and alert
+        subscriptions (Phase 5); catalog and recommendation responses never
+        contain unavailable products and never carry it.
       enum:
         - EXCEEDS_UL
         - UL_FORM_DEPENDENT
@@ -2520,7 +2705,7 @@ components:
           description: JSON path of the offending field, for example `requiredNutrients[0].unit`.
         code:
           type: string
-          description: Machine-readable reason, for example `weights_all_zero`, `unit_requires_form`, `required`, `out_of_range`.
+          description: Machine-readable reason, for example `weights_all_zero`, `unit_requires_form`, `required`, `out_of_range`, `unknown_nutrient_code`, `lambda_requires_custom`, `same_product`, `no_offer`, `no_stock`, `value_out_of_range`.
           pattern: '^[a-z][a-z0-9_]*$'
         message:
           type: string
@@ -2622,6 +2807,21 @@ components:
           type: array
           description: Reference sets that define a value for this nutrient.
           items: { type: string }
+        forms:
+          type: array
+          description: Registered forms of this nutrient from the form registry, ordered by `code`; empty when the nutrient has none. Product rows may also carry the sentinel `UNKNOWN`, which is not listed.
+          items: { $ref: '#/components/schemas/NutrientForm' }
+    NutrientForm:
+      type: object
+      required: [code, nameEn]
+      properties:
+        code:
+          type: string
+          pattern: '^[A-Z][A-Z0-9_]{0,39}$'
+          example: D3_CHOLECALCIFEROL
+        nameEn:
+          type: string
+          example: Vitamin D3 (cholecalciferol)
     NutrientList:
       type: object
       required: [items]
@@ -2754,14 +2954,22 @@ components:
         fx: { $ref: '#/components/schemas/FxMeta' }
     ExcludedCounts:
       type: object
+      description: In-market products that are not ranked, counted in filter order. `noStock` and `noOffer` are decided by the API before scoring; `requiredNutrients` and `exceedsUl` come from the scoring service.
       required: [noStock, noOffer, requiredNutrients, exceedsUl]
       properties:
-        noStock: { type: integer, minimum: 0 }
-        noOffer: { type: integer, minimum: 0 }
+        noStock:
+          type: integer
+          minimum: 0
+          description: '`IN_STOCK_ONLY` only: products with offers but none in stock.'
+        noOffer:
+          type: integer
+          minimum: 0
+          description: Products without any offer in the country.
         requiredNutrients: { type: integer, minimum: 0 }
         exceedsUl: { type: integer, minimum: 0 }
     Visibility:
       type: object
+      description: 'ANONYMOUS: `shown = min(3, total)`, `locked = total - shown`, `reason = SIGN_UP_REQUIRED` when `locked > 0`, else `null`. USER and ADMIN: `shown` is the number of items on this page, `locked = 0`, `reason = null`.'
       required: [shown, total, locked, reason]
       properties:
         shown: { type: integer, minimum: 0 }
@@ -2798,19 +3006,32 @@ components:
         currency: { $ref: '#/components/schemas/CurrencyCode' }
         fx: { $ref: '#/components/schemas/FxMeta' }
         catalogVersion: { type: integer, format: int64, minimum: 0 }
-        marketSize: { type: integer, minimum: 0 }
+        marketSize:
+          type: integer
+          minimum: 0
+          description: Number of scored candidates (in market and with an effective price under `stockFilter`) before the required-nutrient and upper-limit filters.
         mRef:
           type: [number, 'null']
-          description: Market marginal rate (median cost per day per content point) in `currency`; `null` when no product has content above 0.
+          description: |
+            Market marginal rate (median of cost per day per content point over
+            the `marketSize` candidates with content above 0) in `currency`.
+            `null` when fewer than three of them have content above 0; unlike
+            compare, the query has no single-product fallback.
         excluded: { $ref: '#/components/schemas/ExcludedCounts' }
         visibility: { $ref: '#/components/schemas/Visibility' }
-        principal: { $ref: '#/components/schemas/PrincipalSummary' }
-        page: { type: integer, minimum: 1 }
+        principal:
+          allOf:
+            - $ref: '#/components/schemas/PrincipalSummary'
+          description: Caller of this query; for `ANONYMOUS`, `queriesUsed` includes this query.
+        page:
+          type: integer
+          minimum: 1
+          description: Requested page, echoed also when it is beyond the last page.
         pageSize: { type: integer, minimum: 1, maximum: 100 }
         total:
           type: integer
           minimum: 0
-          description: Number of ranked products after filtering.
+          description: Number of ranked products after all filters (`marketSize - excluded.requiredNutrients - excluded.exceedsUl`); equals `visibility.total`.
     Cost:
       type: object
       required: [effectivePrice, effectivePriceNative, currency, servingsPerContainer, daysSupply, costPerDay, costPerDayNative, priceStale, outOfStock]
@@ -2838,16 +3059,19 @@ components:
         outOfStock: { type: boolean }
     ProductFlag:
       type: object
-      required: [code]
+      description: Scoring flags first, in the scoring service's order, then the API flags `FX_STALE`, `FX_UNAVAILABLE`; each code at most once.
+      required: [code, nutrientCodes]
       properties:
         code: { $ref: '#/components/schemas/ProductFlagCode' }
         nutrientCodes:
           type: array
-          description: Affected nutrients for `EXCEEDS_UL`, `UL_FORM_DEPENDENT`, `PRESENCE_ONLY_NUTRIENTS` and `BELOW_PRESENCE_FLOOR`.
+          uniqueItems: true
+          description: Affected nutrients, sorted ascending, for `EXCEEDS_UL`, `UL_FORM_DEPENDENT`, `CONVERSION_ASSUMED`, `MARKET_MEDIAN_REFERENCE_USED`, `PRESENCE_ONLY_NUTRIENTS` and `BELOW_PRESENCE_FLOOR`; empty for `PRICE_STALE`, `OUT_OF_STOCK`, `FX_STALE`, `FX_UNAVAILABLE` and `UNAVAILABLE_IN_COUNTRY`.
           items: { $ref: '#/components/schemas/NutrientCode' }
     BreakdownRow:
       type: object
-      required: [code, category, amountPerDay, ulAmountPerDay, unit, reference, referenceSource, coverageRatio, utility, weight, contribution, cappedAtUl, cappedAtUMax, ulBelowReference]
+      description: One scored nutrient of a product. Breakdown rows are ordered by `code` ascending.
+      required: [code, category, amountPerDay, ulAmountPerDay, unit, reference, referenceSource, coverageRatio, utility, weight, contribution, cappedAtUl, cappedAtUMax, ulBelowReference, belowPresenceFloor]
       properties:
         code: { $ref: '#/components/schemas/NutrientCode' }
         category: { $ref: '#/components/schemas/NutrientCategory' }
@@ -2861,13 +3085,21 @@ components:
         coverageRatio:
           type: [number, 'null']
           minimum: 0
-          description: '`null` under `PRESENCE_ONLY`.'
+          description: Coverage ratio after the upper-limit cap; `null` under `PRESENCE_ONLY`.
         utility: { type: number, minimum: 0 }
         weight: { type: number, minimum: 0 }
-        contribution: { type: number, minimum: 0 }
+        contribution:
+          type: number
+          minimum: 0
+          description: weight x utility.
         cappedAtUl: { type: boolean }
         cappedAtUMax: { type: boolean }
-        ulBelowReference: { type: boolean }
+        ulBelowReference:
+          type: boolean
+          description: The applicable upper limit is lower than the resolved reference.
+        belowPresenceFloor:
+          type: boolean
+          description: '`PRESENCE_ONLY` row below 10 % of the presence floor (utility 0).'
     SelectedOffer:
       type: object
       required: [retailer, url, checkedAt]
@@ -2875,17 +3107,44 @@ components:
         retailer: { type: string }
         url: { type: string, format: uri, maxLength: 2048 }
         checkedAt: { type: string, format: date-time }
+    ProductProvenance:
+      type: object
+      description: |
+        Where the product's label data comes from. Synthetic fixture products
+        have `synthetic = true`. Real label snapshots (`source = DSLD`) have
+        `synthetic = false`, the label id in `sourceRef` and the label's entry
+        date in `sourceEntryDate`, which the web app shows as the snapshot
+        date. Offer prices in this release are demo values for every product.
+      required: [synthetic, source, sourceRef, sourceEntryDate]
+      properties:
+        synthetic: { type: boolean }
+        source:
+          type: [string, 'null']
+          maxLength: 500
+          example: DSLD
+        sourceRef:
+          type: [string, 'null']
+          maxLength: 100
+          example: '239077'
+        sourceEntryDate:
+          type: [string, 'null']
+          format: date
+          example: '2020-11-21'
     RankedProduct:
       type: object
       description: Scored product with product metadata and the caller's saved state.
-      required: [productId, code, rank, brand, name, dosageForm, cost, contentScore, contentScoreDisplay, valueScore, valueScoreDisplay, customScore, flags, breakdown, topContributors, selectedOffer, saved, alerts]
+      required: [productId, code, rank, brand, name, dosageForm, provenance, cost, contentScore, contentScoreDisplay, valueScore, valueScoreDisplay, customScore, flags, breakdown, topContributors, selectedOffer, saved, alerts]
       properties:
         productId: { type: string, format: uuid }
         code: { $ref: '#/components/schemas/ProductCode' }
-        rank: { type: integer, minimum: 1 }
+        rank:
+          type: integer
+          minimum: 1
+          description: Position in the full ranking (not in the page).
         brand: { type: string }
         name: { type: string }
         dosageForm: { $ref: '#/components/schemas/DosageForm' }
+        provenance: { $ref: '#/components/schemas/ProductProvenance' }
         cost: { $ref: '#/components/schemas/Cost' }
         contentScore:
           type: number
@@ -2916,10 +3175,10 @@ components:
         selectedOffer: { $ref: '#/components/schemas/SelectedOffer' }
         saved:
           type: boolean
-          description: Whether the caller saved the product in this country; `false` for anonymous callers.
+          description: Whether the caller saved the product in this country; `false` for anonymous callers. Always `false` until saved products arrive with Phase 5.
         alerts:
           type: array
-          description: The caller's alert subscriptions on this product in this country; empty for anonymous callers.
+          description: The caller's alert subscriptions on this product in this country; empty for anonymous callers. Always empty until alerts arrive with Phase 5.
           items: { $ref: '#/components/schemas/AlertSubscription' }
     RecommendationQueryResponse:
       type: object
@@ -2953,17 +3212,19 @@ components:
         catalogVersion: { type: integer, format: int64, minimum: 0 }
         marketSize:
           type: integer
-          minimum: 0
-          description: De-duplicated size of the market set used for `mRef`.
+          minimum: 2
+          description: De-duplicated size of the market set used for `mRef`, including A and B.
     ComparedProduct:
       type: object
-      required: [productId, code, brand, name, dosageForm, cost, contentScore, valueScore, flags, selectedOffer]
+      description: One side of the comparison. The scoring service's per-product breakdown is not exposed here; per-nutrient detail is in `rows`.
+      required: [productId, code, brand, name, dosageForm, provenance, cost, contentScore, valueScore, flags, selectedOffer]
       properties:
         productId: { type: string, format: uuid }
         code: { $ref: '#/components/schemas/ProductCode' }
         brand: { type: string }
         name: { type: string }
         dosageForm: { $ref: '#/components/schemas/DosageForm' }
+        provenance: { $ref: '#/components/schemas/ProductProvenance' }
         cost: { $ref: '#/components/schemas/Cost' }
         contentScore: { type: number, minimum: 0 }
         valueScore:
@@ -2976,7 +3237,7 @@ components:
         selectedOffer: { $ref: '#/components/schemas/SelectedOffer' }
     DeltaRow:
       type: object
-      description: Per-nutrient delta over the union of nutrients in A and B. An amount of 0 means the nutrient is absent. Rows with `deltaAmount = 0` carry no flags.
+      description: Per-nutrient delta over the union of nutrients in A and B, ordered by `code` ascending. Amounts are daily amounts; an amount of 0 means the nutrient is absent (utility 0, ratio 0, or `null` under `PRESENCE_ONLY`). Rows with `deltaAmount = 0` carry no flags.
       required: [code, category, amountA, amountB, deltaAmount, unit, rA, rB, uA, uB, weight, deltaContribution, flags]
       properties:
         code: { $ref: '#/components/schemas/NutrientCode' }
@@ -3008,21 +3269,24 @@ components:
         Parameters of the explanation key. `deltaCostPerDay`, `marginalRate`
         and `mRef` are money-typed: they are converted to the display currency
         like every other monetary field, and `currency` is rewritten to the
-        display currency.
+        display currency (the native currency while `meta.fx.status` is
+        `UNAVAILABLE`). Parameters whose value is `null` are omitted; every
+        number is rounded once to 4 decimals.
+      required: [currency]
       properties:
+        currency: { $ref: '#/components/schemas/CurrencyCode' }
         deltaCostPerDay:
           allOf: [{ $ref: '#/components/schemas/Money' }]
           x-money: true
+        deltaContent: { type: number }
         marginalRate:
           allOf: [{ $ref: '#/components/schemas/Money' }]
           x-money: true
         mRef:
           allOf: [{ $ref: '#/components/schemas/Money' }]
           x-money: true
-        currency: { $ref: '#/components/schemas/CurrencyCode' }
         ratio: { type: number }
-      additionalProperties:
-        type: [number, string]
+      additionalProperties: false
     Explanation:
       type: object
       description: i18n key with parameters; never a prose sentence.
@@ -3030,7 +3294,13 @@ components:
       properties:
         key:
           type: string
-          pattern: '^explain\.'
+          enum:
+            - explain.verdict.worth_it
+            - explain.verdict.marginal
+            - explain.verdict.not_worth_it
+            - explain.verdict.dominates
+            - explain.verdict.equivalent
+            - explain.verdict.insufficient_data
           example: explain.verdict.not_worth_it
         params: { $ref: '#/components/schemas/ExplanationParams' }
     CompareResponse:
@@ -3064,7 +3334,7 @@ components:
           description: deltaCost / deltaContent in the display currency.
         mRef:
           type: [number, 'null']
-          description: Market marginal rate in the display currency.
+          description: Market marginal rate in the display currency (median of cost per day per content point over market products with content above 0; with fewer than three such products, A's cost per day per content point; `null` when A's content is 0).
         ratio:
           type: [number, 'null']
           minimum: 0
@@ -3095,7 +3365,7 @@ components:
         total: { type: integer, minimum: 0 }
     ProductSummary:
       type: object
-      required: [id, code, brand, name, dosageForm, unitsPerContainer, unitsPerServing, servingsPerDay, cost, flags]
+      required: [id, code, brand, name, dosageForm, unitsPerContainer, unitsPerServing, servingsPerDay, provenance, cost, flags]
       properties:
         id: { type: string, format: uuid }
         code: { $ref: '#/components/schemas/ProductCode' }
@@ -3105,6 +3375,7 @@ components:
         unitsPerContainer: { type: integer, minimum: 1 }
         unitsPerServing: { type: integer, minimum: 1 }
         servingsPerDay: { type: number, exclusiveMinimum: 0 }
+        provenance: { $ref: '#/components/schemas/ProductProvenance' }
         cost:
           oneOf:
             - $ref: '#/components/schemas/Cost'
@@ -3178,7 +3449,7 @@ components:
           description: '`true` when `checkedAt` is older than 30 days.'
     ProductDetail:
       type: object
-      required: [id, code, brand, name, dosageForm, unitsPerContainer, unitsPerServing, servingsPerDay, gtin, synthetic, availability, nutrients, offers, cost, selectedOffer, flags, saved, alerts]
+      required: [id, code, brand, name, dosageForm, unitsPerContainer, unitsPerServing, servingsPerDay, gtin, synthetic, provenance, availability, nutrients, offers, cost, selectedOffer, flags, saved, alerts]
       properties:
         id: { type: string, format: uuid }
         code: { $ref: '#/components/schemas/ProductCode' }
@@ -3191,7 +3462,8 @@ components:
         gtin: { type: [string, 'null'] }
         synthetic:
           type: boolean
-          description: '`true` for synthetic fixture products.'
+          description: '`true` for synthetic fixture products; equals `provenance.synthetic`.'
+        provenance: { $ref: '#/components/schemas/ProductProvenance' }
         availability: { $ref: '#/components/schemas/ProductAvailability' }
         nutrients:
           type: array
@@ -3213,10 +3485,10 @@ components:
           items: { $ref: '#/components/schemas/ProductFlag' }
         saved:
           type: boolean
-          description: '`false` for anonymous callers.'
+          description: '`false` for anonymous callers. Always `false` until saved products arrive with Phase 5.'
         alerts:
           type: array
-          description: The caller's alert subscriptions on this product in this country; empty for anonymous callers.
+          description: The caller's alert subscriptions on this product in this country; empty for anonymous callers. Always empty until alerts arrive with Phase 5.
           items: { $ref: '#/components/schemas/AlertSubscription' }
     ProductDetailMeta:
       type: object
@@ -3776,7 +4048,13 @@ components:
           description: Offers CSV with a `product_code` column, at most 20 MB.
     ImportSummary:
       type: object
-      description: Row counts of the import.
+      description: |
+        Row counts of the import (camelCase keys). `OFFERS_CSV`: `rows` (data
+        rows read), `inserted`, `updated`, `unchanged`, `deleted`,
+        `changedPairs`. `PRODUCTS_JSON`: `products` (products in the
+        document), `inserted`, `updated`, `unchanged`, `deleted` (summed over
+        every written table) and `changedPairs`. A `FAILED` job reports the
+        rows or products read and 0 for every write count.
       additionalProperties: { type: integer, minimum: 0 }
     ImportJob:
       type: object
@@ -3795,10 +4073,23 @@ components:
       type: object
       required: [rowNumber, message]
       properties:
-        rowNumber: { type: integer, minimum: 0 }
+        rowNumber:
+          type: integer
+          minimum: 1
+          description: |
+            `OFFERS_CSV`: 1-based record number in the file, header included
+            (the first data row is 2); file-level failures use 1.
+            `PRODUCTS_JSON`: 1-based position of the product in `products`;
+            document-level failures (encoding, JSON syntax, top-level schema
+            violations) use 1 and name their location in `message`.
+        code:
+          type: string
+          pattern: '^[a-z][a-z0-9_]*$'
+          description: Machine-readable error code, the prefix of `message` (for example `invalid_csv`, `wrong_column_count`, `currency_mismatch`, `invalid_offer_url`, `unsupported_iu_form`, `schema_violation`, `too_many_records`, `field_too_long`, `too_many_errors`).
         message:
           type: string
-          description: Row error, starting with its code (for example `currency_mismatch`, `invalid_offer_url`, `unsupported_iu_form`).
+          maxLength: 2000
+          description: '`<code>: <detail> (<location>)`, where the location is `row N` for CSV records or a JSON path such as `products[2].nutrients[0].unit`.'
     ImportJobDetail:
       allOf:
         - $ref: '#/components/schemas/ImportJob'

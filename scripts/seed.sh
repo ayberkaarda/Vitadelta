@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Loads the reference data (data/reference), the synthetic fixtures (data/fixtures) and the real
-# label snapshot (data/real) into the database of the local stack.
+# Loads the reference data (data/reference, including the form registry forms.csv and the citation
+# notes of upper_limits.csv), the synthetic fixtures (data/fixtures) and the real label snapshot
+# (data/real) into the database of the local stack.
 #
 # The api image runs once with the Spring profile "seed" on the compose network; the repository's
 # data directory is mounted read-only at /data (see infra/docker-compose.yml). The seed validates

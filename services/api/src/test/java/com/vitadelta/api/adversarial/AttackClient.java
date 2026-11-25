@@ -149,6 +149,15 @@ final class AttackClient {
       return this;
     }
 
+    /** A raw byte body with the given content type ({@code null}: no content type header). */
+    Req body(byte[] content, String contentType) {
+      this.body = content.clone();
+      if (contentType != null) {
+        header("Content-Type", contentType);
+      }
+      return this;
+    }
+
     /** Sends the body with {@code Transfer-Encoding: chunked} (no declared length). */
     Req chunked() {
       this.chunked = true;

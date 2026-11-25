@@ -3,6 +3,7 @@ package com.vitadelta.api.imports;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.vitadelta.api.catalog.OfferValues;
+import com.vitadelta.api.config.properties.ImportLimitsProperties;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Set;
@@ -164,6 +165,90 @@ class OffersCsvReaderTest {
         .satisfies(p -> {
           assertThat(p.code()).isEqualTo("duplicate_offer_key");
           assertThat(p.location()).isEqualTo("row 3");
+        });
+  }
+
+  private static final String VALID_ROW =
+      "GOLD-A,TR,Shop %d,800.00,TRY,true,https://a.example/x,2026-11-20T09:00:00Z\n";
+
+  @Test
+  void moreRowsThanTheLimitFailTheFileBeforeAnyRowIsValidated() {
+    ImportLimitsProperties limits = new ImportLimitsProperties(3, 10, 2048, 100);
+    StringBuilder csv = new StringBuilder(HEADER);
+    for (int i = 0; i < 3; i++) {
+      csv.append(VALID_ROW.formatted(i));
+    }
+    assertThat(
+            OffersCsvReader.read(csv.toString(), PRODUCTS::contains, registry, NOW, limits).valid())
+        .isTrue();
+    csv.append("NOPE,XX,,bad,bad,bad,bad,bad\n");
+    OffersCsvReader.Result result =
+        OffersCsvReader.read(csv.toString(), PRODUCTS::contains, registry, NOW, limits);
+    assertThat(result.problems())
+        .singleElement()
+        .satisfies(p -> {
+          assertThat(p.code()).isEqualTo("too_many_records");
+          assertThat(p.location()).isEqualTo("row 1");
+        });
+    assertThat(result.rows()).isZero();
+  }
+
+  @Test
+  void aFieldLongerThanTheLimitIsARowErrorAndIsNotEchoed() {
+    String huge = "M".repeat(1024 * 1024);
+    OffersCsvReader.Result result =
+        read(
+            HEADER
+                + "GOLD-A,TR,"
+                + huge
+                + ",800.00,TRY,true,https://a.example/x,2026-11-20T09:00:00Z\n");
+    assertThat(result.problems())
+        .singleElement()
+        .satisfies(p -> {
+          assertThat(p.code()).isEqualTo("field_too_long");
+          assertThat(p.location()).isEqualTo("row 2");
+          assertThat(p.message()).doesNotContain("MMMM");
+        });
+  }
+
+  @Test
+  void validationStopsAfterTheErrorBoundWithOneSummaryError() {
+    ImportLimitsProperties limits = new ImportLimitsProperties(100_000, 10, 2048, 5);
+    StringBuilder csv = new StringBuilder(HEADER);
+    for (int i = 0; i < 20_000; i++) {
+      csv.append("NOPE,TR,Shop ")
+          .append(i)
+          .append(",800.00,TRY,true,https://a.example/x,")
+          .append("2026-11-20T09:00:00Z\n");
+    }
+    OffersCsvReader.Result result =
+        OffersCsvReader.read(csv.toString(), PRODUCTS::contains, registry, NOW, limits);
+    assertThat(result.problems()).hasSize(6);
+    assertThat(result.problems().subList(0, 5))
+        .extracting(ImportProblem::code)
+        .containsOnly("unknown_product_code");
+    assertThat(result.problems().get(5).code()).isEqualTo("too_many_errors");
+    assertThat(result.problems().get(5).location()).isEqualTo("row 7");
+    assertThat(result.rows()).isEqualTo(20_000);
+  }
+
+  @Test
+  void checkTimesAreTruncatedToTheDatabasePrecision() {
+    OffersCsvReader.Result result =
+        read(
+            HEADER
+                + "GOLD-A,TR,Shop,800.00,TRY,true,https://a.example/x,2026-11-20T09:00:00.123456789Z\n");
+    assertThat(result.offers().getFirst().checkedAt())
+        .isEqualTo(Instant.parse("2026-11-20T09:00:00.123456Z"));
+  }
+
+  @Test
+  void anUnparseableFileIsReportedWithAFixedMessageAndItsLine() {
+    assertThat(read(HEADER + "GOLD-A,\"SECRET,TR\n").problems())
+        .singleElement()
+        .satisfies(p -> {
+          assertThat(p.code()).isEqualTo("invalid_csv");
+          assertThat(p.message()).isEqualTo("the file is not valid CSV (line 2)");
         });
   }
 

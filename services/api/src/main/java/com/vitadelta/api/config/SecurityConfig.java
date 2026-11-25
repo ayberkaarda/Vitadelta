@@ -1,6 +1,7 @@
 package com.vitadelta.api.config;
 
 import com.vitadelta.api.common.problem.ProblemSecurityHandlers;
+import com.vitadelta.api.common.web.ApiHeaders;
 import jakarta.servlet.DispatcherType;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
@@ -18,6 +19,7 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtGra
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
+import org.springframework.security.web.firewall.RequestRejectedHandler;
 import org.springframework.security.web.header.writers.DelegatingRequestMatcherHeaderWriter;
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
@@ -31,9 +33,10 @@ import org.springframework.web.filter.CorsFilter;
  * <p>Route matrix (base path {@code /api/v1}):
  *
  * <ul>
- *   <li>public: {@code GET /health}, {@code /auth/**}, {@code /plans}, {@code /session/quota},
- *       {@code /countries}, {@code /nutrients}, {@code /weights/defaults}, {@code /legal}, {@code
- *       /fx/**}, {@code /products/**}, {@code /recommendations/**} ({@link #PUBLIC_PATHS});
+ *   <li>public: {@code GET /health}, {@code GET /openapi.json} ({@link #OPENAPI_DOCUMENT}), {@code
+ *       /auth/**}, {@code /plans}, {@code /session/quota}, {@code /countries}, {@code /nutrients},
+ *       {@code /weights/defaults}, {@code /legal}, {@code /fx/**}, {@code /products/**}, {@code
+ *       /recommendations/**} ({@link #PUBLIC_PATHS});
  *   <li>authenticated (USER or ADMIN bearer token): {@code /me} and {@code /me/**};
  *   <li>role ADMIN: {@code /admin/**};
  *   <li>Actuator {@code health} and {@code metrics} on the separate management port only;
@@ -80,8 +83,14 @@ public class SecurityConfig {
     API + "/recommendations/**"
   };
 
+  /**
+   * The OpenAPI description generated from the code ({@code springdoc.api-docs.path}); public and
+   * read-only, it describes no more than the published contract.
+   */
+  public static final String OPENAPI_DOCUMENT = API + "/openapi.json";
+
   /** Content security policy of every API response. */
-  public static final String CONTENT_SECURITY_POLICY = "default-src 'none'; frame-ancestors 'none'";
+  public static final String CONTENT_SECURITY_POLICY = ApiHeaders.CONTENT_SECURITY_POLICY;
 
   /** JWT claim that carries the role ({@code USER} or {@code ADMIN}). */
   public static final String ROLE_CLAIM = "role";
@@ -126,7 +135,7 @@ public class SecurityConfig {
                 .permitAll()
                 .requestMatchers(managementEndpoints)
                 .permitAll()
-                .requestMatchers(HttpMethod.GET, API + "/health")
+                .requestMatchers(HttpMethod.GET, API + "/health", OPENAPI_DOCUMENT)
                 .permitAll()
                 .requestMatchers(PUBLIC_PATHS)
                 .permitAll()
@@ -156,6 +165,17 @@ public class SecurityConfig {
     CorsFilter filter = new CorsFilter(source);
     filter.setCorsProcessor(ProblemSecurityHandlers.corsProcessor());
     return filter;
+  }
+
+  /**
+   * Requests rejected by the HTTP firewall before the filter chain runs (encoded or doubled
+   * slashes, {@code ..} segments, path parameters such as {@code ;jsessionid}, non-printable
+   * characters): {@code 400} problem with the API security headers. Picked up by the security
+   * configuration as the {@link RequestRejectedHandler} of the filter chain proxy.
+   */
+  @Bean
+  RequestRejectedHandler problemRequestRejectedHandler() {
+    return ProblemSecurityHandlers.requestRejectedHandler();
   }
 
   /** Maps the {@code role} claim to {@code ROLE_<role>}; {@code sub} is the principal name. */

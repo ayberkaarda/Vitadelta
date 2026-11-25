@@ -1,6 +1,7 @@
 package com.vitadelta.api.catalog;
 
 import jakarta.persistence.EntityManager;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -10,8 +11,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * The single entry point for writes to catalog and reference data (product, product_nutrient,
- * product_availability, offer, nutrient, unit_conversion, reference_set, reference_value, ul_set,
- * upper_limit, country).
+ * product_availability, offer, nutrient, nutrient_form, unit_conversion, reference_set,
+ * reference_value, ul_set, upper_limit, country).
  *
  * <p>{@link #execute(Supplier)} runs the work in its own transaction, flushes every pending change
  * and then executes the catalog version bump as the last statement of the transaction, so the
@@ -48,6 +49,19 @@ public class CatalogWriteTransaction {
    * @throws IllegalStateException when called inside an active transaction
    */
   public <T> T execute(Supplier<T> work) {
+    return execute(work, result -> true);
+  }
+
+  /**
+   * Runs {@code work} in a new write transaction and bumps the catalog version as its last
+   * statement only when {@code changed} accepts the result. Imports use it so that a write that
+   * changes no catalog row commits without a bump (section 5.3: the version is bumped once per
+   * committing transaction that changes catalog or reference data).
+   *
+   * @return the value returned by {@code work}
+   * @throws IllegalStateException when called inside an active transaction
+   */
+  public <T> T execute(Supplier<T> work, Predicate<? super T> changed) {
     if (TransactionSynchronizationManager.isActualTransactionActive()) {
       throw new IllegalStateException(
           "CatalogWriteTransaction must start its own transaction, not join an active one");
@@ -57,9 +71,11 @@ public class CatalogWriteTransaction {
       try {
         T result = work.get();
         entityManager.flush();
-        int bumped = entityManager.createNativeQuery(BUMP_SQL).executeUpdate();
-        if (bumped != 1) {
-          throw new IllegalStateException("catalog_version row is missing");
+        if (changed.test(result)) {
+          int bumped = entityManager.createNativeQuery(BUMP_SQL).executeUpdate();
+          if (bumped != 1) {
+            throw new IllegalStateException("catalog_version row is missing");
+          }
         }
         return result;
       } finally {

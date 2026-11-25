@@ -23,8 +23,10 @@ class ImportJobPersistenceTest extends PostgresIntegrationTest {
     ImportJob job = new ImportJob(UUID.randomUUID(), ImportJob.Kind.OFFERS_CSV, created);
     assertThat(job.getStatus()).isEqualTo(ImportJob.Status.RUNNING);
     jobs.saveAndFlush(job);
-    errors.saveAndFlush(new ImportJobError(UUID.randomUUID(), job.getId(), 3, "invalid_price: x"));
-    errors.saveAndFlush(new ImportJobError(UUID.randomUUID(), job.getId(), 2, "missing_value: y"));
+    errors.saveAndFlush(
+        new ImportJobError(UUID.randomUUID(), job.getId(), 3, "invalid_price: x", 0));
+    errors.saveAndFlush(
+        new ImportJobError(UUID.randomUUID(), job.getId(), 2, "missing_value: y", 1));
 
     ImportJob stored = jobs.findById(job.getId()).orElseThrow();
     stored.finish(ImportJob.Status.FAILED, created.plusSeconds(1), "{\"rows\": 2}");
@@ -36,14 +38,14 @@ class ImportJobPersistenceTest extends PostgresIntegrationTest {
     assertThat(reloaded.getCreatedAt()).isEqualTo(created);
     assertThat(reloaded.getFinishedAt()).isEqualTo(created.plusSeconds(1));
     assertThat(reloaded.getSummary()).contains("\"rows\"");
-    assertThat(errors.findByJobIdOrderByRowNumberAscIdAsc(job.getId()))
+    assertThat(errors.findByJobIdOrderByRowNumberAscSeqAsc(job.getId()))
         .extracting(ImportJobError::getRowNumber, ImportJobError::getMessage)
         .containsExactly(
             org.assertj.core.groups.Tuple.tuple(2, "missing_value: y"),
             org.assertj.core.groups.Tuple.tuple(3, "invalid_price: x"));
-    assertThat(errors.findByJobIdOrderByRowNumberAscIdAsc(job.getId()).getFirst().getJobId())
+    assertThat(errors.findByJobIdOrderByRowNumberAscSeqAsc(job.getId()).getFirst().getJobId())
         .isEqualTo(job.getId());
-    assertThat(errors.findByJobIdOrderByRowNumberAscIdAsc(job.getId()).getFirst().getId())
+    assertThat(errors.findByJobIdOrderByRowNumberAscSeqAsc(job.getId()).getFirst().getId())
         .isNotNull();
   }
 

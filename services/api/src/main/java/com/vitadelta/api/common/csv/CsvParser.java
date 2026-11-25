@@ -22,6 +22,19 @@ public final class CsvParser {
    * @throws CsvFormatException on an unterminated quoted field or text after a closing quote
    */
   public static List<CsvRecord> parse(String text) {
+    return parse(text, Integer.MAX_VALUE, Integer.MAX_VALUE);
+  }
+
+  /**
+   * Parses the whole text with bounds on what is kept in memory: at most {@code maxRecords}
+   * records, and of each field at most {@code maxFieldLength + 1} characters (a field longer than
+   * {@code maxFieldLength} is returned cut to {@code maxFieldLength + 1} characters, so the caller
+   * can recognize and report it without the parser holding the whole value).
+   *
+   * @throws CsvLimitException when the text has more than {@code maxRecords} records
+   * @throws CsvFormatException on an unterminated quoted field or text after a closing quote
+   */
+  public static List<CsvRecord> parse(String text, int maxRecords, int maxFieldLength) {
     String input = !text.isEmpty() && text.charAt(0) == BOM ? text.substring(1) : text;
     List<CsvRecord> records = new ArrayList<>();
     List<String> fields = new ArrayList<>();
@@ -39,7 +52,7 @@ public final class CsvParser {
       if (quoted) {
         if (c == '"') {
           if (i + 1 < length && input.charAt(i + 1) == '"') {
-            field.append('"');
+            append(field, '"', maxFieldLength);
             i += 2;
             continue;
           }
@@ -49,7 +62,7 @@ public final class CsvParser {
           if (c == '\n') {
             line++;
           }
-          field.append(c);
+          append(field, c, maxFieldLength);
         }
         i++;
         continue;
@@ -66,7 +79,7 @@ public final class CsvParser {
         }
         if (lineHasContent || fieldWasQuoted || !field.isEmpty()) {
           fields.add(finish(field, fieldWasQuoted));
-          records.add(new CsvRecord(records.size() + 1, recordStartLine, List.copyOf(fields)));
+          addRecord(records, recordStartLine, fields, maxRecords);
         }
         fields.clear();
         field.setLength(0);
@@ -88,7 +101,7 @@ public final class CsvParser {
           throw new CsvFormatException(line, "text after closing quote");
         }
       } else {
-        field.append(c);
+        append(field, c, maxFieldLength);
         lineHasContent = true;
       }
       i++;
@@ -98,9 +111,24 @@ public final class CsvParser {
     }
     if (lineHasContent || fieldWasQuoted || !field.isEmpty()) {
       fields.add(finish(field, fieldWasQuoted));
-      records.add(new CsvRecord(records.size() + 1, recordStartLine, List.copyOf(fields)));
+      addRecord(records, recordStartLine, fields, maxRecords);
     }
     return records;
+  }
+
+  /** Appends {@code c} unless the field already holds more than {@code maxFieldLength} chars. */
+  private static void append(StringBuilder field, char c, int maxFieldLength) {
+    if (field.length() <= maxFieldLength) {
+      field.append(c);
+    }
+  }
+
+  private static void addRecord(
+      List<CsvRecord> records, int startLine, List<String> fields, int maxRecords) {
+    if (records.size() >= maxRecords) {
+      throw new CsvLimitException(startLine, maxRecords);
+    }
+    records.add(new CsvRecord(records.size() + 1, startLine, List.copyOf(fields)));
   }
 
   private static String finish(StringBuilder field, boolean wasQuoted) {
