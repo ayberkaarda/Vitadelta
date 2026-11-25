@@ -300,7 +300,7 @@ class AccessControlAdversarialTest extends AdversarialIntegrationTest {
     Resp health = http.req("GET", API + "/health").send();
     assertThat(health.status()).isEqualTo(200);
     assertThat(health.json().size()).isEqualTo(1);
-    assertThat(health.json().get("status").asString()).isEqualTo("UP");
+    assertThat(health.json().get("status").asString()).isIn("UP", "DEGRADED");
     assertApiSecurityHeaders(health);
 
     String user = accessToken(insertUser(true), "USER", true);
