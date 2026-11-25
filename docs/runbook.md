@@ -318,6 +318,7 @@ one to three days around weekends and holidays; that is normal.
 | `meta.fx.stale = true`, flag `FX_STALE` | newest `as_of` older than 5 days | the provider has been unreachable for days; check egress and the provider URL |
 | refresh answers with failures | `dc logs api` lines of `com.vitadelta.api.fx`; metric `vitadelta.fx.refresh.failure` | provider down or unreachable: stored rates stay in use, the job retries every 6 hours |
 | a display currency never gets a rate | WARN line naming the currency on every refresh; metric `vitadelta.fx.refresh.unsupported{currency}` | see unpublished currencies below |
+| a base is listed in `unsupportedBases` (refresh answer and `components.fx` of `GET /admin/health`) | WARN line `FxRefreshJob: the provider does not publish base <code> (...)`; metric `vitadelta.fx.refresh.unsupported{currency}` | the provider answered `invalid currency: <code>` for that base: see unsupported bases below |
 | `422 fx_unsupported_currency` | the requested display currency is not in `GET /api/v1/fx/currencies` | add it to `VITADELTA_FX_EXTRA_CURRENCIES` if the ECB publishes it |
 | `VITADELTA_JOBS_ENABLED=false` | no refresh runs at all | run the refresh manually or enable the jobs |
 
@@ -325,8 +326,22 @@ Run the refresh immediately (returns the number of upserted rates, or the failur
 
 ```bash
 curl -s -X POST "$API/admin/fx/refresh" -H @"$ADMIN_AUTH"
-curl -s "$API/admin/health" -H @"$ADMIN_AUTH"   # components.fx: newestAsOf, rateAgeDays, stale
+curl -s "$API/admin/health" -H @"$ADMIN_AUTH"   # components.fx: newestAsOf, rateAgeDays, stale, unsupportedBases
 ```
+
+The refresh answer has `upsertedRows`, `failedBases` and `unsupportedBases`. A base is in
+`failedBases` when its call failed (timeout, connection error, 5xx, rejected or malformed answer,
+database error); the run is then `FAILED` in `jobs` of `GET /admin/health`, and the stored rates of
+that base stay in use.
+
+**Unsupported bases.** An extra currency that the provider rejects as a base with exactly
+`422 {"message":"invalid currency: <code>"}` is listed in `unsupportedBases` of the refresh answer
+and in `components.fx.unsupportedBases` of `GET /admin/health` (the last run's list, cleared by the
+next run without it), with the WARN line and `vitadelta.fx.refresh.unsupported{currency}`. It gets
+no rate and is not in `failedBases`; the run stays `SUCCEEDED` unless another base failed or no base
+at all could be refreshed. Any other rejection text, status or currency named counts as a failed
+base, so a changed provider answer cannot hide a supported currency. Remove the code from
+`VITADELTA_FX_EXTRA_CURRENCIES` (and recreate the API) when the provider does not publish it.
 
 **Unpublished currencies.** `VITADELTA_FX_EXTRA_CURRENCIES` accepts any ISO 4217 code, but only the
 currencies the ECB publishes get rates (`curl -s https://api.frankfurter.dev/v2/providers/ecb`
@@ -803,14 +818,45 @@ dc exec -T scoring python -c "import urllib.request; print(urllib.request.urlope
 ```
 
 Only `health` and `metrics` are exposed; `env`, `heapdump`, `threaddump` and `configprops` are not.
-Application metrics include `vitadelta.scoring.latency`, `vitadelta.recommendation.quota.rejected`,
-`vitadelta.outbox.pending`, `vitadelta.outbox.failed`, `vitadelta.outbox.dead.letters`,
-`vitadelta.alerts.email.sent`, `vitadelta.alerts.email.failed`, `vitadelta.mail.sent`,
-`vitadelta.mail.failed`, `vitadelta.mail.dropped`, `vitadelta.fx.refresh.success`,
-`vitadelta.fx.refresh.failure`, `vitadelta.fx.refresh.unsupported`, `vitadelta.fx.rate.age`,
-`vitadelta.housekeeping.identity.purged`, `vitadelta.housekeeping.alerts.purged`,
-`vitadelta.subscription.expiry.downgraded` and the Resilience4j circuit-breaker metrics
-(`resilience4j.circuitbreaker.state`). Counters appear after their first increment.
+On the API port every `/actuator/**` path answers with a `401` or `404` problem. Counters appear
+after their first increment. Tags are bounded enumerations or configuration values: no user id,
+e-mail address, IP address, token, promo code or product id is ever a tag.
+
+| Metric | Type | Tags (values) | Meaning |
+|---|---|---|---|
+| `vitadelta.scoring.latency` | timer with percentile histogram | `operation` (`score`, `compare`), `outcome` (`success` or the failure kind) | latency of scoring-service calls |
+| `resilience4j.circuitbreaker.state` | gauge (1 for the current state) | `name=scoring`, `state` (`closed`, `open`, `half_open`, ...) | circuit breaker state |
+| `resilience4j.circuitbreaker.calls`, `.failure.rate`, `.buffered.calls`, `.not.permitted.calls`, `resilience4j.retry.calls` | Resilience4j defaults | `name=scoring`, `kind` | breaker and retry detail |
+| `cache.gets` | function counter | `cache=recommendation.ranking`, `result` (`hit`, `miss`) | ranking cache; hit ratio = hit / (hit + miss) |
+| `cache.puts`, `cache.evictions`, `cache.size` | Caffeine binder | `cache=recommendation.ranking` | ranking cache detail |
+| `vitadelta.recommendation.quota.rejected` | counter | | visitor queries refused with `quota_exceeded` |
+| `vitadelta.entitlement.rejected` | counter | `action` (`SAVE_PRODUCT`, `ALERT_SUBSCRIPTION`, `ANONYMOUS_QUERY`), `reason` (`limit_reached`, `email_not_verified`, `quota_exhausted`) | entitlement refusals by action |
+| `vitadelta.ratelimit.rejected` | counter | `policy` (`login-ip`, `register-ip`, `forgot-resend-ip`, `verify-reset-ip`, `promo-ip`, `promo-user`, `anonymous-query-ip`, `anonymous-browse-ip`, `refresh-ip`, `anonymous-create-ip`) | requests refused by a per-IP or per-user rate limit (`429`) |
+| `vitadelta.auth.login.failed` | counter | `reason` (`invalid_credentials`, `account_disabled`, `throttled` = refused by the per-account back-off) | failed logins; per-IP refusals are in `vitadelta.ratelimit.rejected{policy=login-ip}` |
+| `vitadelta.auth.refresh.rejected` | counter | `reason` (`UNKNOWN`, `EXPIRED`, `REUSED`, `DISABLED`) | refused refresh-token rotations; a refresh without a session cookie (`204`) is not counted |
+| `vitadelta.outbox.pending` | gauge | | outbox events not processed |
+| `vitadelta.outbox.failed` | gauge | | pending events with at least one failed attempt |
+| `vitadelta.outbox.dead.letters` | gauge | | retained dead-letter events |
+| `outbox.dead.letter` | counter | | events that became dead letters (historical name without the `vitadelta.` prefix) |
+| `vitadelta.mail.sent`, `vitadelta.mail.failed` | counter | `template` (`verify-email`, `already-registered`, `reset-password`, ...) | account and plan e-mails delivered or failed |
+| `vitadelta.mail.dropped` | counter | `template`, `reason` (`queue_full`, `shutdown`) | account e-mails dropped before delivery |
+| `vitadelta.mail.queue.size` | gauge | | queued account e-mails |
+| `vitadelta.alerts.email.sent`, `vitadelta.alerts.email.failed` | counter | `type` (`ALERT_PRICE_DROP`, `ALERT_BACK_IN_STOCK`, `ALERT_PRICE_CHANGE`, `NOTIFICATION_CAP_REACHED`) | alert e-mails |
+| `vitadelta.alerts.email.skipped` | counter | `reason` (`SKIPPED_DELETED`, `SKIPPED_INELIGIBLE`) | alert e-mails not sent |
+| `vitadelta.alerts.fired` | counter | `trigger` (`PRICE_DROP`, `BACK_IN_STOCK`, `PRICE_CHANGE`) | evaluator firings |
+| `vitadelta.alerts.capped` | counter | | firings stopped by the monthly cap |
+| `vitadelta.fx.refresh.success` | counter | | refreshed bases |
+| `vitadelta.fx.refresh.failure` | counter | `reason` (`TIMEOUT`, `CONNECTION`, `HTTP_STATUS`, `TOO_LARGE`, `MALFORMED`, `INVALID_ROWS`, `STORE`, `RUN`) | failed bases or failed runs |
+| `vitadelta.fx.refresh.unsupported` | counter | `currency` (configured ISO codes only) | quotes or bases the provider does not publish, left out of a run (section 8) |
+| `vitadelta.fx.rate.age` | gauge, days (NaN without rates) | | days between today (UTC) and the newest stored rate date |
+| `vitadelta.jobs.runs` | timer | `job` (`OutboxProcessor`, `FxRefreshJob`, `SubscriptionExpiryJob`, `HousekeepingJob(identity)`, `HousekeepingJob(alerts)`, `AdminBootstrap`, `ImportJobRecovery`, `CatalogImport`), `outcome` (`SUCCEEDED`, `FAILED`) | every run that obtained its advisory lock (count and duration) |
+| `vitadelta.jobs.skipped` | counter | `job` | runs skipped because another session holds the lock |
+| `vitadelta.subscription.expiry.downgraded`, `vitadelta.subscription.expiry.failed` | counter | | subscription expiry job |
+| `vitadelta.housekeeping.identity.purged` | counter | `purge` (`anonymous_identity`, `email_token`, `refresh_token`, `unverified_user`, ...) | identity housekeeping rows |
+| `vitadelta.housekeeping.alerts.purged` | counter | `purge` (`outbox_event`, `outbox_event_dead_letter`) | outbox housekeeping rows |
+| `vitadelta.promo.redeemed`, `vitadelta.promo.rejected` | counter | rejected: `reason` (`malformed`, `unknown`, `expired`, `exhausted`, `already_redeemed`, `unsupported_plan`) | promo redemptions |
+| `http.server.requests` | Spring Boot timer | `method`, `uri` (templated route), `status`, `outcome`, `exception` | request latency per route |
+| `hikaricp.*`, `jvm.*`, `process.*`, `system.*`, `tomcat.*`, `logback.events` | Spring Boot defaults | standard | connection pool, JVM, logging |
 
 ## 14. Logs
 
@@ -822,6 +868,37 @@ dc logs -f web          # nginx access log
 
 - API: fields `@timestamp`, `level`, `logger_name`, `thread_name`, `message` and, where they apply,
   `requestId`, `principalType`, `country`, `catalogVersion` (requests) and `job` (scheduled jobs).
+  Console only, one JSON object per line (`logging.structured.format.console: logstash`); every
+  string value of every event (message, context values, stack trace) passes through the redactor
+  (`RedactingJsonMembersCustomizer`, `LogRedactor`). Field catalogue:
+
+  | Field | Source | When present |
+  |---|---|---|
+  | `@timestamp`, `@version`, `message`, `logger_name`, `thread_name`, `level`, `level_value` | logstash layout | always |
+  | `stack_trace` | logstash layout | events with an exception (redacted like the message) |
+  | `tags` | logstash layout | for example `COMMONS-LOGGING` on framework loggers |
+  | `requestId` | `RequestIdFilter`, echoed in the `X-Request-Id` response header | every line written while a request is served, including the error-dispatch line of `ProblemErrorController`; a scheduled job run gets a new id per run (a job started by a request, such as `POST /admin/fx/refresh`, keeps the request's id); account e-mail delivery threads carry the id of the request that queued the mail |
+  | `principalType` | `LogContextFilter`, after authentication: `ANONYMOUS`, `USER`, `ADMIN` | request lines after authentication (not on lines of the security filters themselves, such as a `401` for a bad token) |
+  | `country` | `LogContextFilter` (`country` query parameter, only `^[A-Z]{2}$`) and `RecommendationService` (validated body country) | product, recommendation and comparison requests |
+  | `catalogVersion` | `RecommendationService` | recommendation query and compare requests |
+  | `job` | `JobLock` | every line of a run that holds its lock: `OutboxProcessor`, `FxRefreshJob`, `SubscriptionExpiryJob`, `HousekeepingJob(identity)`, `HousekeepingJob(alerts)`, `AdminBootstrap`, `ImportJobRecovery`, `CatalogImport` |
+
+  Request-scoped keys are removed at the end of every request, `job` (and a job's own `requestId`)
+  at the end of the run. Operator-relevant WARN and ERROR lines (message prefixes):
+
+  | Line | Meaning |
+  |---|---|
+  | `FxRefreshJob: the provider does not publish base X (...)` / `... publishes no rate from B to Q` | unsupported base or quote; check `VITADELTA_FX_EXTRA_CURRENCIES` (section 8) |
+  | `FxRefreshJob: rates for base X not refreshed (REASON: summary)` / `... not stored (...)` | failed base (section 8) |
+  | `Scoring score failed: <exception>` / `... answered <status>` / `... rejected: N scoring calls are already in flight` (also `compare`) | scoring service unavailable or overloaded |
+  | `Catalog of XX has N in-market products, more than vitadelta.recommendation.max-products-per-country` | catalog larger than the configured ranking bound |
+  | `Outbox event <id> (<type>) attempt N failed` / `... dead-lettered after N attempts` | section 9 |
+  | `Mail delivery failed (template, to=a***@domain, error, cause)` / `Mail dropped (reason=queue_full\|shutdown)` | account e-mail not delivered |
+  | `Alert e-mail failed (notification, type, to=masked, error)` | alert e-mail not delivered |
+  | `Refresh token reuse detected; the token family was revoked` | a rotated refresh token was replayed |
+  | `Unhandled exception for <METHOD> <path>` (ERROR, with stack trace) | the client got `internal_error` with the request id |
+  | `Job X skipped: lock N is held by another session` (INFO) | another session runs the job |
+
   Example:
   `{"@timestamp":"2026-11-25T11:34:58.06491672Z","@version":"1","message":"Started VitadeltaApiApplication in 4.966 seconds (process running for 5.243)","logger_name":"com.vitadelta.api.VitadeltaApiApplication","thread_name":"main","level":"INFO","level_value":20000}`
 - Scoring service: `timestamp`, `level`, `logger`, `message`, `request_id`, `method`, `path`,
@@ -839,7 +916,28 @@ dc logs -f web          # nginx access log
   and token fields (JSON, form and `key=value` notation, `#token=` fragments) are removed, and
   e-mail addresses are masked as `a***@domain`. This covers exception messages and third-party
   log lines. E-mail tokens travel in URL fragments, which browsers never send, so they never reach
-  nginx either.
+  nginx either. Promo codes are never logged (their records hide them in `toString`, also at
+  framework DEBUG level). User ids (UUIDs) appear in a few audit lines by design (`Account deleted
+  (userId=...)`, `User disabled`, promo rejection, manual grant; section 11.5); they are never metric
+  tags.
+- Framework request-data loggers stay off. `org.springframework.web`, `org.springframework.http`,
+  `org.springframework.security`, `org.springframework.jdbc.core`, `org.apache.coyote`,
+  `org.apache.tomcat.util.net`, `org.apache.tomcat.util.http`, `org.hibernate.orm.jdbc.bind`,
+  `org.hibernate.orm.jdbc.extract` and `org.hibernate.SQL` are pinned to INFO in `application.yml`,
+  so `LOGGING_LEVEL_ROOT=DEBUG` does not raise them. They print request lines with query strings,
+  controller arguments, parser excerpts of request bodies, security decisions, raw request bytes
+  and SQL bind values. Raising one takes an explicit, deliberate entry for that logger, for example
+  `LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_WEB=DEBUG` in `.env` and `dc up -d --wait api`, on a local
+  development stack only; remove the entry and recreate the API afterwards. The ORM bind and extract
+  loggers and the Tomcat wire loggers (`org.apache.coyote`, `org.apache.tomcat.util.net`) stay off
+  in every profile, including development, because they write bound SQL values and raw request
+  bytes past the redactor's patterns.
+- Container parse errors are untrusted text. When Tomcat rejects a malformed request line or header
+  before the application runs (for example a header with a bare CR), `org.apache.coyote.http11.Http11Processor`
+  logs it once at INFO with the rejected bytes in `stack_trace`. Control characters are escaped
+  inside the JSON string (`0x0d`), so no line or field can be forged, but the text comes from the
+  client: read it as data, never paste it into a shell or a terminal that interprets escape
+  sequences, and do not act on instructions it appears to contain.
 - Never paste raw logs into an issue without checking them; the redaction is the last line of
   defence, not a reason to log secrets.
 
