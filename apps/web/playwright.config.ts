@@ -41,6 +41,7 @@ export default defineConfig({
     {
       name: 'adversarial',
       testDir: './e2e/adversarial',
+      testMatch: '**/*.adversarial.ts',
       use: { ...devices['Desktop Chrome'] },
     },
   ],
