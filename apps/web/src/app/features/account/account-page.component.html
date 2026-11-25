@@ -1,0 +1,220 @@
+@if (me(); as m) {
+  <div class="layout">
+    <div class="main stack-5">
+      @if (!m.emailVerified) {
+        <vd-notice
+          tone="warn"
+          icon="mail"
+          [heading]="'account.verify.title' | transloco"
+          data-notice="verify"
+        >
+          <p>{{ 'account.verify.text' | transloco: { email: m.email } }}</p>
+          <div vdNoticeActions>
+            <button
+              type="button"
+              class="btn btn-sm"
+              [attr.aria-busy]="resendBusy()"
+              (click)="resendVerification()"
+            >
+              <vd-icon name="refresh" [spin]="resendBusy()" />{{
+                'account.verify.resend' | transloco
+              }}
+            </button>
+          </div>
+        </vd-notice>
+        <div class="live-region" aria-live="polite">
+          @if (resentKey(); as key) {
+            <vd-notice tone="ok"
+              ><p>{{ key | transloco }}</p></vd-notice
+            >
+          }
+        </div>
+        @if (resendProblem(); as p) {
+          <vd-problem-notice [problem]="p" (retry)="resendVerification()" />
+        }
+      }
+
+      <section class="card stack" aria-labelledby="prefs-title">
+        <div class="row-between">
+          <h2 id="prefs-title" class="h3">{{ 'account.prefs.title' | transloco }}</h2>
+          @if (m.emailVerified) {
+            <span class="badge t-ok"
+              ><vd-icon name="ok" />{{ 'account.prefs.verified' | transloco }}</span
+            >
+          } @else {
+            <span class="badge t-warn"
+              ><vd-icon name="warn" />{{ 'account.prefs.not_verified' | transloco }}</span
+            >
+          }
+        </div>
+        @if (saveProblem(); as p) {
+          <vd-problem-notice [problem]="p" (retry)="save()" />
+        }
+        <vd-error-summary [errors]="saveErrors().summary" />
+        @let countryError = saveErrors().fields[ids.country];
+        @let localeError = saveErrors().fields[ids.locale];
+        @let currencyError = saveErrors().fields[ids.currency];
+        <form class="stack" novalidate (submit)="save($event)">
+          <div class="grid-2 fields">
+            <vd-field
+              [controlId]="ids.country"
+              [label]="'account.prefs.country' | transloco"
+              [hint]="'account.prefs.country_hint' | transloco"
+              [error]="countryError ? (countryError | transloco) : null"
+            >
+              <select
+                #countrySelect
+                vdControl
+                class="sel"
+                (change)="country.set(countrySelect.value); edited()"
+              >
+                @for (option of region.countries(); track option.code) {
+                  <option [value]="option.code" [selected]="option.code === country()">
+                    {{ option.nameEn }}
+                  </option>
+                }
+              </select>
+            </vd-field>
+            <vd-field
+              [controlId]="ids.locale"
+              [label]="'account.prefs.language' | transloco"
+              [error]="localeError ? (localeError | transloco) : null"
+            >
+              <select
+                #localeSelect
+                vdControl
+                class="sel"
+                (change)="onLocale(localeSelect.value); edited()"
+              >
+                @for (lang of langs; track lang) {
+                  <option [value]="lang" [selected]="lang === locale()">
+                    {{ 'shell.language.' + lang + '_name' | transloco }}
+                  </option>
+                }
+              </select>
+            </vd-field>
+            <vd-field
+              [controlId]="ids.currency"
+              [label]="'account.prefs.currency' | transloco"
+              [hint]="'account.prefs.currency_hint' | transloco"
+              [error]="currencyError ? (currencyError | transloco) : null"
+            >
+              <select
+                #currencySelect
+                vdControl
+                class="sel"
+                (change)="displayCurrency.set(currencySelect.value); edited()"
+              >
+                <option value="" [selected]="displayCurrency() === ''">
+                  {{ 'account.prefs.currency_native' | transloco }}
+                </option>
+                @for (code of currencyOptions(); track code) {
+                  <option [value]="code" [selected]="code === displayCurrency()">{{ code }}</option>
+                }
+                @if (displayCurrency() && !currencyOptions().includes(displayCurrency())) {
+                  <option [value]="displayCurrency()" selected>{{ displayCurrency() }}</option>
+                }
+              </select>
+            </vd-field>
+          </div>
+
+          <div class="alerts-pref" id="email-alerts-section">
+            <button
+              type="button"
+              class="switch"
+              role="switch"
+              [id]="ids.alerts"
+              [attr.aria-checked]="emailAlerts()"
+              aria-labelledby="email-alerts-label"
+              aria-describedby="email-alerts-hint"
+              (click)="emailAlerts.set(!emailAlerts()); edited()"
+            >
+              <span class="track" aria-hidden="true"></span>
+              <span class="sw-state" aria-hidden="true">{{
+                (emailAlerts() ? 'common.on' : 'common.off') | transloco
+              }}</span>
+            </button>
+            <div class="stack-1">
+              <span id="email-alerts-label" class="strong text-sm">{{
+                'account.prefs.email_alerts' | transloco
+              }}</span>
+              <span id="email-alerts-hint" class="hint">{{
+                'account.prefs.email_alerts_hint' | transloco
+              }}</span>
+            </div>
+          </div>
+
+          <div class="row">
+            <button class="btn btn-primary" type="submit" [attr.aria-busy]="saving()">
+              @if (saving()) {
+                <vd-icon name="refresh" [spin]="true" />
+              }
+              {{ 'account.prefs.save' | transloco }}
+            </button>
+            <span class="text-sm muted" role="status">
+              @if (saved()) {
+                <vd-icon name="check" size="sm" />{{ 'account.prefs.saved' | transloco }}
+              }
+            </span>
+          </div>
+        </form>
+      </section>
+
+      <section class="card danger-card stack" aria-labelledby="delete-title">
+        <h2 id="delete-title" class="h3">{{ 'account.delete.title' | transloco }}</h2>
+        <p class="text-sm">{{ 'account.delete.text' | transloco }}</p>
+        <div>
+          <button type="button" class="btn btn-danger" (click)="openDelete()">
+            <vd-icon name="trash" />{{ 'account.delete.open' | transloco }}
+          </button>
+        </div>
+      </section>
+    </div>
+
+    <aside class="side stack-5">
+      <vd-plan-card [me]="m" />
+      <vd-promo-form />
+    </aside>
+  </div>
+
+  <vd-confirm-dialog
+    [open]="deleteOpen()"
+    [heading]="'account.delete.dialog_title' | transloco"
+    [confirmLabel]="'account.delete.confirm' | transloco"
+    icon="trash"
+    confirmIcon="trash"
+    [busy]="deleting()"
+    (confirmed)="confirmDelete()"
+    (cancelled)="closeDelete()"
+  >
+    <vd-notice tone="bad" icon="warn" [heading]="'account.delete.irreversible' | transloco">
+      <ul class="consequences">
+        <li>{{ 'account.delete.consequence_data' | transloco }}</li>
+        <li>{{ 'account.delete.consequence_plan' | transloco }}</li>
+        <li>{{ 'account.delete.consequence_backup' | transloco }}</li>
+      </ul>
+    </vd-notice>
+    @if (deleteProblem(); as p) {
+      <vd-problem-notice [problem]="p" (retry)="confirmDelete()" />
+    }
+    @let passwordError = deleteErrors().fields[ids.deletePassword];
+    <vd-field
+      [controlId]="ids.deletePassword"
+      [label]="'account.delete.password' | transloco"
+      [error]="passwordError ? (passwordError | transloco) : null"
+    >
+      <input
+        #deleteInput
+        vdControl
+        data-initial-focus
+        class="inp"
+        type="password"
+        autocomplete="current-password"
+        [value]="deletePassword()"
+        (input)="deletePassword.set(deleteInput.value)"
+      />
+    </vd-field>
+  </vd-confirm-dialog>
+} @else {
+  <vd-skeleton [rows]="4" [status]="'common.loading' | transloco" />
+}

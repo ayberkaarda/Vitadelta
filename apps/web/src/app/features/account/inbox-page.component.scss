@@ -1,0 +1,124 @@
+:host {
+  display: block;
+}
+
+.list-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--vd-space-2) var(--vd-space-4);
+}
+
+.inbox {
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--vd-color-border);
+  border-radius: var(--vd-radius-lg);
+  background: var(--vd-color-surface);
+  overflow: hidden;
+}
+
+.item {
+  display: grid;
+  grid-template-columns: 0.75rem 2.25rem minmax(0, 1fr) auto;
+  gap: var(--vd-space-3);
+  align-items: start;
+  padding: var(--vd-space-4);
+  border-bottom: 1px solid var(--vd-color-border);
+
+  &:last-child {
+    border-bottom: 0;
+  }
+
+  &.unread {
+    background: color-mix(in srgb, var(--vd-color-accent-bg) 60%, transparent);
+
+    .dot {
+      background: var(--vd-color-accent);
+    }
+
+    .title {
+      font-weight: var(--vd-font-weight-bold);
+    }
+  }
+}
+
+.dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  margin-top: 0.45rem;
+  border-radius: 50%;
+}
+
+.tile {
+  --t: var(--vd-color-neutral);
+
+  width: 2.25rem;
+  height: 2.25rem;
+  display: grid;
+  place-items: center;
+  border-radius: var(--vd-radius-md);
+  background: var(--vd-color-surface-subtle);
+  color: var(--t);
+
+  &[data-tone='info'] {
+    --t: var(--vd-color-accent);
+  }
+
+  &[data-tone='ok'] {
+    --t: var(--vd-color-success);
+  }
+
+  &[data-tone='warn'] {
+    --t: var(--vd-color-warning);
+  }
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.title {
+  font-weight: var(--vd-font-weight-semibold);
+
+  a {
+    color: var(--vd-color-text);
+    text-decoration: none;
+
+    &:hover {
+      color: var(--vd-color-accent);
+      text-decoration: underline;
+    }
+  }
+}
+
+.detail {
+  font-size: var(--vd-font-size-sm);
+  color: var(--vd-color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--vd-space-1);
+  white-space: nowrap;
+}
+
+@media (max-width: 48rem) {
+  .item {
+    grid-template-columns: 0.75rem 2.25rem minmax(0, 1fr);
+  }
+
+  .meta {
+    grid-column: 3;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}

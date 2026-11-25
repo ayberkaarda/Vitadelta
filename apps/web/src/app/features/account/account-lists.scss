@@ -1,0 +1,93 @@
+// Shared look of the saved-products, alerts and notifications lists (design hand-off §4.8).
+
+:host {
+  display: block;
+}
+
+.list-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--vd-space-2) var(--vd-space-4);
+}
+
+.usage {
+  font-variant-numeric: tabular-nums;
+}
+
+.product {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 10rem;
+
+  .name {
+    font-weight: var(--vd-font-weight-semibold);
+    color: var(--vd-color-text);
+    text-decoration: none;
+
+    &:hover {
+      color: var(--vd-color-accent);
+      text-decoration: underline;
+    }
+  }
+}
+
+.alerts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--vd-space-1);
+}
+
+.alert-badge {
+  padding-right: 2px;
+}
+
+.badge-off {
+  display: inline-grid;
+  place-items: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  padding: 0;
+  border: 0;
+  border-radius: var(--vd-radius-sm);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+
+  &:hover {
+    background: color-mix(in srgb, currentColor 14%, transparent);
+  }
+}
+
+.detail-row td {
+  background: var(--vd-color-surface-subtle);
+}
+
+.add-alert {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--vd-space-3) var(--vd-space-5);
+}
+
+.threshold .inp {
+  width: 5rem;
+  text-align: right;
+}
+
+.err-slot:empty {
+  display: none;
+}
+
+.inline-input {
+  width: 4.5rem;
+  min-height: 2rem;
+  text-align: right;
+}
+
+tr.is-pending td {
+  opacity: 0.7;
+}

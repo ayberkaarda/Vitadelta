@@ -1,0 +1,40 @@
+:host {
+  display: block;
+}
+
+.layout {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--vd-space-5);
+}
+
+.main {
+  flex: 999 1 32rem;
+  min-width: 0;
+}
+
+.side {
+  flex: 1 1 21rem;
+  min-width: 0;
+}
+
+.fields {
+  gap: var(--vd-space-4);
+}
+
+.alerts-pref {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--vd-space-3);
+  scroll-margin-top: var(--vd-space-6);
+}
+
+.danger-card {
+  border-color: color-mix(in srgb, var(--vd-color-danger) 45%, transparent);
+}
+
+.consequences {
+  margin: 0;
+  padding-left: var(--vd-space-4);
+}

@@ -1,0 +1,273 @@
+<section class="stack" aria-labelledby="saved-title">
+  <div class="list-head">
+    <div class="stack-1">
+      <h2 id="saved-title" class="h2">{{ 'account.saved.title' | transloco }}</h2>
+      <p class="text-sm muted">
+        {{ 'account.saved.country' | transloco: { country: region.country()?.nameEn ?? '' } }}
+      </p>
+    </div>
+    @if (usage(); as u) {
+      <p class="usage text-sm" data-usage>
+        {{
+          (u.limit === null ? 'account.saved.usage_unlimited' : 'account.saved.usage')
+            | transloco: { used: u.used, limit: u.limit ?? '', plan: session.plan() ?? '' }
+        }}
+      </p>
+    }
+  </div>
+
+  @if (limitReached() && usage(); as u) {
+    <vd-notice
+      tone="warn"
+      data-notice="saved-limit"
+      [heading]="'account.saved.limit_title' | transloco: { limit: u.limit ?? 0 }"
+    >
+      <p>{{ 'account.saved.limit_text' | transloco }}</p>
+      <div vdNoticeActions>
+        <a class="btn btn-primary btn-sm" routerLink="/upgrade">{{
+          'limits.see_pro' | transloco
+        }}</a>
+      </div>
+    </vd-notice>
+  }
+
+  <div aria-live="polite" class="sr-only">
+    @if (removedName(); as name) {
+      {{ 'account.saved.removed' | transloco: { name } }}
+    }
+  </div>
+
+  @let s = state();
+  @if (s.kind === 'loading') {
+    <div class="tbl-wrap">
+      <vd-skeleton [rows]="4" [status]="'account.saved.loading' | transloco" />
+    </div>
+  } @else if (s.kind === 'error') {
+    <vd-problem-notice [problem]="s.problem" [retryable]="true" (retry)="reload()" />
+  } @else {
+    @let list = s.list;
+    <vd-fx-notice [meta]="list.meta" />
+    @if (list.items.length === 0) {
+      <div class="card">
+        <vd-empty-state icon="save" tone="info" [heading]="'account.saved.empty_title' | transloco">
+          <p>{{ 'account.saved.empty_text' | transloco }}</p>
+          <div vdStateActions>
+            <a class="btn btn-primary" routerLink="/">{{ 'account.saved.find' | transloco }}</a>
+          </div>
+        </vd-empty-state>
+      </div>
+    } @else {
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <caption class="sr-only">
+            {{
+              'account.saved.caption' | transloco: { country: region.country()?.nameEn ?? '' }
+            }}
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col">{{ 'account.saved.col.product' | transloco }}</th>
+              <th scope="col" class="r">{{ 'account.saved.col.cost' | transloco }}</th>
+              <th scope="col" class="r">{{ 'account.saved.col.price' | transloco }}</th>
+              <th scope="col">{{ 'account.saved.col.flags' | transloco }}</th>
+              <th scope="col">{{ 'account.saved.col.alerts' | transloco }}</th>
+              <th scope="col">{{ 'account.saved.col.saved' | transloco }}</th>
+              <th scope="col">
+                <span class="sr-only">{{ 'account.saved.col.actions' | transloco }}</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (item of list.items; track item.productId) {
+              <tr [attr.data-product]="item.code">
+                <td>
+                  <div class="product">
+                    <span class="text-xs muted">{{ item.brand }}</span>
+                    <a
+                      class="name"
+                      [routerLink]="['/products', item.productId]"
+                      [queryParams]="{ country: item.countryCode }"
+                      >{{ item.name }}</a
+                    >
+                    <vd-provenance [provenance]="item.provenance" />
+                  </div>
+                </td>
+                <td class="r">
+                  @if (item.cost; as cost) {
+                    <vd-money
+                      [amount]="cost.costPerDay"
+                      [currency]="cost.currency"
+                      [nativeAmount]="cost.costPerDayNative"
+                      [nativeCurrency]="list.meta.nativeCurrency"
+                      [fx]="list.meta.fx"
+                      [daysSupply]="cost.daysSupply"
+                      [retailer]="item.selectedOffer?.retailer ?? null"
+                      [checkedAt]="item.selectedOffer?.checkedAt ?? null"
+                    />
+                  } @else {
+                    <span class="muted">{{ 'common.none' | transloco }}</span>
+                  }
+                </td>
+                <td class="r">
+                  @if (item.cost; as cost) {
+                    <span class="num">{{ format.money(cost.effectivePrice, cost.currency) }}</span>
+                  } @else {
+                    <span class="muted">{{ 'common.none' | transloco }}</span>
+                  }
+                </td>
+                <td>
+                  <vd-flag-badges
+                    [flags]="item.flags"
+                    [currency]="list.meta.nativeCurrency"
+                    [country]="region.country()?.nameEn ?? item.countryCode"
+                  />
+                </td>
+                <td>
+                  <div class="alerts">
+                    @for (alert of item.alerts; track alert.id) {
+                      <span class="badge t-info alert-badge" [attr.data-trigger]="alert.trigger">
+                        <vd-icon name="bell" />
+                        @if (alert.trigger === 'PRICE_DROP') {
+                          {{
+                            'account.saved.alert_price_drop'
+                              | transloco: { threshold: thresholdText(alert.thresholdPercent) }
+                          }}
+                        } @else {
+                          {{ 'account.alerts.trigger.' + alert.trigger | transloco }}
+                        }
+                        <button
+                          type="button"
+                          class="badge-off"
+                          [attr.aria-label]="
+                            'account.saved.alert_off'
+                              | transloco
+                                : {
+                                    trigger:
+                                      ('account.alerts.trigger.' + alert.trigger | transloco),
+                                    name: item.name,
+                                  }
+                          "
+                          (click)="alertOff(item, alert)"
+                        >
+                          <vd-icon name="close" size="sm" />
+                        </button>
+                      </span>
+                    }
+                    @if (item.alerts.length < triggers.length) {
+                      <button
+                        type="button"
+                        class="btn btn-sm"
+                        [attr.aria-expanded]="adding() === item.productId"
+                        [attr.aria-controls]="'add-alert-' + item.productId"
+                        (click)="toggleAdd(item)"
+                      >
+                        <vd-icon name="bell" />{{ 'account.saved.add_alert' | transloco }}
+                      </button>
+                    }
+                  </div>
+                </td>
+                <td class="nowrap">{{ format.date(item.savedAt) }}</td>
+                <td class="r">
+                  <button
+                    type="button"
+                    class="btn btn-sm btn-icon"
+                    [attr.aria-label]="'account.saved.remove' | transloco: { name: item.name }"
+                    (click)="remove(item)"
+                  >
+                    <vd-icon name="trash" />
+                  </button>
+                </td>
+              </tr>
+              @if (adding() === item.productId) {
+                <tr class="detail-row">
+                  <td colspan="7" [id]="'add-alert-' + item.productId">
+                    <form class="add-alert" novalidate (submit)="createAlert(item, $event)">
+                      <fieldset class="fieldset">
+                        <legend>
+                          {{ 'account.saved.add_alert_legend' | transloco: { name: item.name } }}
+                        </legend>
+                        <div class="seg">
+                          @for (trigger of triggers; track trigger) {
+                            <label>
+                              <input
+                                type="radio"
+                                [name]="'trigger-' + item.productId"
+                                [value]="trigger"
+                                [checked]="trigger === newTrigger()"
+                                (change)="onTrigger(trigger)"
+                              />
+                              {{ 'account.alerts.trigger.' + trigger | transloco }}
+                            </label>
+                          }
+                        </div>
+                      </fieldset>
+                      @if (newTrigger() === 'PRICE_DROP') {
+                        <div class="fld threshold">
+                          <label class="lbl" [for]="'threshold-' + item.productId">{{
+                            'account.alerts.threshold_label' | transloco
+                          }}</label>
+                          <span class="row-2">
+                            <input
+                              #thresholdInput
+                              class="inp num"
+                              inputmode="decimal"
+                              [id]="'threshold-' + item.productId"
+                              [value]="newThreshold()"
+                              [attr.aria-invalid]="thresholdError() ? 'true' : null"
+                              [attr.aria-describedby]="'threshold-' + item.productId + '-error'"
+                              (input)="newThreshold.set(thresholdInput.value)"
+                            />
+                            <span aria-hidden="true">%</span>
+                          </span>
+                          <span
+                            class="err-slot"
+                            aria-live="polite"
+                            [id]="'threshold-' + item.productId + '-error'"
+                          >
+                            @if (thresholdError(); as key) {
+                              <span class="err"><vd-icon name="warn" />{{ key | transloco }}</span>
+                            }
+                          </span>
+                        </div>
+                      }
+                      <div class="row-2">
+                        <button
+                          type="submit"
+                          class="btn btn-primary btn-sm"
+                          [attr.aria-busy]="creating()"
+                        >
+                          {{ 'account.saved.create_alert' | transloco }}
+                        </button>
+                        <button
+                          type="button"
+                          class="btn btn-ghost btn-sm"
+                          (click)="adding.set(null)"
+                        >
+                          {{ 'common.cancel' | transloco }}
+                        </button>
+                      </div>
+                    </form>
+                  </td>
+                </tr>
+              }
+              @if (rowProblems()[item.productId]; as problem) {
+                <tr class="detail-row">
+                  <td colspan="7">
+                    @if (problem.upgradeHint) {
+                      <vd-limit-notice [problem]="problem" />
+                    } @else {
+                      <vd-problem-notice [problem]="problem" />
+                    }
+                  </td>
+                </tr>
+              }
+            }
+          </tbody>
+        </table>
+      </div>
+      <vd-provenance kind="demo-prices" />
+    }
+  }
+
+  <vd-disclaimer />
+</section>
