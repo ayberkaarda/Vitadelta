@@ -1,4 +1,4 @@
-// contract-sha256: 585694765526f451c92893ae428c4e2926c2789f49c438413c9e462fb7146f0c
+// contract-sha256: 6b66c4f06d68d6985baf60422d0e527b45afdce8e7295732cbdba32a2f31b095
 // Types of the public API, derived from contracts/public-api.openapi.yaml.
 // Do not edit by hand: run `npm run api:types` in apps/web after changing the contract.
 
@@ -1122,10 +1122,16 @@ export interface paths {
          *     to `<web base URL>/upgrade?checkout=success` or
          *     `<web base URL>/upgrade?checkout=canceled`; the plan changes only when
          *     the provider's signed webhook arrives (`POST /billing/webhooks/stripe`),
-         *     never because of the return URL.
+         *     never because of the return URL. At most one session of a user accepts
+         *     payment: a new checkout first expires the user's previous open session
+         *     at the provider.
          *
          *     Problem codes: `unauthorized` (401), `email_not_verified` (403),
-         *     `plan_already_active` (409, the caller's ACTIVE plan is already PRO),
+         *     `plan_already_active` (409, the caller's ACTIVE plan is already PRO, a
+         *     provider subscription of the caller has not ended (for example past
+         *     due; it is settled in the billing portal), or the previous session was
+         *     just paid and its webhook has not arrived), `conflict_retry` (409,
+         *     another checkout of the caller is being created at this moment),
          *     `rate_limited` (429, 10 per hour per user), `billing_unavailable`
          *     (503, no provider configured or the provider cannot be reached).
          */
@@ -3464,8 +3470,11 @@ export interface components {
         };
         /**
          * @description The billing action does not apply to the caller's state. Codes
-         *     `plan_already_active` (checkout while the ACTIVE plan is PRO) and
-         *     `no_billing_account` (portal before any completed provider checkout).
+         *     `plan_already_active` (checkout while the ACTIVE plan is PRO, while a
+         *     provider subscription has not ended, or right after the previous
+         *     session was paid), `conflict_retry` (checkout while another checkout of
+         *     the caller is being created) and `no_billing_account` (portal before any
+         *     completed provider checkout).
          */
         BillingConflict: {
             headers: {
