@@ -304,6 +304,118 @@ curl -s -X POST "$API/admin/users/<user id>/status" -H @"$ADMIN_AUTH" \
 
 Expired PRO subscriptions are downgraded by `SubscriptionExpiryJob` daily at 00:05 UTC.
 
+### 7.1 Online payment with Stripe (test mode)
+
+Stripe is optional (ADR-0014) and off unless `VITADELTA_BILLING_PROVIDER=stripe`. Users buy PRO
+on Stripe's hosted Checkout page and manage or cancel it on the hosted Billing Portal; the API
+changes a subscription only when a signed webhook arrives. Only test-mode keys are accepted; live
+keys need `VITADELTA_STRIPE_ALLOW_LIVE=true` and a separate owner decision.
+
+**One-time setup in the Stripe dashboard (test mode switched on):**
+
+1. Product and price: *Product catalog* → *Add product*, name `VitaDelta Pro`, one **recurring
+   monthly** price in TRY that matches the PRO price stored in the `plan` table (199.00 TRY; the
+   plans endpoint shows the stored price, Stripe charges its own). With the Stripe CLI instead:
+
+   ```bash
+   stripe products create --name "VitaDelta Pro"
+   stripe prices create --product <prod_... from above> --currency try --unit-amount 19900 \
+     -d "recurring[interval]=month"
+   ```
+
+   Copy the price id (`price_...`).
+2. Customer portal: *Settings* → *Billing* → *Customer portal*: allow updating payment methods and
+   cancelling subscriptions (at the end of the billing period), then save. Portal sessions fail
+   until a test-mode portal configuration is saved.
+3. API key: *Developers* → *API keys*, the test secret key (`sk_test_...`), or a restricted key
+   (`rk_test_...`) with write access to Checkout Sessions, Customer portal and Subscriptions.
+
+Put the values into `.env` (the secrets travel through standard input only) and enable the
+provider:
+
+```bash
+env_set VITADELTA_STRIPE_SECRET_KEY          # prompts without echo
+printf 'price_...\n' | env_set VITADELTA_STRIPE_PRICE_ID
+printf 'stripe\n' | env_set VITADELTA_BILLING_PROVIDER
+```
+
+**Webhook for a deployed environment:** *Workbench* → *Webhooks* → *Create an event destination*:
+*Your account*, payload **Snapshot** (not thin), API version `2026-11-18.endive` or later, events
+`checkout.session.completed`, `invoice.paid`, `invoice.payment_failed`,
+`customer.subscription.updated`, `customer.subscription.deleted`, destination *Webhook endpoint*
+with the URL `https://<public host>/api/v1/billing/webhooks/stripe`. Reveal the signing secret
+(`whsec_...`) and store it with `env_set VITADELTA_STRIPE_WEBHOOK_SECRET`; then recreate the API
+(`dc up -d --wait api`). Startup fails with a message naming the variable if a value is missing or
+malformed, or if the key is a live key.
+
+**Webhook for local development (`stripe listen`):** the local stack is not reachable from Stripe,
+so the Stripe CLI forwards the events:
+
+```bash
+stripe login
+stripe listen \
+  --events checkout.session.completed,invoice.paid,invoice.payment_failed,customer.subscription.updated,customer.subscription.deleted \
+  --forward-to http://localhost:8080/api/v1/billing/webhooks/stripe
+```
+
+`stripe listen` prints `Ready! Your webhook signing secret is 'whsec_...'`; store that value with
+`env_set VITADELTA_STRIPE_WEBHOOK_SECRET` and recreate the API. The secret stays the same for the
+CLI on that machine. Keep `stripe listen` running while testing.
+
+**Trying it:** sign in as a verified test user, start a checkout and open the returned URL; pay
+with the test card `4242 4242 4242 4242`, any future expiry and any CVC:
+
+```bash
+curl -s -X POST "$API/billing/checkout-session" -H "Authorization: Bearer $USER_TOKEN"
+```
+
+After the payment the user's `GET /api/v1/me` shows `subscription.source = PROVIDER` and a
+`plan-activated` mail arrives in Mailpit. `stripe trigger ...` fixtures create subscriptions without
+the `user_id` metadata this API sets at checkout; the API acknowledges and ignores them
+(`vitadelta.billing.webhook{outcome="ignored_foreign"}`). Renewals can be exercised with Stripe
+test clocks.
+
+**Rotate the webhook signing secret:** *Workbench* → the endpoint → ⋯ → *Roll secret*, with an
+expiry delay of the old secret (for example 24 hours). During the overlap Stripe signs every
+delivery with both secrets and the API accepts the `v1` signature of the new one. Store the new
+secret (`env_set VITADELTA_STRIPE_WEBHOOK_SECRET`) and recreate the API within the overlap. To
+roll immediately, expect deliveries signed only with the old secret to fail with `400` until the
+API restarts; Stripe retries them.
+
+**Rotate the API key:** *Developers* → *API keys* → *Roll key* (with an expiry delay), then
+`env_set VITADELTA_STRIPE_SECRET_KEY` and `dc up -d --wait api`.
+
+**Operations and troubleshooting:**
+
+- Metrics: `vitadelta.billing.webhook{outcome}` (`applied`, `unchanged`, `duplicate`,
+  `ignored_type`, `ignored_mode`, `ignored_foreign`, `user_missing`, `customer_conflict`),
+  `vitadelta.billing.webhook.rejected{reason}` (signature failures; the client always gets the
+  same `400`), `vitadelta.billing.stripe.failed{operation,reason}`,
+  `vitadelta.billing.payment_failed`, `vitadelta.billing.duplicate_subscription`,
+  `vitadelta.billing.cancel_on_delete.failed`.
+- `400` on every delivery: the signing secret does not belong to the endpoint (CLI and dashboard
+  secrets differ), or the server clock is more than 5 minutes off (check NTP).
+- `503 billing_unavailable` on deliveries: Stripe could not be read; Stripe retries (live mode up
+  to three days, test mode a few times over some hours). Resend one event with
+  `stripe events resend <evt_...> --webhook-endpoint=<we_...>`.
+- A renewal whose payment failed changes nothing: the paid period stays until it ends and
+  `SubscriptionExpiryJob` then downgrades; a later successful retry re-activates PRO. A
+  cancellation in the portal takes effect at the period end (`customer.subscription.deleted`).
+- `vitadelta.billing.duplicate_subscription` or the log line "second live Stripe subscription":
+  a user completed two checkouts. Cancel and refund the extra one in the dashboard or with
+  `stripe subscriptions cancel <sub_...>`.
+- Account deletion cancels the user's Stripe subscriptions after the deletion commits. When
+  `vitadelta.billing.cancel_on_delete.failed` rises, the log line names the subscription id; cancel
+  it with `stripe subscriptions cancel <sub_...>`.
+- State of a user:
+
+  ```bash
+  dc exec -T postgres psql -X -U vitadelta -d vitadelta -c \
+    "SELECT s.external_ref, s.status, s.current_period_end, s.ended_at
+       FROM billing_subscription s JOIN app_user u ON u.id = s.user_id
+      WHERE u.email = 'someone@example.com';"
+  ```
+
 ## 8. Exchange rates (FX) troubleshooting
 
 Rates are ECB reference rates fetched from Frankfurter v2 (`VITADELTA_FX_BASE_URL`, default
