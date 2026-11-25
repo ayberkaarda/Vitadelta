@@ -16,7 +16,9 @@ import org.springframework.stereotype.Component;
  *
  * <ul>
  *   <li>rankings: full native rankings by {@link RankingQuery#cacheKey(long)}, TTL 10 minutes, at
- *       most 500 entries; invalidated implicitly because the catalog version is part of the key;
+ *       most 500 entries and at most {@code cache-max-ranked-items} ranked products in total (each
+ *       ranking weighs its product count, at least the share of one entry); invalidated implicitly
+ *       because the catalog version is part of the key;
  *   <li>market profiles by country and catalog version (section 6.3);
  *   <li>registry snapshots by catalog version (request validation).
  * </ul>
@@ -35,10 +37,12 @@ public class RecommendationCaches {
   private final Cache<Long, ReferenceSnapshot> references;
 
   public RecommendationCaches(RecommendationProperties properties, MeterRegistry meters) {
+    int minimumWeight = properties.minimumRankingWeight();
     this.rankings =
         Caffeine.newBuilder()
             .expireAfterWrite(properties.cacheTtl())
-            .maximumSize(properties.cacheMaxEntries())
+            .maximumWeight(properties.cacheMaxRankedItems())
+            .<String, NativeRanking>weigher((key, ranking) -> weight(ranking, minimumWeight))
             .recordStats()
             .build();
     this.marketProfiles =
@@ -46,6 +50,20 @@ public class RecommendationCaches {
     this.references =
         Caffeine.newBuilder().expireAfterWrite(Duration.ofMinutes(10)).maximumSize(4).build();
     CaffeineCacheMetrics.monitor(meters, rankings, RANKING_CACHE);
+  }
+
+  /**
+   * Cache weight of a ranking: its number of ranked products, but at least {@code minimum}, so the
+   * weight bound (total ranked products) also caps the number of entries.
+   */
+  static int weight(NativeRanking ranking, int minimum) {
+    return Math.max(minimum, ranking.total());
+  }
+
+  /** Total weight of the cached rankings (after pending maintenance), for tests and operations. */
+  public long rankingWeight() {
+    rankings.cleanUp();
+    return rankings.policy().eviction().map(e -> e.weightedSize().orElse(0L)).orElse(0L);
   }
 
   /** The cached ranking of {@code key}, if present. */

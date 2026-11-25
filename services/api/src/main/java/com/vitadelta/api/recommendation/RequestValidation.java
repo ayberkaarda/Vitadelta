@@ -44,6 +44,17 @@ final class RequestValidation {
       Pattern.compile(
           "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$");
 
+  /**
+   * Most decimal places a request number may have (after removing trailing zeros). Together with
+   * {@link #MAX_INTEGER_DIGITS} it bounds the size of every number the API computes with or writes
+   * into the cache key, so an exponent such as {@code 1e-1073741824} is rejected before any
+   * arithmetic.
+   */
+  static final int MAX_FRACTION_DIGITS = 9;
+
+  /** Most digits a request number may have before the decimal point. */
+  static final int MAX_INTEGER_DIGITS = 12;
+
   private static final BigDecimal CATEGORY_MAX = BigDecimal.valueOf(WeightDefaults.CATEGORY_MAX);
   private static final BigDecimal OVERRIDE_MAX = BigDecimal.valueOf(WeightDefaults.OVERRIDE_MAX);
   private static final BigDecimal LAMBDA_MAX = BigDecimal.valueOf(WeightDefaults.LAMBDA_MAX);
@@ -105,6 +116,8 @@ final class RequestValidation {
                   "ranking.lambda",
                   "lambda_requires_custom",
                   "ranking.lambda is accepted only with the CUSTOM mode."));
+        } else if (!withinPrecision(lambda)) {
+          errors.add(tooPrecise("ranking.lambda"));
         } else if (lambda.signum() < 0 || lambda.compareTo(LAMBDA_MAX) > 0) {
           errors.add(outOfRange("ranking.lambda", "0", "1"));
         }
@@ -343,6 +356,8 @@ final class RequestValidation {
                   "Category must be one of VITAMIN, MINERAL, COENZYME, OTHER."));
         } else if (entry.getValue() == null) {
           errors.add(new FieldViolation(path, "invalid_format", "A weight must be a number."));
+        } else if (!withinPrecision(entry.getValue())) {
+          errors.add(tooPrecise(path));
         } else if (entry.getValue().signum() < 0 || entry.getValue().compareTo(CATEGORY_MAX) > 0) {
           errors.add(outOfRange(path, "0", "2"));
         } else {
@@ -359,6 +374,8 @@ final class RequestValidation {
                   path, "invalid_format", "An override key must be a nutrient code."));
         } else if (entry.getValue() == null) {
           errors.add(new FieldViolation(path, "invalid_format", "A weight must be a number."));
+        } else if (!withinPrecision(entry.getValue())) {
+          errors.add(tooPrecise(path));
         } else if (entry.getValue().signum() < 0 || entry.getValue().compareTo(OVERRIDE_MAX) > 0) {
           errors.add(outOfRange(path, "0", "3"));
         } else {
@@ -381,7 +398,9 @@ final class RequestValidation {
       errors.add(
           new FieldViolation(path + ".code", "invalid_format", "code must be a nutrient code."));
     }
-    if (input.minAmountPerDay() != null && input.minAmountPerDay().signum() <= 0) {
+    if (input.minAmountPerDay() != null && !withinPrecision(input.minAmountPerDay())) {
+      errors.add(tooPrecise(path + ".minAmountPerDay"));
+    } else if (input.minAmountPerDay() != null && input.minAmountPerDay().signum() <= 0) {
       errors.add(
           new FieldViolation(
               path + ".minAmountPerDay", "out_of_range", "minAmountPerDay must be above 0."));
@@ -407,6 +426,34 @@ final class RequestValidation {
 
   private static FieldViolation required(String field) {
     return new FieldViolation(field, "required", "Value is required.");
+  }
+
+  /**
+   * Whether {@code value} has at most {@link #MAX_FRACTION_DIGITS} decimal places and at most
+   * {@link #MAX_INTEGER_DIGITS} integer digits once trailing zeros are removed. Only the unscaled
+   * digits and the scale are inspected, so the check costs time proportional to the digits that
+   * were sent, whatever the exponent.
+   */
+  static boolean withinPrecision(BigDecimal value) {
+    if (value.signum() == 0) {
+      return true;
+    }
+    BigDecimal stripped = value.stripTrailingZeros();
+    long fractionDigits = Math.max(0L, stripped.scale());
+    long integerDigits = (long) stripped.precision() - stripped.scale();
+    return fractionDigits <= MAX_FRACTION_DIGITS && integerDigits <= MAX_INTEGER_DIGITS;
+  }
+
+  private static FieldViolation tooPrecise(String field) {
+    return new FieldViolation(
+        field,
+        "out_of_range",
+        field
+            + " must have at most "
+            + MAX_INTEGER_DIGITS
+            + " integer digits and "
+            + MAX_FRACTION_DIGITS
+            + " decimal places.");
   }
 
   private static FieldViolation outOfRange(String field, String min, String max) {

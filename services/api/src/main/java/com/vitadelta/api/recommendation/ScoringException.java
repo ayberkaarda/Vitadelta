@@ -36,7 +36,7 @@ public sealed class ScoringException extends RuntimeException {
     private final transient List<FieldError> errors;
 
     Rejected(List<FieldError> errors, Throwable cause) {
-      super("scoring service rejected the request: " + errors, cause);
+      super("scoring service rejected the request with " + errors.size() + " error(s)", cause);
       this.errors = List.copyOf(errors);
     }
 
@@ -59,6 +59,25 @@ public sealed class ScoringException extends RuntimeException {
     }
   }
 
-  /** One {@code errors[]} entry of a scoring {@code validation_failed} problem. */
-  public record FieldError(String field, String code, String message) {}
+  /**
+   * One {@code errors[]} entry of a scoring {@code validation_failed} problem: only the field path
+   * and the code are kept, each cut to {@link #MAX_TEXT} characters. The scoring service's {@code
+   * message} (like its {@code title} and {@code detail}) is never read into the API, so no scoring
+   * text can reach a client or a log line.
+   */
+  public record FieldError(String field, String code) {
+
+    /** Longest field path or code kept from a scoring answer. */
+    public static final int MAX_TEXT = 200;
+
+    public FieldError {
+      field = bounded(field);
+      code = bounded(code);
+    }
+
+    private static String bounded(String text) {
+      String value = text == null ? "" : text;
+      return value.length() <= MAX_TEXT ? value : value.substring(0, MAX_TEXT);
+    }
+  }
 }

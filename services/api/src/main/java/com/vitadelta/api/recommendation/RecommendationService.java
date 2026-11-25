@@ -5,6 +5,7 @@ import com.vitadelta.api.catalog.price.EffectivePriceResolver;
 import com.vitadelta.api.catalog.price.PriceResolution;
 import com.vitadelta.api.catalog.price.StockFilter;
 import com.vitadelta.api.catalog.read.CatalogReadService;
+import com.vitadelta.api.catalog.read.CatalogTooLargeException;
 import com.vitadelta.api.catalog.read.CatalogViews.CatalogProduct;
 import com.vitadelta.api.catalog.read.CatalogViews.CountryView;
 import com.vitadelta.api.catalog.read.CatalogViews.ProductInCountry;
@@ -12,12 +13,14 @@ import com.vitadelta.api.catalog.read.CountryCatalog;
 import com.vitadelta.api.catalog.read.MarketProfile;
 import com.vitadelta.api.catalog.unit.UnitConversionService;
 import com.vitadelta.api.catalog.web.DisplayCurrencyResolver;
+import com.vitadelta.api.common.logging.LogText;
 import com.vitadelta.api.common.problem.FieldViolation;
 import com.vitadelta.api.common.problem.ProblemCode;
 import com.vitadelta.api.common.problem.ProblemException;
 import com.vitadelta.api.common.ratelimit.RateLimitPolicy;
 import com.vitadelta.api.common.ratelimit.RateLimiter;
 import com.vitadelta.api.common.web.ClientIpResolver;
+import com.vitadelta.api.config.properties.RecommendationProperties;
 import com.vitadelta.api.entitlement.EntitlementService;
 import com.vitadelta.api.entitlement.PriceConversion;
 import com.vitadelta.api.identity.AccessTokenService;
@@ -98,6 +101,18 @@ public class RecommendationService {
       Pattern.compile("^weights\\.category_weights\\.([A-Z]+)$");
   private static final Pattern OVERRIDE = Pattern.compile("^weights\\.overrides\\.([A-Z0-9_]+)$");
 
+  /**
+   * Scoring validation codes that are forwarded for a client-supplied field, with the API-generated
+   * message (appended to the public field path). Any other code is an internal error; no text of
+   * the scoring answer is ever forwarded.
+   */
+  private static final java.util.Map<String, String> FORWARDED_CODES =
+      java.util.Map.of(
+          "out_of_range", " is outside the accepted range.",
+          "value_out_of_range", " is outside the accepted range.",
+          "weights_all_zero", " give every nutrient a weight of 0.",
+          "lambda_requires_custom", " is accepted only with the CUSTOM mode.");
+
   private final CatalogReadService catalog;
   private final UnitConversionService conversions;
   private final EffectivePriceResolver prices;
@@ -108,6 +123,7 @@ public class RecommendationService {
   private final ClientIpResolver clientIps;
   private final ScoringGateway scoring;
   private final RecommendationCaches caches;
+  private final int maxProductsPerCountry;
   private final Counter quotaRejections;
 
   public RecommendationService(
@@ -121,7 +137,9 @@ public class RecommendationService {
       ClientIpResolver clientIps,
       ScoringGateway scoring,
       RecommendationCaches caches,
+      RecommendationProperties properties,
       MeterRegistry meters) {
+    this.maxProductsPerCountry = properties.maxProductsPerCountry();
     this.catalog = catalog;
     this.conversions = conversions;
     this.prices = prices;
@@ -164,14 +182,28 @@ public class RecommendationService {
     } else {
       principal = new AnonymousPrincipal(reserve(anonymous), entitlements.anonymousQueryLimit());
     }
+    boolean answered = false;
     try {
       NativeRanking ranking = ranking(query, country, version);
-      return present(ranking, parsed, conversion, principal, anonymous != null);
+      QueryResponse result = present(ranking, parsed, conversion, principal, anonymous != null);
+      answered = true;
+      return result;
     } catch (RuntimeException e) {
-      if (anonymous != null) {
-        entitlements.refundAnonymousQuery(anonymous.idHash());
-      }
       throw translate(e);
+    } finally {
+      // Every outcome after the reservation other than an answer, including an Error, gives the
+      // query back; this is the only refund path, so a query is never refunded twice.
+      if (anonymous != null && !answered) {
+        refund(anonymous);
+      }
+    }
+  }
+
+  private void refund(AnonymousIdentity anonymous) {
+    try {
+      entitlements.refundAnonymousQuery(anonymous.idHash());
+    } catch (RuntimeException e) {
+      LOG.error("Refund of an anonymous query failed: {}", e.getClass().getSimpleName());
     }
   }
 
@@ -456,11 +488,29 @@ public class RecommendationService {
             ProblemException.of(ProblemCode.COUNTRY_NOT_FOUND, "The country is not supported."));
   }
 
+  /**
+   * The scoring input of a country, at most {@code max-products-per-country} products. A larger
+   * catalog cannot be ranked within the scoring budget (section 6.12): this is an operator error,
+   * logged as such, and the request is answered {@code 503 scoring_unavailable} (the ranking
+   * service cannot serve it now; cache hits are still served) instead of loading it.
+   */
   private CountryCatalog loadCountry(String code) {
-    return catalog
-        .loadCountry(code)
-        .orElseThrow(() ->
-            ProblemException.of(ProblemCode.COUNTRY_NOT_FOUND, "The country is not supported."));
+    try {
+      return catalog
+          .loadCountry(code, maxProductsPerCountry)
+          .orElseThrow(() ->
+              ProblemException.of(ProblemCode.COUNTRY_NOT_FOUND, "The country is not supported."));
+    } catch (CatalogTooLargeException e) {
+      LOG.error(
+          "Catalog of {} has {} in-market products, more than"
+              + " vitadelta.recommendation.max-products-per-country={}; recommendations for it"
+              + " are unavailable",
+          e.country(),
+          e.products(),
+          e.limit());
+      throw ProblemException.of(
+          ProblemCode.SCORING_UNAVAILABLE, "The ranking service is temporarily unavailable.");
+    }
   }
 
   private ReferenceSnapshot reference(long version) {
@@ -490,14 +540,18 @@ public class RecommendationService {
     List<FieldViolation> errors = new ArrayList<>();
     for (ScoringException.FieldError error : rejection.errors()) {
       Optional<String> field = publicField(error.field());
-      if (field.isEmpty() || !error.code().matches("^[a-z][a-z0-9_]*$")) {
-        LOG.error("Scoring service rejected API-built input: {} {}", error.field(), error.code());
-        return new IllegalStateException("scoring service rejected the request", rejection);
+      String message = FORWARDED_CODES.get(error.code());
+      if (field.isEmpty() || message == null) {
+        LOG.error(
+            "Scoring service rejected API-built input: field={} code={}",
+            LogText.printable(error.field()),
+            LogText.printable(error.code()));
+        return new IllegalStateException("scoring service rejected the request");
       }
-      errors.add(new FieldViolation(field.get(), error.code(), error.message()));
+      errors.add(new FieldViolation(field.get(), error.code(), field.get() + message));
     }
     if (errors.isEmpty()) {
-      return new IllegalStateException("scoring service rejected the request", rejection);
+      return new IllegalStateException("scoring service rejected the request without errors");
     }
     return ProblemException.validation(RequestValidation.DETAIL, errors);
   }

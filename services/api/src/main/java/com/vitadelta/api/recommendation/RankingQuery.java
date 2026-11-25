@@ -69,8 +69,8 @@ record RankingQuery(
   /**
    * The cache key: SHA-256 (hex) of the canonical JSON of {@code {catalog_version, country,
    * exclude_exceeding_ul, ranking, required_nutrients, stock_filter, weights}} with keys in
-   * lexicographic order, numbers in plain normalized form, overrides by code and required nutrients
-   * by code. {@code ranking.lambda} is present only for CUSTOM.
+   * lexicographic order, numbers in the canonical form of {@link #number}, overrides by code and
+   * required nutrients by code. {@code ranking.lambda} is present only for CUSTOM.
    */
   String cacheKey(long catalogVersion) {
     StringBuilder json = new StringBuilder(256);
@@ -118,8 +118,19 @@ record RankingQuery(
     return '"' + value + '"';
   }
 
-  private static String number(BigDecimal value) {
-    return value.signum() == 0 ? "0" : value.stripTrailingZeros().toPlainString();
+  /**
+   * The canonical JSON form of a number: the unscaled digits of the value without trailing zeros,
+   * followed by {@code e<exponent>} when the exponent is not 0 (for example {@code 15e-1} for 1.5,
+   * {@code 2} for 2.00). Equal values give the same text, and its length is bounded by the digits
+   * of the value whatever its exponent, so no plain expansion is ever built.
+   */
+  static String number(BigDecimal value) {
+    if (value.signum() == 0) {
+      return "0";
+    }
+    BigDecimal stripped = value.stripTrailingZeros();
+    String digits = stripped.unscaledValue().toString();
+    return stripped.scale() == 0 ? digits : digits + "e" + (-(long) stripped.scale());
   }
 
   private static String sha256(String canonical) {
