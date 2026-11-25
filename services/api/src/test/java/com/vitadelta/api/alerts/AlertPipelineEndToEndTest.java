@@ -79,6 +79,10 @@ class AlertPipelineEndToEndTest extends AlertsIntegrationTest {
     return done[0];
   }
 
+  private long catalogVersion() {
+    return jdbc.sql("SELECT version FROM catalog_version WHERE id = 1").query(Long.class).single();
+  }
+
   @Test
   void theImportedPriceDropReachesTheInboxAndMailpit() throws Exception {
     admin = adminToken();
@@ -103,9 +107,10 @@ class AlertPipelineEndToEndTest extends AlertsIntegrationTest {
     assertStatus(alert, 201);
     assertThat(json(alert).get("baselinePrice").decimalValue()).isEqualByComparingTo("900");
 
+    long versionBefore = catalogVersion();
     JsonNode job = importOffers("offers.price-drop.synthetic.csv");
-    long catalogVersion =
-        jdbc.sql("SELECT version FROM catalog_version WHERE id = 1").query(Long.class).single();
+    long catalogVersion = catalogVersion();
+    assertThat(catalogVersion).as("one bump per changing import").isEqualTo(versionBefore + 1);
     List<Map<String, Object>> written = events();
     assertThat(written).hasSize(2);
     assertThat(written.stream().map(e -> e.get("event_type"))).containsOnly("OFFERS_CHANGED");
@@ -158,6 +163,7 @@ class AlertPipelineEndToEndTest extends AlertsIntegrationTest {
     JsonNode again = importOffers("offers.price-drop.synthetic.csv");
     assertThat(again.get("summary").get("changedPairs").asInt()).isZero();
     assertThat(events()).isEmpty();
+    assertThat(catalogVersion()).as("an unchanged import bumps nothing").isEqualTo(catalogVersion);
     assertThat(clock.instant()).isEqualTo(before);
   }
 }

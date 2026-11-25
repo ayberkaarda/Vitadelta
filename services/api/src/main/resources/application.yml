@@ -115,6 +115,8 @@ vitadelta:
     # FX provider (section 7.7, ADR-0009): Frankfurter v2 with the ECB provider. Blank -> default.
     base-url: ${VITADELTA_FX_BASE_URL:https://api.frankfurter.dev/v2}
     # Display currencies in addition to the country currencies (comma-separated ISO 4217 codes).
+    # A code the provider does not publish is left out of each refresh request with a WARN log
+    # line and the vitadelta.fx.refresh.unsupported metric; it then has no rate (UNAVAILABLE).
     extra-currencies: ${VITADELTA_FX_EXTRA_CURRENCIES:}
     connect-timeout: 2s
     read-timeout: 5s
@@ -162,6 +164,19 @@ vitadelta:
     anonymous-retention: 180d
     email-token-retention: 7d
     refresh-token-retention: 30d
+    housekeeping-batch-size: 1000
+  alerts:
+    # Outbox processor (section 8.6, ADR-0008): fixed delay between runs, events claimed per run,
+    # claim lease (an expired lease makes an event claimable again) and failed attempts after
+    # which an event becomes DEAD_LETTER. Off with VITADELTA_JOBS_ENABLED=false.
+    poll-interval: 10s
+    claim-batch-size: 100
+    lease: 2m
+    max-attempts: 5
+    # Outbox housekeeping (section 8.11, daily 03:15 UTC): processed events and dead letters older
+    # than these are deleted with their alert_delivery rows, in batches of housekeeping-batch-size.
+    processed-retention: 30d
+    dead-letter-retention: 90d
     housekeeping-batch-size: 1000
 
 server:

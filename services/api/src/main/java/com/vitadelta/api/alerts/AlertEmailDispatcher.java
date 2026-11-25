@@ -5,6 +5,7 @@ import com.vitadelta.api.identity.UserAccount;
 import com.vitadelta.api.identity.UserRepository;
 import com.vitadelta.api.identity.UserStatus;
 import com.vitadelta.api.mail.EmailMessage;
+import com.vitadelta.api.mail.EmailSender;
 import com.vitadelta.api.mail.MailLinks;
 import com.vitadelta.api.mail.MailModel;
 import com.vitadelta.api.mail.MailTemplateRenderer;
@@ -31,9 +32,11 @@ import org.springframework.transaction.support.TransactionTemplate;
  *       without alert e-mail: {@code SKIPPED_INELIGIBLE};
  *   <li>{@code email_sent_at} already set (re-checked right before sending): {@code DELIVERED}
  *       without sending again;
- *   <li>otherwise the template of the type is rendered in the user's locale and sent; success sets
- *       {@code email_sent_at} and {@code DELIVERED} in one short transaction, a failure records
- *       {@code email_error} and is rethrown so the outbox retry policy applies.
+ *   <li>otherwise the template of the type is rendered in the user's locale and sent synchronously
+ *       through the mail port ({@link EmailSender}) with a {@code List-Unsubscribe} header to the
+ *       notification preferences; success sets {@code email_sent_at} and {@code DELIVERED} in one
+ *       short transaction, a failure records {@code email_error} and is rethrown so the outbox
+ *       retry policy applies.
  * </ul>
  */
 @Component
@@ -46,7 +49,7 @@ public class AlertEmailDispatcher {
   private final UserRepository users;
   private final MailTemplateRenderer renderer;
   private final MailLinks links;
-  private final AlertMailTransport transport;
+  private final EmailSender sender;
   private final AlertMetrics metrics;
   private final TransactionTemplate transactions;
   private final Clock clock;
@@ -57,7 +60,7 @@ public class AlertEmailDispatcher {
       UserRepository users,
       MailTemplateRenderer renderer,
       MailLinks links,
-      AlertMailTransport transport,
+      EmailSender sender,
       AlertMetrics metrics,
       PlatformTransactionManager transactionManager,
       Clock clock) {
@@ -66,7 +69,7 @@ public class AlertEmailDispatcher {
     this.users = users;
     this.renderer = renderer;
     this.links = links;
-    this.transport = transport;
+    this.sender = sender;
     this.metrics = metrics;
     this.transactions = new TransactionTemplate(transactionManager);
     this.clock = clock;
@@ -114,7 +117,7 @@ public class AlertEmailDispatcher {
       return finish(event, OutboxOutcome.DELIVERED);
     }
     try {
-      transport.send(message, links.account());
+      sender.send(withPreferenceLink(message, links.account()));
     } catch (RuntimeException e) {
       metrics.emailFailed(notification.type());
       notifications.markEmailFailed(notificationId, describe(e));
@@ -171,6 +174,24 @@ public class AlertEmailDispatcher {
   private OutboxOutcome markProcessed(OutboxRepository.ClaimedEvent event, OutboxOutcome outcome) {
     outbox.markProcessed(event.id(), outcome, clock.instant());
     return outcome;
+  }
+
+  /**
+   * Adds the {@code List-Unsubscribe} header (RFC 2369) pointing to the notification preferences
+   * page. The link is a page, not an endpoint, so no one-click {@code List-Unsubscribe-Post} is
+   * set.
+   *
+   * @throws IllegalArgumentException when the link is not a single-line URL without angle brackets
+   */
+  static EmailMessage withPreferenceLink(EmailMessage message, String preferencesUrl) {
+    if (preferencesUrl == null
+        || preferencesUrl.isBlank()
+        || preferencesUrl.indexOf('<') >= 0
+        || preferencesUrl.indexOf('>') >= 0
+        || preferencesUrl.indexOf(' ') >= 0) {
+      throw new IllegalArgumentException("preference link must be a single URL");
+    }
+    return message.withHeader(EmailMessage.LIST_UNSUBSCRIBE, "<" + preferencesUrl + ">");
   }
 
   /** Class names of a failure and its root cause; never the message (it can echo an address). */

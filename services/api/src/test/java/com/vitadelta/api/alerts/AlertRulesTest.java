@@ -149,4 +149,26 @@ class AlertRulesTest {
     assertThat(AlertEmailDispatcher.describe(new IllegalStateException("x")))
         .isEqualTo("IllegalStateException");
   }
+
+  @Test
+  void thePreferenceLinkBecomesTheOnlyListUnsubscribeHeader() {
+    com.vitadelta.api.mail.EmailMessage message =
+        new com.vitadelta.api.mail.EmailMessage(
+            "a@example.org", "Price drop", "t", "h", java.util.Locale.ENGLISH);
+    assertThat(
+            AlertEmailDispatcher.withPreferenceLink(message, "https://vitadelta.test/account")
+                .headers())
+        .containsExactly(
+            java.util.Map.entry("List-Unsubscribe", "<https://vitadelta.test/account>"));
+    for (String hostile :
+        java.util.Arrays.asList(
+            null,
+            "",
+            "https://vitadelta.test/a>, <mailto:x@example.org",
+            "https://vitadelta.test/a b",
+            "https://vitadelta.test/a\r\nBcc: x@example.org")) {
+      assertThatThrownBy(() -> AlertEmailDispatcher.withPreferenceLink(message, hostile))
+          .isInstanceOf(IllegalArgumentException.class);
+    }
+  }
 }

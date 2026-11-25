@@ -15,6 +15,8 @@ import com.vitadelta.api.identity.UserRepository;
 import com.vitadelta.api.identity.UserStatus;
 import com.vitadelta.api.imports.OfferChangeListener.OfferPairChange;
 import com.vitadelta.api.mail.EmailMessage;
+import com.vitadelta.api.mail.EmailSender;
+import com.vitadelta.api.mail.SmtpEmailSender;
 import com.vitadelta.api.support.PostgresIntegrationTest;
 import com.vitadelta.api.support.TestData;
 import java.math.BigDecimal;
@@ -160,7 +162,7 @@ public abstract class AlertsIntegrationTest extends PostgresIntegrationTest {
    * another connection at that moment (no row lock held by the sender). A test can make the next
    * deliveries fail.
    */
-  public static final class RecordingTransport implements AlertMailTransport {
+  public static final class RecordingTransport implements EmailSender {
 
     /** One recorded delivery attempt. */
     public record Call(
@@ -169,13 +171,13 @@ public abstract class AlertsIntegrationTest extends PostgresIntegrationTest {
         boolean transactionActive,
         boolean rowsLockable) {}
 
-    private final SmtpAlertMailTransport delegate;
+    private final SmtpEmailSender delegate;
     private final DataSource dataSource;
     public final List<Call> calls = new CopyOnWriteArrayList<>();
     private volatile int failuresLeft;
     private volatile Consumer<EmailMessage> during = message -> {};
 
-    RecordingTransport(SmtpAlertMailTransport delegate, DataSource dataSource) {
+    RecordingTransport(SmtpEmailSender delegate, DataSource dataSource) {
       this.delegate = delegate;
       this.dataSource = dataSource;
     }
@@ -195,11 +197,21 @@ public abstract class AlertsIntegrationTest extends PostgresIntegrationTest {
       during = message -> {};
     }
 
+    /**
+     * Records and may fail only alert and cap mails (they carry {@code List-Unsubscribe}); identity
+     * and plan mails of the same context go straight to SMTP.
+     */
     @Override
-    public void send(EmailMessage message, String unsubscribeUrl) {
+    public void send(EmailMessage message) {
+      String listUnsubscribe = message.headers().get(EmailMessage.LIST_UNSUBSCRIBE);
+      if (listUnsubscribe == null) {
+        delegate.send(message);
+        return;
+      }
       boolean active =
           org.springframework.transaction.support.TransactionSynchronizationManager
               .isActualTransactionActive();
+      String unsubscribeUrl = listUnsubscribe.substring(1, listUnsubscribe.length() - 1);
       calls.add(new Call(message, unsubscribeUrl, active, rowsLockable()));
       during.accept(message);
       if (failuresLeft > 0) {
@@ -207,7 +219,7 @@ public abstract class AlertsIntegrationTest extends PostgresIntegrationTest {
         throw new com.vitadelta.api.mail.EmailDeliveryException(
             "SMTP delivery failed: simulated", new IllegalStateException("simulated"));
       }
-      delegate.send(message, unsubscribeUrl);
+      delegate.send(message);
     }
 
     /** Locks every outbox and notification row with NOWAIT from a separate connection. */
@@ -243,7 +255,7 @@ public abstract class AlertsIntegrationTest extends PostgresIntegrationTest {
 
     @Bean
     @Primary
-    RecordingTransport recordingAlertTransport(SmtpAlertMailTransport smtp, DataSource dataSource) {
+    RecordingTransport recordingAlertTransport(SmtpEmailSender smtp, DataSource dataSource) {
       return new RecordingTransport(smtp, dataSource);
     }
   }
@@ -427,7 +439,10 @@ public abstract class AlertsIntegrationTest extends PostgresIntegrationTest {
       UUID productId, String country, EffectivePrice.State before, EffectivePrice.State after) {
     transactions.executeWithoutResult(tx ->
         emitter.offersChanged(
-            List.of(new OfferPairChange(productId, "TEST", country, before, after))));
+            List.of(new OfferPairChange(productId, "TEST", country, before, after)),
+            jdbc.sql("SELECT version FROM catalog_version WHERE id = 1")
+                .query(Long.class)
+                .single()));
   }
 
   /** Runs the processor until no event is due (at most 10 batches). */
