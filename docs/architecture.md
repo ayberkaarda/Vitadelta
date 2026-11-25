@@ -30,7 +30,7 @@ flowchart LR
 - **Mailpit** catches outgoing e-mail in the local stack; any SMTP server can take its place through the `VITADELTA_SMTP_*` settings.
 - **Frankfurter v2** is the only external dependency at run time. The API requests ECB rates explicitly (`providers=ECB`) so that the stored rates are reproducible reference rates ([ADR-0009](adr/0009-fx-provider.md)).
 
-Postgres and Mailpit publish their ports on the loopback address only, for local tools.
+PostgreSQL publishes no port; SQL runs through the database container. Mailpit publishes only its inbox and HTTP API on the loopback address, and its SMTP port is reachable from the compose network only.
 
 ## Recommendation query
 
@@ -44,6 +44,10 @@ Postgres and Mailpit publish their ports on the loopback address only, for local
 6. **Presentation.** A visitor receives the top three items of the full ranking whatever page is requested; locked items are not sent in any form, and `meta.visibility` reports `shown`, `total` and `locked`. Users receive full paged results. Money is converted to the display currency with one rounding, and the response states the rate, its date and its status. Saved and alert states are added for users after paging, never inside the cached ranking.
 
 `POST /api/v1/recommendations/compare` uses the same scoring client for a pairwise analysis and has no quota; it is limited by per-IP rate limits only.
+
+## Product detail
+
+`GET /api/v1/products/{id}` answers from the catalog alone and never calls the scoring service. Each nutrient row carries the facts of the requested country: `reference` (the value of the country's reference set and the percentage of it covered per day) and `upperLimit` (the row of the country's upper-limit set that applies to the row's form, with `exceeded`). Both are `null` when the set defines no applicable value, the matched limit is exempt or depends on a form the label does not state; they are comparative information, not medical advice. Products that are not sold or are discontinued in the country expose none of these facts.
 
 ## Entitlements
 
@@ -97,6 +101,10 @@ Every committing catalog write bumps `catalog_version` exactly once, which keys 
 - **Leakage.** Errors are RFC 9457 problem documents without class names, SQL or stack frames; logs are structured JSON with a request id, and credentials, tokens, promo codes and full e-mail addresses are redacted. Both are covered by tests.
 - **Adversarial suites.** Separate API and browser suites attack ownership, limits under concurrency, token handling, open redirects, stored script payloads, locked-data exposure, the outbox and the exchange-rate provider boundary. They run at every phase gate.
 - **Scanning and recovery.** `scripts/security-scan.sh` checks the Git history and tree for secrets, guards against SQL string concatenation and audits npm and Python dependencies. `scripts/backup.sh` writes `age`-encrypted dumps; `scripts/restore.sh` restores into an isolated stack. Procedures are in the [runbook](runbook.md).
+
+## Operations
+
+The operations layer is a set of scripts and CI jobs around the stack. `scripts/backup.sh` writes `age`-encrypted dumps with a 14-day retention, and `scripts/restore.sh` restores a dump into a separate compose project (`infra/docker-compose.restore.yml`) that never touches the live stack. `scripts/security-scan.sh` runs the secret scan, the tracked-file and SQL-concatenation guards, npm audit, pip-audit, the Dependency-Check plugin (only with an NVD API key), the Dependabot coverage check and the action-pinning check. On GitHub Actions the `test` job runs `scripts/test-all.sh`, the `security` job runs the security scan with gitleaks over the full history, and the informational `e2e` job runs the end-to-end and adversarial browser suites against the compose stack for pull requests and the default branch. The API exposes health and Micrometer metrics on a management port that is neither published nor proxied; the metric and log-field catalogue is in the [runbook](runbook.md).
 
 ## Decision records
 
