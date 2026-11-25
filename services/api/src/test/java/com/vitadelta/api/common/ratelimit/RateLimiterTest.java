@@ -6,6 +6,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.vitadelta.api.common.problem.ProblemCode;
 import com.vitadelta.api.common.problem.ProblemException;
 import io.github.bucket4j.TimeMeter;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -54,6 +56,23 @@ class RateLimiterTest {
     assertThat(limiter.tryConsume(policy, "198.51.100.1")).isFalse();
     time.advance(Duration.ofMinutes(1));
     assertThat(limiter.tryConsume(policy, "198.51.100.1")).isTrue();
+  }
+
+  @Test
+  void everyRefusalIsCountedPerPolicyWithoutTheKey() {
+    SimpleMeterRegistry meters = new SimpleMeterRegistry();
+    RateLimiter limiter = new RateLimiter(new ManualTime(), meters);
+    RateLimitPolicy policy = RateLimitPolicy.of("test-metric", 1, Duration.ofHours(1));
+    limiter.check(policy, "198.51.100.7");
+    assertThat(meters.find(RateLimiter.REJECTED_METRIC).counters()).isEmpty();
+    assertThatThrownBy(() -> limiter.check(policy, "198.51.100.7"))
+        .isInstanceOf(ProblemException.class);
+    assertThat(limiter.tryConsume(policy, "198.51.100.7")).isFalse();
+    Counter rejected =
+        meters.get(RateLimiter.REJECTED_METRIC).tag("policy", "test-metric").counter();
+    assertThat(rejected.count()).isEqualTo(2);
+    assertThat(rejected.getId().getTags()).hasSize(1);
+    assertThat(meters.getMeters().toString()).doesNotContain("198.51.100.7");
   }
 
   @Test

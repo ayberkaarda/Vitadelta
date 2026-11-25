@@ -1,6 +1,7 @@
 package com.vitadelta.api.mail;
 
 import com.vitadelta.api.common.logging.EmailMasking;
+import com.vitadelta.api.common.web.RequestIds;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.util.List;
@@ -11,6 +12,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -174,17 +176,26 @@ public class AuthMailDispatcher implements DisposableBean {
     return current;
   }
 
+  /** One queued mail; its log lines carry the request id of the request that queued it. */
   private final class Delivery implements Runnable {
 
     private final OutgoingMail mail;
+    private final String requestId;
 
     private Delivery(OutgoingMail mail) {
       this.mail = mail;
+      this.requestId = MDC.get(RequestIds.KEY);
     }
 
     @Override
     public void run() {
-      deliver(mail);
+      if (requestId == null) {
+        deliver(mail);
+        return;
+      }
+      try (MDC.MDCCloseable _ = MDC.putCloseable(RequestIds.KEY, requestId)) {
+        deliver(mail);
+      }
     }
   }
 }
