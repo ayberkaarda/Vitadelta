@@ -71,10 +71,8 @@ scripts/dev-down.sh --volumes   # also deletes the database volume
 | Web uygulaması ve API (nginx) | http://localhost:8080 (API `/api/v1` altında) |
 | Mailpit gelen kutusu | http://127.0.0.1:8025 |
 | Mailpit API | http://127.0.0.1:8025/api/v1 |
-| Mailpit SMTP | 127.0.0.1:1025 |
-| PostgreSQL | 127.0.0.1:54320 |
 
-Tüm arayüzlerde yayımlanan tek servis nginx'tir. API ve puanlama servisinin yayımlanan portu yoktur; puanlama servisi yalnızca API'nin katıldığı iç bir ağda bulunur. Mailpit ve PostgreSQL yalnızca loopback adresini dinler.
+Tüm arayüzlerde yayımlanan tek servis nginx'tir. API, puanlama servisi ve PostgreSQL'in yayımlanan portu yoktur; puanlama servisi yalnızca API'nin katıldığı iç bir ağda bulunur. Mailpit yalnızca gelen kutusunu ve HTTP API'sini loopback adresinde yayımlar; SMTP portuna yalnızca compose ağından erişilir. SQL veritabanı konteyneri üzerinden çalıştırılır: `docker compose --env-file .env -f infra/docker-compose.yml exec -T postgres psql -U vitadelta -d vitadelta`.
 
 Varsayılan giriş bilgisi yoktur. İlk yönetici, API açılışında `.env` içindeki `VITADELTA_BOOTSTRAP_ADMIN_EMAIL` ve `VITADELTA_BOOTSTRAP_ADMIN_PASSWORD` değerlerinden ve yalnızca henüz bir yönetici yoksa oluşturulur. İki değeri yerel bir adres ve üretilmiş bir parolayla doldurmak için:
 
@@ -175,20 +173,20 @@ npm run e2e:adversarial
 
 | Denetim | Son ölçülen sonuç | Tarih |
 |---|---|---|
-| API (`./gradlew check`) | 1332 test, 0 hata; satır kapsamı %96,4 (eşik %85) | 2026-11-25 |
-| API saldırgan test paketi | 173 test geçer, API çalıştırmasının parçası | 2026-11-25 |
-| Web birim ve bileşen testleri | 64 dosyada 686 test; satır kapsamı %95,35 (eşik %70) | 2026-11-25 |
-| Web derlemesi | ilk paket gzip ile 117,01 kB (bütçe 380 kB) | 2026-11-25 |
+| API (`./gradlew check`) | 1399 test, 0 hata; satır kapsamı %96,4 (eşik %85) | 2026-11-25 |
+| API saldırgan test paketi | 194 test geçer, API çalıştırmasının parçası | 2026-11-25 |
+| Web birim ve bileşen testleri | 64 dosyada 693 test; satır kapsamı %95,4 (eşik %70) | 2026-11-25 |
+| Web derlemesi | ilk paket gzip ile 117 kB (bütçe 380 kB) | 2026-11-25 |
 | Puanlama (`pytest`) | 369 test; satır kapsamı %99,30 (eşik %95) | 2026-11-24 |
-| Temiz yığında uçtan uca paketler | 26 normal ve 51 saldırgan test geçer | 2026-11-25 |
-| Güvenlik taraması | 7 denetim geçer; OWASP bağımlılık denetimi NVD API anahtarı olmadan atlanır | 2026-11-25 |
+| Temiz yığında uçtan uca paketler | [Faz 7 raporuna](docs/reports/phase-7.md) bakın | 2026-11-25 |
+| Güvenlik taraması | diğer 8 denetimin tümü geçer; bağımlılık güvenlik açığı denetimi (OWASP Dependency-Check) NVD API anahtarı olmadan atlanır | 2026-11-25 |
 
-Uçtan uca rakamlar Faz 6 kapısından, puanlama rakamları Faz 2 raporundan alınmıştır. CI her push'ta test paketlerini ve güvenlik taramasını çalıştırır; uçtan uca iş pull request'ler ve varsayılan dal için çalışır ve bilgilendirme amaçlıdır.
+Son çalıştırmanın uçtan uca rakamları Faz 7 raporundadır; puanlama rakamları Faz 2 raporundan alınmıştır. CI her push'ta test paketlerini ve güvenlik taramasını çalıştırır; uçtan uca iş pull request'ler ve varsayılan dal için çalışır ve bilgilendirme amaçlıdır.
 
 ## Belgeler
 
 - [Mimari](docs/architecture.md) · [İşletim kılavuzu](docs/runbook.md) · [Sözleşmeler](contracts/)
-- Faz raporları: [0](docs/reports/phase-0.md) · [1](docs/reports/phase-1.md) · [2](docs/reports/phase-2.md) · [3](docs/reports/phase-3.md) · [4](docs/reports/phase-4.md) · [5](docs/reports/phase-5.md) · [6](docs/reports/phase-6.md)
+- Faz raporları: [0](docs/reports/phase-0.md) · [1](docs/reports/phase-1.md) · [2](docs/reports/phase-2.md) · [3](docs/reports/phase-3.md) · [4](docs/reports/phase-4.md) · [5](docs/reports/phase-5.md) · [6](docs/reports/phase-6.md) · [7](docs/reports/phase-7.md)
 - Servis notları: [puanlama](services/scoring/README.md) · [karar kalibrasyonu](services/scoring/calibration/verdict-calibration.md) · [web uygulaması](apps/web/README.md) · [etiket anlık görüntüsü](data/real/README.md)
 - [Mimari kararlar](docs/adr/):
   - [0001](docs/adr/0001-monorepo.md) Üç dağıtılabilir birim ve ortak sözleşmelerle monorepo

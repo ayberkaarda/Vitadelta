@@ -71,10 +71,8 @@ scripts/dev-down.sh --volumes   # also deletes the database volume
 | Web app and API (nginx) | http://localhost:8080 (API under `/api/v1`) |
 | Mailpit inbox | http://127.0.0.1:8025 |
 | Mailpit API | http://127.0.0.1:8025/api/v1 |
-| Mailpit SMTP | 127.0.0.1:1025 |
-| PostgreSQL | 127.0.0.1:54320 |
 
-nginx is the only service published on all interfaces. The API and the scoring service have no published ports, and the scoring service sits on an internal network that only the API joins. Mailpit and PostgreSQL listen on the loopback address only.
+nginx is the only service published on all interfaces. The API, the scoring service and PostgreSQL have no published ports, and the scoring service sits on an internal network that only the API joins. Mailpit publishes only its inbox and HTTP API on the loopback address; its SMTP port is reachable from the compose network only. SQL runs through the database container: `docker compose --env-file .env -f infra/docker-compose.yml exec -T postgres psql -U vitadelta -d vitadelta`.
 
 There are no default credentials. The first administrator is created by the API at start-up from `VITADELTA_BOOTSTRAP_ADMIN_EMAIL` and `VITADELTA_BOOTSTRAP_ADMIN_PASSWORD` in `.env`, and only when no administrator exists yet. To fill both values with a local address and a generated password:
 
@@ -175,20 +173,20 @@ npm run e2e:adversarial
 
 | Check | Latest measured result | Date |
 |---|---|---|
-| API (`./gradlew check`) | 1332 tests, 0 failures; line coverage 96.4 % (gate 85 %) | 2026-11-25 |
-| API adversarial suite | 173 tests pass, part of the API run | 2026-11-25 |
-| Web unit and component tests | 686 tests in 64 files; line coverage 95.35 % (gate 70 %) | 2026-11-25 |
-| Web build | initial bundle 117.01 kB gzipped (budget 380 kB) | 2026-11-25 |
+| API (`./gradlew check`) | 1399 tests, 0 failures; line coverage 96.4 % (gate 85 %) | 2026-11-25 |
+| API adversarial suite | 194 tests pass, part of the API run | 2026-11-25 |
+| Web unit and component tests | 693 tests in 64 files; line coverage 95.4 % (gate 70 %) | 2026-11-25 |
+| Web build | initial bundle 117 kB gzipped (budget 380 kB) | 2026-11-25 |
 | Scoring (`pytest`) | 369 tests; line coverage 99.30 % (gate 95 %) | 2026-11-24 |
-| End-to-end suites on a fresh stack | 26 regular and 51 adversarial tests pass | 2026-11-25 |
-| Security scan | 7 checks pass; the OWASP dependency check is skipped without an NVD API key | 2026-11-25 |
+| End-to-end suites on a fresh stack | see the [Phase 7 report](docs/reports/phase-7.md) | 2026-11-25 |
+| Security scan | all 8 other checks pass; the dependency vulnerability check (OWASP Dependency-Check) is skipped without an NVD API key | 2026-11-25 |
 
-The end-to-end figures come from the Phase 6 gate; the scoring figures from the Phase 2 report. CI runs the test suites and the security scan on every push; the end-to-end job runs for pull requests and the default branch and is informational.
+The end-to-end figures of the final run are in the Phase 7 report; the scoring figures come from the Phase 2 report. CI runs the test suites and the security scan on every push; the end-to-end job runs for pull requests and the default branch and is informational.
 
 ## Documentation
 
 - [Architecture](docs/architecture.md) · [Runbook](docs/runbook.md) · [Contracts](contracts/)
-- Phase reports: [0](docs/reports/phase-0.md) · [1](docs/reports/phase-1.md) · [2](docs/reports/phase-2.md) · [3](docs/reports/phase-3.md) · [4](docs/reports/phase-4.md) · [5](docs/reports/phase-5.md) · [6](docs/reports/phase-6.md)
+- Phase reports: [0](docs/reports/phase-0.md) · [1](docs/reports/phase-1.md) · [2](docs/reports/phase-2.md) · [3](docs/reports/phase-3.md) · [4](docs/reports/phase-4.md) · [5](docs/reports/phase-5.md) · [6](docs/reports/phase-6.md) · [7](docs/reports/phase-7.md)
 - Service notes: [scoring](services/scoring/README.md) · [verdict calibration](services/scoring/calibration/verdict-calibration.md) · [web app](apps/web/README.md) · [label snapshot](data/real/README.md)
 - [Architecture decisions](docs/adr/):
   - [0001](docs/adr/0001-monorepo.md) Monorepo with three deployables and shared contracts
