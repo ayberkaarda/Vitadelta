@@ -8,7 +8,7 @@
 # The "runtime" stage is the nginx part alone; infra/nginx/check-routing.sh builds and checks it
 # (docker build --target runtime) without the web build.
 
-FROM nginx:1.30.8-alpine@sha256:6437a63b5c529f0e06162b3f593c0154cff6fa2ea0f94fd7c27928cb399e022d AS runtime
+FROM nginx:1.31.0-alpine@sha256:2f07d83bf561b506400dc183b1b2003803e39efbd22451f848adaba14d28c7c7 AS runtime
 ENV VITADELTA_TLS=false \
     VITADELTA_REAL_IP_FROM= \
     NGINX_ENVSUBST_FILTER=^VITADELTA_
