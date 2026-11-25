@@ -259,6 +259,40 @@ describe('ShellComponent', () => {
       expect(router.url).toBe('/auth/login?returnUrl=%2Faccount');
     });
 
+    it('continues from the login page to its return URL when another tab signs in', async () => {
+      refreshResult = fixtureTokenResponse('tok-a');
+      const router = await renderWithRoutes();
+      remote.next({ type: 'signed-out', at: Date.now() });
+      await settle(fixture);
+      await settle(fixture);
+      expect(router.url).toBe('/auth/login?returnUrl=%2Faccount');
+
+      api['getMe'] = vi.fn(() => of(fixtureMe({ ...ACCOUNT_B })));
+      remote.next({
+        type: 'session',
+        response: fixtureTokenResponse('tok-b', ACCOUNT_B),
+        at: Date.now(),
+      });
+      await settle(fixture);
+      await settle(fixture);
+      expect(router.url).toBe('/account');
+    });
+
+    it('never follows an unsafe return URL after a sign-in elsewhere', async () => {
+      refreshResult = null;
+      const router = await renderWithRoutes();
+      await router.navigateByUrl('/auth/login?returnUrl=%2F%2Fevil.example%2Fx');
+      await settle(fixture);
+      remote.next({
+        type: 'session',
+        response: fixtureTokenResponse('tok-b', ACCOUNT_B),
+        at: Date.now(),
+      });
+      await settle(fixture);
+      await settle(fixture);
+      expect(router.url).toBe('/');
+    });
+
     it('reloads the unread count for the account signed in elsewhere', async () => {
       refreshResult = fixtureTokenResponse('tok-a');
       await renderWithRoutes();

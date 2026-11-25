@@ -14,6 +14,7 @@ import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } fro
 import { TranslocoPipe } from '@jsverse/transloco';
 import { filter } from 'rxjs';
 
+import { safeReturnUrl } from '../core/auth/return-url';
 import { SessionStore } from '../core/auth/session.store';
 import { CurrencyStore } from '../core/state/currency.store';
 import { RegionStore } from '../core/state/region.store';
@@ -31,6 +32,16 @@ import { UserMenuComponent } from './user-menu.component';
  * login links or the account menu; a menu sheet below 48rem; the routed page; the footer with
  * the privacy link and the not-medical-advice line.
  */
+/**
+ * Where a signed-in visitor continues from the current page: the checked `returnUrl` of the
+ * login page, or `null` to stay on any other page.
+ */
+function signedInTarget(router: Router): string | null {
+  const tree = router.parseUrl(router.url);
+  const path = tree.root.children['primary']?.segments.map((segment) => segment.path).join('/');
+  return path === 'auth/login' ? safeReturnUrl(tree.queryParams['returnUrl']) : null;
+}
+
 @Component({
   selector: 'vd-shell',
   imports: [
@@ -90,7 +101,8 @@ export class ShellComponent {
     destroyRef.onDestroy(stop);
 
     // When the session changes under a mounted page (also from another tab), the guards of the
-    // current route run again: protected pages send the visitor to login or home.
+    // current route run again: protected pages send the visitor to login or home. A login page
+    // that sees a sign-in (here or in another tab) continues to its return URL instead.
     const router = inject(Router);
     let seenGeneration: number | null = null;
     effect(() => {
@@ -98,12 +110,16 @@ export class ShellComponent {
       untracked(() => {
         const changed = seenGeneration !== null && seenGeneration !== generation;
         seenGeneration = generation;
-        if (changed && router.navigated) {
-          void router.navigateByUrl(router.url, {
-            onSameUrlNavigation: 'reload',
-            replaceUrl: true,
-          });
+        if (!changed || !router.navigated) {
+          return;
         }
+        const target = this.session.isAuthenticated() ? signedInTarget(router) : null;
+        void router.navigateByUrl(
+          target ?? router.url,
+          target === null
+            ? { onSameUrlNavigation: 'reload', replaceUrl: true }
+            : { replaceUrl: true },
+        );
       });
     });
 
