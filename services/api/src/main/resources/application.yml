@@ -18,8 +18,8 @@ spring:
   flyway:
     locations: classpath:db/migration
     validate-on-migrate: true
-    # V3 and V4 are reserved for Phase 5 while V5 already exists: out-of-order lets a database
-    # that is at V5 apply them later. Validation is unchanged (checksums, missing and failed
+    # V3 is delivered after V4 and V5: out-of-order lets a database that is already at V5 apply
+    # it later. Validation is unchanged (checksums, missing and failed
     # migrations are still errors; only the version order of pending migrations is relaxed).
     out-of-order: true
     clean-disabled: true
@@ -111,6 +111,31 @@ vitadelta:
     read-timeout: 2s
     # Bulkhead: scoring calls in flight at once; a call beyond it is answered 503 at once.
     max-concurrent-calls: 16
+  fx:
+    # FX provider (section 7.7, ADR-0009): Frankfurter v2 with the ECB provider. Blank -> default.
+    base-url: ${VITADELTA_FX_BASE_URL:https://api.frankfurter.dev/v2}
+    # Display currencies in addition to the country currencies (comma-separated ISO 4217 codes).
+    extra-currencies: ${VITADELTA_FX_EXTRA_CURRENCIES:}
+    connect-timeout: 2s
+    read-timeout: 5s
+    # Largest accepted provider body; a larger answer fails the fetch.
+    max-response-bytes: 65536
+    # FxRefreshJob: at start-up only when no rate is stored or the newest is older than
+    # startup-max-age days, then every refresh-interval. Off with VITADELTA_JOBS_ENABLED=false.
+    refresh-interval: 6h
+    startup-max-age: 1
+    # fx_stale_after_days: older rates set meta.fx.stale and the FX_STALE flag.
+    stale-after-days: 5
+    # Rate lookups are cached per currency pair; every refresh clears the cache.
+    lookup-cache-ttl: 60s
+  health:
+    # The public GET /health answers from an overall status computed at most this often.
+    public-cache-ttl: 10s
+    # Outbox health: DEGRADED when the oldest pending event is older than this.
+    outbox-max-pending-age: 5m
+    # Engine parameters of GET /weights/defaults (scoring GET /internal/v1/health): read in the
+    # background at start-up; while none was obtained, a request tries again at most this often.
+    engine-retry-interval: 30s
   recommendation:
     # Ranking cache (section 7.5): full native rankings per canonical query and catalog version,
     # bounded by entries and by the ranked products held in total.
