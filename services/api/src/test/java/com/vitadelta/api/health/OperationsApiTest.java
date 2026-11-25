@@ -49,10 +49,27 @@ class OperationsApiTest extends RecommendationApiTestBase {
 
   @Autowired private FxRefreshJob fxRefresh;
 
+  /**
+   * Stored rates and outbox events are shared with every other test of the JVM (imports and seed
+   * runs write {@code OFFERS_CHANGED}); each test starts and ends without them.
+   */
   @BeforeEach
   @AfterEach
-  void removeRates() {
+  void removeRatesAndOutboxEvents() {
     jdbc.sql("DELETE FROM fx_rate").update();
+    jdbc.sql("DELETE FROM outbox_event").update();
+  }
+
+  /** A pending event that is not due for an hour, so no processor of another context claims it. */
+  private void storeOldPendingEvent(int attempts) {
+    jdbc.sql(
+            "INSERT INTO outbox_event (id, event_type, aggregate_type, aggregate_id, payload,"
+                + " created_at, attempts, next_attempt_at)"
+                + " VALUES (gen_random_uuid(), 'OFFERS_CHANGED', 'PRODUCT_COUNTRY',"
+                + " 'operations-test', '{}'::jsonb, now() - interval '10 minutes', ?,"
+                + " now() + interval '1 hour')")
+        .param(attempts)
+        .update();
   }
 
   private void scoringHealthAnswers(int status) {
@@ -123,6 +140,26 @@ class OperationsApiTest extends RecommendationApiTestBase {
     body.get("jobs").forEach(job -> names.add(job.get("name").asString()));
     assertThat(names).containsExactlyElementsOf(JOB_NAMES);
     assertThat(body.get("checkedAt").asString()).isNotBlank();
+  }
+
+  @Test
+  void anOldPendingOrFailedEventDegradesTheOutboxAndShowsInTheStats() {
+    scoringHealthAnswers(200);
+    storeFreshRate();
+    storeOldPendingEvent(0);
+    JsonNode outbox = adminHealth().get("components").get("outbox");
+    assertThat(outbox.get("pending").asLong()).isEqualTo(1);
+    assertThat(outbox.get("failed").asLong()).isZero();
+    assertThat(outbox.get("oldestPendingAt").isNull()).isFalse();
+    assertThat(outbox.get("status").asString()).isEqualTo("DEGRADED");
+
+    storeOldPendingEvent(2);
+    EntityExchangeResult<String> stats =
+        get("/api/v1/admin/outbox/stats", user(Role.ADMIN).token());
+    assertStatus(stats, 200);
+    assertThat(json(stats).get("pending").asLong()).isEqualTo(2);
+    assertThat(json(stats).get("failed").asLong()).isEqualTo(1);
+    assertThat(adminHealth().get("status").asString()).isEqualTo("DEGRADED");
   }
 
   @Test

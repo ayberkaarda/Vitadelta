@@ -15,7 +15,6 @@ import com.vitadelta.api.common.jobs.JobLockKeys;
 import com.vitadelta.api.common.jobs.JobRunRegistry;
 import com.vitadelta.api.config.properties.HealthProperties;
 import com.vitadelta.api.fx.FxFreshness;
-import com.vitadelta.api.fx.FxRefreshJob;
 import com.vitadelta.api.health.HealthViews.AdminHealth;
 import com.vitadelta.api.health.HealthViews.JobRun;
 import com.vitadelta.api.recommendation.ScoringHealth;
@@ -27,7 +26,6 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.sql.DataSource;
@@ -46,7 +44,6 @@ class HealthServiceTest {
   private final DataSource dataSource = mock(DataSource.class);
   private final Connection connection = mock(Connection.class);
   private final FxFreshness fx = mock(FxFreshness.class);
-  private final FxRefreshJob fxRefresh = mock(FxRefreshJob.class);
   private final AtomicReference<OutboxStats> outbox = new AtomicReference<>(OutboxStats.EMPTY);
   private final JobRunRegistry registry = new JobRunRegistry(Clock.fixed(NOW, ZoneOffset.UTC));
   private final AtomicLong ticker = new AtomicLong();
@@ -67,7 +64,6 @@ class HealthServiceTest {
             scoring,
             dataSource,
             fx,
-            fxRefresh,
             contributor,
             registry,
             new HealthProperties(
@@ -79,7 +75,6 @@ class HealthServiceTest {
     when(connection.isValid(HealthService.DATABASE_CHECK_SECONDS)).thenReturn(true);
     when(fx.current())
         .thenReturn(new FxFreshness.Snapshot("UP", LocalDate.parse("2026-11-24"), 1, false));
-    when(fxRefresh.lastRun()).thenReturn(Optional.empty());
   }
 
   @ParameterizedTest
@@ -178,19 +173,16 @@ class HealthServiceTest {
     lock.runExclusive("SubscriptionExpiryJob", JobLockKeys.SUBSCRIPTION_EXPIRY, () -> {});
     lock.runExclusive(
         "IdentityHousekeepingJob", JobLockKeys.HOUSEKEEPING_IDENTITY, JobLock::reportFailure);
-    // The registry would say SUCCEEDED (the FX job handles failed bases itself); its own record
-    // of the run counts a failed base as FAILED.
-    lock.runExclusive("FxRefreshJob", JobLockKeys.FX_REFRESH, () -> {});
-    when(fxRefresh.lastRun())
-        .thenReturn(Optional.of(new FxRefreshJob.LastRun(NOW.minusSeconds(30), false)));
+    // The FX job handles failed bases itself and reports them as a failed run.
+    lock.runExclusive("FxRefreshJob", JobLockKeys.FX_REFRESH, JobLock::reportFailure);
     List<JobRun> jobs = service.adminHealth().jobs();
     assertThat(jobs.get(0)).isEqualTo(new JobRun("OUTBOX_PROCESSOR", null, null));
-    assertThat(jobs.get(1)).isEqualTo(new JobRun("FX_REFRESH", NOW.minusSeconds(30), "FAILED"));
+    assertThat(jobs.get(1)).isEqualTo(new JobRun("FX_REFRESH", NOW, "FAILED"));
     assertThat(jobs.get(2)).isEqualTo(new JobRun("SUBSCRIPTION_EXPIRY", NOW, "SUCCEEDED"));
     assertThat(jobs.get(3)).isEqualTo(new JobRun("HOUSEKEEPING_IDENTITY", NOW, "FAILED"));
     assertThat(jobs.get(4)).isEqualTo(new JobRun("HOUSEKEEPING_ALERTS", null, null));
 
-    when(fxRefresh.lastRun()).thenReturn(Optional.empty());
+    lock.runExclusive("FxRefreshJob", JobLockKeys.FX_REFRESH, () -> {});
     assertThat(service.adminHealth().jobs().get(1))
         .isEqualTo(new JobRun("FX_REFRESH", NOW, "SUCCEEDED"));
   }

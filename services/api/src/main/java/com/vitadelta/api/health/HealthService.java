@@ -7,7 +7,6 @@ import com.vitadelta.api.common.jobs.JobLockKeys;
 import com.vitadelta.api.common.jobs.JobRunRegistry;
 import com.vitadelta.api.config.properties.HealthProperties;
 import com.vitadelta.api.fx.FxFreshness;
-import com.vitadelta.api.fx.FxRefreshJob;
 import com.vitadelta.api.health.HealthViews.AdminHealth;
 import com.vitadelta.api.health.HealthViews.AdminHealthComponents;
 import com.vitadelta.api.health.HealthViews.ComponentHealth;
@@ -47,9 +46,9 @@ import org.springframework.stereotype.Service;
  *   <li>Overall: {@code DOWN} when the database is {@code DOWN}; otherwise {@code DEGRADED} when
  *       any component is not {@code UP}; otherwise {@code UP}.
  *   <li>{@code jobs}: the five scheduled jobs in contract order with the end time and outcome of
- *       their last run that obtained the advisory lock ({@link JobRunRegistry}). For {@code
- *       FX_REFRESH} the outcome recorded by {@link FxRefreshJob#lastRun()} is used when present,
- *       because that job handles failed bases itself and counts them as a failed run.
+ *       their last run that obtained the advisory lock ({@link JobRunRegistry}); jobs that handle
+ *       failures themselves (for example a failed FX base) report them through {@link
+ *       com.vitadelta.api.common.jobs.JobLock#reportFailure()}.
  * </ul>
  *
  * <p>{@link #adminHealth()} is evaluated on every call. {@link #publicStatus()} reuses the overall
@@ -80,7 +79,6 @@ public class HealthService {
   private final ScoringHealth scoring;
   private final DataSource dataSource;
   private final FxFreshness fxFreshness;
-  private final FxRefreshJob fxRefresh;
   private final OutboxHealthContributor outbox;
   private final JobRunRegistry jobRuns;
   private final HealthProperties properties;
@@ -96,28 +94,17 @@ public class HealthService {
       ScoringHealth scoring,
       DataSource dataSource,
       FxFreshness fxFreshness,
-      FxRefreshJob fxRefresh,
       OutboxHealthContributor outbox,
       JobRunRegistry jobRuns,
       HealthProperties properties,
       Clock clock) {
-    this(
-        scoring,
-        dataSource,
-        fxFreshness,
-        fxRefresh,
-        outbox,
-        jobRuns,
-        properties,
-        clock,
-        System::nanoTime);
+    this(scoring, dataSource, fxFreshness, outbox, jobRuns, properties, clock, System::nanoTime);
   }
 
   HealthService(
       ScoringHealth scoring,
       DataSource dataSource,
       FxFreshness fxFreshness,
-      FxRefreshJob fxRefresh,
       OutboxHealthContributor outbox,
       JobRunRegistry jobRuns,
       HealthProperties properties,
@@ -126,7 +113,6 @@ public class HealthService {
     this.scoring = scoring;
     this.dataSource = dataSource;
     this.fxFreshness = fxFreshness;
-    this.fxRefresh = fxRefresh;
     this.outbox = outbox;
     this.jobRuns = jobRuns;
     this.properties = properties;
@@ -237,18 +223,6 @@ public class HealthService {
   }
 
   private JobRun job(String name, long key) {
-    if (key == JobLockKeys.FX_REFRESH) {
-      var fx = fxRefresh.lastRun();
-      if (fx.isPresent()) {
-        return new JobRun(
-            name,
-            fx.get().endedAt(),
-            (fx.get().succeeded()
-                    ? JobRunRegistry.Outcome.SUCCEEDED
-                    : JobRunRegistry.Outcome.FAILED)
-                .name());
-      }
-    }
     return jobRuns
         .lastRun(key)
         .filter(run -> run.lastFinishedAt() != null)
