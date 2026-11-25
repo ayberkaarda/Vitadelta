@@ -15,12 +15,15 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  *     VITADELTA_SCORING_BASE_URL}); required, absolute {@code http} or {@code https}
  * @param connectTimeout TCP connect timeout (500 ms)
  * @param readTimeout time allowed for the response once the request was sent (2 s)
+ * @param maxConcurrentCalls scoring calls that may be in flight at once per API instance (16); a
+ *     call beyond it fails at once with {@code 503 scoring_unavailable}
  */
 @ConfigurationProperties(prefix = "vitadelta.scoring")
 public record ScoringProperties(
     String baseUrl,
     @DefaultValue("500ms") Duration connectTimeout,
-    @DefaultValue("2s") Duration readTimeout) {
+    @DefaultValue("2s") Duration readTimeout,
+    @DefaultValue("16") int maxConcurrentCalls) {
 
   /** Base path of the scoring API. */
   public static final String BASE_PATH = "/internal/v1";
@@ -57,6 +60,10 @@ public record ScoringProperties(
         || readTimeout.isNegative()
         || readTimeout.isZero()) {
       throw new IllegalArgumentException("vitadelta.scoring timeouts must be positive");
+    }
+    if (maxConcurrentCalls < 1) {
+      throw new IllegalArgumentException(
+          "vitadelta.scoring.max-concurrent-calls must be >= 1: " + maxConcurrentCalls);
     }
   }
 

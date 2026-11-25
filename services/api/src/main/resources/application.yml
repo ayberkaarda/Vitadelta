@@ -96,15 +96,29 @@ vitadelta:
     # queue fails the new import job at once). Waiting imports hold no database connection.
     import-threads: 1
     import-queue-capacity: 4
+    # Bounds of one import file: data rows of an offers CSV, products of a products document,
+    # characters of one field, and collected errors (a failing job stores at most this many,
+    # plus one summary error when more were found).
+    import-limits:
+      max-offer-rows: 200000
+      max-products: 50000
+      max-field-length: 4096
+      max-errors: 1000
   scoring:
     # Scoring service (section 7.6); retry and circuit breaker: resilience4j.*.instances.scoring.
     base-url: ${VITADELTA_SCORING_BASE_URL:}
     connect-timeout: 500ms
     read-timeout: 2s
+    # Bulkhead: scoring calls in flight at once; a call beyond it is answered 503 at once.
+    max-concurrent-calls: 16
   recommendation:
-    # Ranking cache (section 7.5): full native rankings per canonical query and catalog version.
+    # Ranking cache (section 7.5): full native rankings per canonical query and catalog version,
+    # bounded by entries and by the ranked products held in total.
     cache-ttl: 10m
     cache-max-entries: 500
+    cache-max-ranked-items: 100000
+    # Largest country catalog a recommendation or comparison loads (more: operator error, 503).
+    max-products-per-country: 5000
   http:
     # Request body limits of /api/v1/** (query body 64 kB; import JSON and CSV 20 MB).
     max-body: 64KB

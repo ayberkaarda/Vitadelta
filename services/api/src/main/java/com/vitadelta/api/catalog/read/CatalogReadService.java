@@ -85,6 +85,9 @@ public class CatalogReadService {
           + SEARCH_ORDER
           + " LIMIT :limit OFFSET :offset";
 
+  /** Largest number of ids bound into one {@code IN (:ids)} list. */
+  static final int ID_BATCH = 1000;
+
   private final JdbcClient jdbc;
   private final UnitConversionService conversions;
 
@@ -193,11 +196,36 @@ public class CatalogReadService {
    */
   @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
   public Optional<CountryCatalog> loadCountry(String countryCode) {
+    return load(countryCode, Integer.MAX_VALUE);
+  }
+
+  /**
+   * {@link #loadCountry(String)} for a request that can handle at most {@code maxProducts}
+   * in-market products: the products are counted first, in the same snapshot, and nothing else is
+   * loaded when there are more.
+   *
+   * @throws CatalogTooLargeException when the country has more than {@code maxProducts} in-market
+   *     products
+   */
+  @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+  public Optional<CountryCatalog> loadCountry(String countryCode, int maxProducts) {
+    return load(countryCode, maxProducts);
+  }
+
+  private Optional<CountryCatalog> load(String countryCode, int maxProducts) {
     Optional<CountryView> found = findCountry(countryCode);
     if (found.isEmpty()) {
       return Optional.empty();
     }
     CountryView country = found.get();
+    long inMarket =
+        jdbc.sql("SELECT count(*) FROM (" + IN_MARKET + ") m")
+            .param("country", countryCode)
+            .query(Long.class)
+            .single();
+    if (inMarket > maxProducts) {
+      throw new CatalogTooLargeException(countryCode, inMarket, maxProducts);
+    }
     long version = version();
     List<NutrientView> nutrients = registry();
     List<ReferenceAmount> referenceValues =
@@ -299,7 +327,7 @@ public class CatalogReadService {
     if (rows.isEmpty()) {
       return List.of();
     }
-    List<UUID> ids = rows.stream().map(ProductRow::id).toList();
+    List<UUID> allIds = rows.stream().map(ProductRow::id).toList();
     UnitConversionTable table = conversions.currentTable();
     Map<String, NutrientMeta> registry = new HashMap<>();
     jdbc.sql("SELECT code, category, canonical_unit FROM nutrient")
@@ -311,36 +339,39 @@ public class CatalogReadService {
         .list()
         .forEach(n -> registry.put(n.code(), n));
     Map<UUID, List<ProductNutrientView>> nutrients = new HashMap<>();
-    jdbc.sql(
-            "SELECT product_id, nutrient_code, amount_per_serving, ul_amount_per_serving, unit,"
-                + " form_code, form_label FROM product_nutrient WHERE product_id IN (:ids)"
-                + " ORDER BY product_id, nutrient_code COLLATE \"C\"")
-        .param("ids", ids)
-        .query((rs, i) -> {
-          UUID productId = rs.getObject("product_id", UUID.class);
-          return Map.entry(productId, canonical(rs, registry, table));
-        })
-        .list()
-        .forEach(
-            e -> nutrients.computeIfAbsent(e.getKey(), k -> new ArrayList<>()).add(e.getValue()));
     Map<UUID, List<OfferSnapshot>> offers = new HashMap<>();
-    jdbc.sql(
-            "SELECT product_id, retailer, price, currency, in_stock, url, checked_at FROM offer"
-                + " WHERE country_code = :country AND product_id IN (:ids)")
-        .param("country", country)
-        .param("ids", ids)
-        .query((rs, i) ->
-            Map.entry(
-                rs.getObject("product_id", UUID.class),
-                new OfferSnapshot(
-                    rs.getString("retailer"),
-                    rs.getBigDecimal("price"),
-                    rs.getString("currency"),
-                    rs.getBoolean("in_stock"),
-                    rs.getString("url"),
-                    rs.getTimestamp("checked_at").toInstant())))
-        .list()
-        .forEach(e -> offers.computeIfAbsent(e.getKey(), k -> new ArrayList<>()).add(e.getValue()));
+    for (List<UUID> ids : batches(allIds)) {
+      jdbc.sql(
+              "SELECT product_id, nutrient_code, amount_per_serving, ul_amount_per_serving, unit,"
+                  + " form_code, form_label FROM product_nutrient WHERE product_id IN (:ids)"
+                  + " ORDER BY product_id, nutrient_code COLLATE \"C\"")
+          .param("ids", ids)
+          .query((rs, i) -> {
+            UUID productId = rs.getObject("product_id", UUID.class);
+            return Map.entry(productId, canonical(rs, registry, table));
+          })
+          .list()
+          .forEach(
+              e -> nutrients.computeIfAbsent(e.getKey(), k -> new ArrayList<>()).add(e.getValue()));
+      jdbc.sql(
+              "SELECT product_id, retailer, price, currency, in_stock, url, checked_at FROM offer"
+                  + " WHERE country_code = :country AND product_id IN (:ids)")
+          .param("country", country)
+          .param("ids", ids)
+          .query((rs, i) ->
+              Map.entry(
+                  rs.getObject("product_id", UUID.class),
+                  new OfferSnapshot(
+                      rs.getString("retailer"),
+                      rs.getBigDecimal("price"),
+                      rs.getString("currency"),
+                      rs.getBoolean("in_stock"),
+                      rs.getString("url"),
+                      rs.getTimestamp("checked_at").toInstant())))
+          .list()
+          .forEach(
+              e -> offers.computeIfAbsent(e.getKey(), k -> new ArrayList<>()).add(e.getValue()));
+    }
     Map<UUID, CatalogProduct> result = new LinkedHashMap<>();
     for (ProductRow row : rows) {
       result.put(
@@ -360,6 +391,18 @@ public class CatalogReadService {
               EffectivePriceResolver.displayOrder(offers.getOrDefault(row.id(), List.of()))));
     }
     return List.copyOf(result.values());
+  }
+
+  /**
+   * Splits ids into lists of at most {@link #ID_BATCH} elements, so an {@code IN (:ids)} list never
+   * comes near the bind-parameter limit of the database driver (32767 per statement).
+   */
+  static List<List<UUID>> batches(List<UUID> ids) {
+    List<List<UUID>> batches = new ArrayList<>();
+    for (int from = 0; from < ids.size(); from += ID_BATCH) {
+      batches.add(ids.subList(from, Math.min(ids.size(), from + ID_BATCH)));
+    }
+    return batches;
   }
 
   private static ProductNutrientView canonical(
