@@ -26,6 +26,9 @@ Price and stock alerts fire when an admin import changes offers. The import, the
 - Alerts are delivered with a delay of up to the processor interval plus processing time; this is acceptable for price alerts.
 - Handlers must be idempotent; tests cover claim and lease, lease-expiry re-claim, SMTP outside transactions, backoff and dead-lettering.
 - The database carries the event table load; batch size and housekeeping keep it bounded.
+- Per-pair ordering: an `OFFERS_CHANGED` event is claimed only when no older unprocessed event of the same `aggregate_id` (`<productId>:<countryCode>`) exists (`outbox_event.seq`, partial index `outbox_event_pending_pair_idx`, migration V6). A failing event delays only its own pair; a dead letter releases it.
+- Subscription boundary: `alert_subscription.catalog_version_boundary` is the committed catalog version at creation, re-activation, threshold change (read `FOR SHARE` before the baseline price) and at every baseline update or firing; an event applies only when its `catalogVersion` is greater.
+- Lock order of the e-mail completion: outbox event, then notification (the account deletion's order).
 
 ## Alternatives considered
 
