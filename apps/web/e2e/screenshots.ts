@@ -1,7 +1,7 @@
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, rmSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-import type { Browser, BrowserContext, Locator, Page } from '@playwright/test';
+import type { Browser, BrowserContext, Page } from '@playwright/test';
 
 import {
   GOLD_A,
@@ -12,7 +12,6 @@ import {
   main,
   open,
   productId,
-  rankProducts,
   resultRows,
   useLanguage,
 } from './support/app';
@@ -23,25 +22,40 @@ import { linkIn, messagesTo, messageText } from './support/mailpit';
 /**
  * README screenshots (`npm run e2e:screenshots`, Playwright project `screenshots`, not part of
  * the e2e or adversarial suites). Runs against the running, seeded stack in headless Chromium at
- * 1280 x 800 and writes stable file names to `docs/screenshots/` at the repository root.
+ * 1280 x 800, light theme, and overwrites six files in `docs/screenshots/` at the repository
+ * root, one per README image and language:
  *
- * Only the synthetic TR fixture products appear (fictional brands, demo prices); the signed-in
- * shots use a fixed demo account on example.com that the script registers and verifies through
- * Mailpit on its first run and reuses afterwards.
+ * - `overview-<lang>.png`: the query builder as the landing view (visitor);
+ * - `results-breakdown-<lang>.png`: signed-in ranked results with the breakdown drawer open;
+ * - `compare-<lang>.png`: the golden pair GOLD-A vs GOLD-B with the verdict card.
+ *
+ * Only the synthetic TR fixture products appear (fictional brands, demo prices). The signed-in
+ * shots use a fixed demo account on example.com: registered and verified through Mailpit on the
+ * first run, reused afterwards. The UI language is switched with the header language control.
  */
 
 const OUT_DIR = resolve(__dirname, '..', '..', '..', 'docs', 'screenshots');
 const VIEWPORT = { width: 1280, height: 800 } as const;
+const LANGUAGES = ['en', 'tr'] as const;
 const DEMO_EMAIL = 'readme-demo@example.com';
 const CONFIRM_SUBJECT = /Confirm your VitaDelta e-mail address/;
 
-interface TokenResponse {
-  readonly accessToken: string;
-}
+/** File names an earlier layout of this script wrote; removed so only the six images remain. */
+const RETIRED_FILES = [
+  '01-query.png',
+  '02-results-visitor.png',
+  '03-results-breakdown.png',
+  '04-compare-verdict.png',
+  '05-product-detail.png',
+  '06-account.png',
+  '07-results-dark.png',
+];
 
-interface MeResponse {
-  readonly emailVerified: boolean;
-}
+/** Hides scrollbars and the caret; applied to the captured frame only. */
+const CAPTURE_CSS = `
+  html, body, * { scrollbar-width: none !important; }
+  ::-webkit-scrollbar { display: none !important; }
+`;
 
 async function api(path: string, init: RequestInit = {}, token?: string): Promise<Response> {
   return fetch(`${e2eEnv().apiBase}${path}`, {
@@ -65,18 +79,18 @@ async function login(): Promise<string | null> {
   if (!response.ok) {
     throw new Error(`POST /auth/login answered ${response.status}`);
   }
-  return ((await response.json()) as TokenResponse).accessToken;
+  return ((await response.json()) as { accessToken: string }).accessToken;
 }
 
-async function me(token: string): Promise<MeResponse> {
+async function isVerified(token: string): Promise<boolean> {
   const response = await api('/me', {}, token);
   if (!response.ok) {
     throw new Error(`GET /me answered ${response.status}`);
   }
-  return (await response.json()) as MeResponse;
+  return ((await response.json()) as { emailVerified: boolean }).emailVerified;
 }
 
-/** Verifies the demo account with the first confirmation e-mail that arrives after `since`. */
+/** Verifies the demo account with the first confirmation e-mail that arrived after `since`. */
 async function verifyFromMail(since: number): Promise<void> {
   let messageId = '';
   await expect
@@ -104,14 +118,25 @@ async function verifyFromMail(since: number): Promise<void> {
 }
 
 /**
- * Makes sure the demo account exists, is verified, has two saved products and one alert, so the
- * usage meters of the account page show real server values. The alert needs a verified e-mail
- * and an access token issued after the verification, hence the second login.
+ * Makes sure the verified demo account exists: an existing account is reused, a missing one is
+ * registered, and an unverified one gets a new verification e-mail. A verified account shows no
+ * "verify your e-mail" notice in the frame.
  */
 async function prepareDemoAccount(): Promise<void> {
-  let token = await login();
-  if (!token) {
-    const since = Date.now();
+  const token = await login();
+  if (token && (await isVerified(token))) {
+    return;
+  }
+  const since = Date.now();
+  if (token) {
+    const resent = await api('/auth/resend-verification', {
+      method: 'POST',
+      body: JSON.stringify({ email: DEMO_EMAIL }),
+    });
+    if (!resent.ok) {
+      throw new Error(`POST /auth/resend-verification answered ${resent.status}`);
+    }
+  } else {
     const registered = await api('/auth/register', {
       method: 'POST',
       body: JSON.stringify({
@@ -124,55 +149,21 @@ async function prepareDemoAccount(): Promise<void> {
     if (registered.status !== 202) {
       throw new Error(`POST /auth/register answered ${registered.status}`);
     }
-    await verifyFromMail(since);
-    token = await login();
-  } else if (!(await me(token)).emailVerified) {
-    const since = Date.now();
-    await api('/auth/resend-verification', {
-      method: 'POST',
-      body: JSON.stringify({ email: DEMO_EMAIL }),
-    });
-    await verifyFromMail(since);
-    token = await login();
   }
-  if (!token) {
-    throw new Error(`The demo account ${DEMO_EMAIL} cannot log in`);
-  }
-
-  // Both calls are idempotent: a second run leaves the same two saved products and one alert.
-  const goldA = await productId(GOLD_A.code);
-  const goldB = await productId(GOLD_B.code);
-  for (const id of [goldA, goldB]) {
-    const saved = await api(
-      '/me/saved-products',
-      { method: 'POST', body: JSON.stringify({ productId: id, countryCode: 'TR' }) },
-      token,
-    );
-    if (!saved.ok) {
-      throw new Error(`POST /me/saved-products answered ${saved.status}`);
-    }
-  }
-  const alert = await api(
-    '/me/alerts',
-    {
-      method: 'POST',
-      body: JSON.stringify({ productId: goldB, countryCode: 'TR', trigger: 'BACK_IN_STOCK' }),
-    },
-    token,
-  );
-  if (!alert.ok) {
-    throw new Error(`POST /me/alerts answered ${alert.status}`);
+  await verifyFromMail(since);
+  const verified = await login();
+  if (!verified || !(await isVerified(verified))) {
+    throw new Error(`The demo account ${DEMO_EMAIL} could not be verified`);
   }
 }
 
 async function newPage(
   browser: Browser,
-  colorScheme: 'light' | 'dark' = 'light',
 ): Promise<{ context: BrowserContext; page: Page; monitor: PageMonitor }> {
   const context = await browser.newContext({
     viewport: VIEWPORT,
     deviceScaleFactor: 1,
-    colorScheme,
+    colorScheme: 'light',
     reducedMotion: 'reduce',
     locale: 'en-US',
     timezoneId: 'UTC',
@@ -182,29 +173,30 @@ async function newPage(
   return { context, page, monitor };
 }
 
-/** Waits for running transitions, then writes the viewport to `docs/screenshots/<name>.png`. */
+/**
+ * Writes the viewport to `docs/screenshots/<name>.png` once transitions have ended, with no
+ * focus ring, hover state, caret or scrollbar in the frame.
+ */
 async function shoot(page: Page, name: string): Promise<void> {
-  await page.evaluate(() =>
-    Promise.all(
+  await page.addStyleTag({ content: CAPTURE_CSS });
+  await page.mouse.move(1, 1);
+  await page.evaluate(async () => {
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && active !== document.body) {
+      active.blur();
+    }
+    await Promise.all(
       document
         .getAnimations()
         .filter((animation) => animation.effect?.getComputedTiming().iterations !== Infinity)
         .map((animation) => animation.finished.catch(() => undefined)),
-    ),
-  );
+    );
+  });
   await page.screenshot({
     path: resolve(OUT_DIR, `${name}.png`),
     animations: 'disabled',
     caret: 'hide',
     scale: 'css',
-  });
-}
-
-/** Scrolls `target` to the top of the viewport (below the page header). */
-async function scrollToTop(target: Locator): Promise<void> {
-  await target.evaluate((element) => {
-    const top = element.getBoundingClientRect().top + window.scrollY - 16;
-    window.scrollTo({ top, behavior: 'instant' });
   });
 }
 
@@ -214,77 +206,65 @@ async function signIn(page: Page): Promise<void> {
   await main(page).getByLabel('E-mail').fill(DEMO_EMAIL);
   await main(page).getByLabel('Password').fill(PASSWORD);
   await main(page).getByRole('button', { name: 'Log in' }).click();
-  await expect(header(page).getByRole('button', { name: /^Account menu/ })).toBeVisible();
+  // The account may come back with its stored language, so both menu names are accepted.
+  await expect(
+    header(page).getByRole('button', { name: /^(Account menu|Hesap menüsü)/ }),
+  ).toBeVisible();
   await chooseMarket(page, 'TR');
 }
 
 test.describe.serial('README screenshots', () => {
   test.beforeAll(async () => {
     mkdirSync(OUT_DIR, { recursive: true });
+    for (const file of RETIRED_FILES) {
+      rmSync(resolve(OUT_DIR, file), { force: true });
+    }
     await prepareDemoAccount();
   });
 
-  test('visitor: query page and results with locked rows', async ({ browser }) => {
+  test('overview: the query builder as a visitor', async ({ browser }) => {
     const { context, page, monitor } = await newPage(browser);
     await open(page, '/');
     await chooseMarket(page, 'TR');
-    await expect(main(page).getByRole('button', { name: 'Rank products' })).toBeVisible();
-    await shoot(page, '01-query');
-
-    await rankProducts(page);
-    await expect(resultRows(page)).toHaveCount(3);
-    const locked = main(page).getByRole('list', { name: 'Locked results' });
-    await expect(locked).toBeVisible();
-    await shoot(page, '02-results-visitor');
+    for (const lang of LANGUAGES) {
+      await open(page, '/?country=TR');
+      await useLanguage(page, lang);
+      await expect(main(page).locator('form').first()).toBeVisible();
+      await expect(main(page).getByRole('heading', { level: 1 })).toBeVisible();
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await shoot(page, `overview-${lang}`);
+    }
     monitor.expectClean();
     await context.close();
   });
 
-  test('signed in: results with the breakdown drawer, compare, product and account', async ({
+  test('signed in: results with the breakdown drawer, and the golden pair comparison', async ({
     browser,
   }) => {
     const { context, page, monitor } = await newPage(browser);
     await signIn(page);
-
-    await open(page, '/results?country=TR');
-    await expect(resultRows(page).first()).toBeVisible();
-    await resultRows(page)
-      .first()
-      .getByRole('button', { name: /^Score breakdown of/ })
-      .click();
-    await expect(page.getByRole('dialog')).toBeVisible();
-    await shoot(page, '03-results-breakdown');
-    await page.keyboard.press('Escape');
-    await expect(page.getByRole('dialog')).toBeHidden();
-
     const a = await productId(GOLD_A.code);
     const b = await productId(GOLD_B.code);
-    await open(page, `/compare/${a}/${b}?country=TR`);
-    const verdict = main(page).getByRole('region', { name: 'Verdict' });
-    await expect(verdict.getByText('Not worth it', { exact: true })).toBeVisible();
-    await scrollToTop(verdict);
-    await shoot(page, '04-compare-verdict');
 
-    await open(page, `/products/${b}?country=TR`);
-    const formulation = main(page).locator('vd-formulation-table');
-    await expect(formulation.getByRole('columnheader', { name: 'Upper limit' })).toBeVisible();
-    await scrollToTop(main(page).getByRole('heading', { name: 'Formulation' }));
-    await shoot(page, '05-product-detail');
+    for (const lang of LANGUAGES) {
+      await open(page, '/results?country=TR');
+      await useLanguage(page, lang);
+      await expect(resultRows(page).first()).toBeVisible();
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await resultRows(page).first().locator('button[data-action="breakdown"]').click();
+      const drawer = page.getByRole('dialog');
+      await expect(drawer).toBeVisible();
+      await shoot(page, `results-breakdown-${lang}`);
+      await page.keyboard.press('Escape');
+      await expect(drawer).toBeHidden();
 
-    await open(page, '/account');
-    await expect(main(page).getByRole('region', { name: 'Your plan' })).toBeVisible();
-    await expect(main(page).getByRole('meter').first()).toBeVisible();
-    await shoot(page, '06-account');
-    monitor.expectClean();
-    await context.close();
-  });
-
-  test('signed in, dark theme: results', async ({ browser }) => {
-    const { context, page, monitor } = await newPage(browser, 'dark');
-    await signIn(page);
-    await open(page, '/results?country=TR');
-    await expect(resultRows(page).first()).toBeVisible();
-    await shoot(page, '07-results-dark');
+      await open(page, `/compare/${a}/${b}?country=TR`);
+      await useLanguage(page, lang);
+      const verdict = main(page).locator('vd-verdict-card [data-verdict]');
+      await expect(verdict).toHaveAttribute('data-verdict', 'NOT_WORTH_IT');
+      await verdict.evaluate((element) => element.scrollIntoView({ block: 'nearest' }));
+      await shoot(page, `compare-${lang}`);
+    }
     monitor.expectClean();
     await context.close();
   });
