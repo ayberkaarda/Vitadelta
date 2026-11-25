@@ -2,7 +2,7 @@
 
 Date: 2026-11-25. Branch: `feat/phase-8-billing-provider`.
 
-The owner approved the optional Phase 8 of the project specification (§13.10) and chose Stripe in test mode. This report covers the contracts and the API. The web part (checkout button on `/upgrade`, billing-portal entry on `/account`) is delivered separately; section 11 is reserved for it.
+The owner approved the optional Phase 8 of the project specification (§13.10) and chose Stripe in test mode. This report covers the contracts and the API (sections 1 to 10) and the web part (checkout button on `/upgrade`, return handling, billing-portal entry on `/account`; section 11).
 
 ## 1. Completed
 
@@ -38,8 +38,8 @@ The owner approved the optional Phase 8 of the project specification (§13.10) a
 | Contract lint | `npx @redocly/cli@2.83.0 lint contracts/public-api.openapi.yaml` | valid; the same 7 pre-existing warnings as on `main` |
 | Typed web client | `cd apps/web && npm run api:types`, then `npm run api:check` | regenerated, current |
 | Security scan | `scripts/security-scan.sh` | OK (gitleaks history and tree, env files, SQL concatenation, npm and pip audit, Dependabot, pinned actions PASS; dependency-check SKIPPED without `NVD_API_KEY`) |
-| Web type check | `npx tsc -p tsconfig.app.json --noEmit`, `npx tsc -p tsconfig.spec.json --noEmit` | FAILS until the web part lands (section 11): `PROBLEM_CODES` in `core/api/api-types.ts` must list the three new problem codes, and the typed `Plan` fixtures need `checkoutAvailable` |
-| Web suites, e2e, `scripts/test-all.sh` | | not run in this part (the web suites fail on the type check above) |
+| Web type check, suites and e2e | see section 11.3 | PASS after the web part |
+| `scripts/test-all.sh` | | not run as a whole in this phase yet (phase gate) |
 
 New tests (all against a WireMock stub of the Stripe API, keys and secrets generated per run):
 
@@ -127,16 +127,68 @@ The web part of Phase 8 (section 11), then the phase gate: `scripts/test-all.sh`
 
 ## 10. Awaiting approval
 
-Awaiting the web part and the owner's review of this report.
+Awaiting the phase gate (`scripts/test-all.sh`, AGENT_REDTEAM billing cases) and the owner's review of this report.
 
-## 11. Web part (to be completed by the web worker)
+## 11. Web part
 
-<!-- Reserved for the web worker: checkout button on /upgrade (rendered from Plan.checkoutAvailable,
-     follows BillingRedirect.url), return handling of /upgrade?checkout=success|canceled, billing
-     portal entry on /account for subscription.source = PROVIDER, i18n keys (tr, en) including the
-     problem codes billing_unavailable, plan_already_active and no_billing_account (PROBLEM_CODES in
-     core/api/api-types.ts must list them for the app to type-check), tests and the
-     typed fixtures that need Plan.checkoutAvailable (upgrade-page.component.spec.ts,
-     results/testing/golden.fixtures.ts). -->
+### 11.1 Delivered
 
-Not delivered yet.
+- **Problem codes.** `billing_unavailable`, `plan_already_active` and `no_billing_account` are listed in `PROBLEM_CODES` (`core/api/api-types.ts`) with `problem.<code>.title/.body` in the root `en` and `tr` files; the web type check passes again. `checkoutAvailable` was added to the typed `Plan` fixtures (`upgrade-page.component.spec.ts`, `results/testing/golden.fixtures.ts`).
+- **Typed client.** `ApiClient.createCheckoutSession()` and `createBillingPortalSession()` (`POST /billing/checkout-session`, `POST /billing/portal-session`, no body; the bearer token comes from the interceptor). The webhook operation has no web caller.
+- **Leaving the app safely** (`core/billing/billing-navigator.ts`). `BillingNavigator.open('checkout' | 'portal')` asks the API for a session and follows the returned URL only after `providerPageUrl` accepts it: an absolute `https:` URL on a subdomain of `stripe.com`, no credentials, no explicit port, at most 4096 characters. Anything else (another or look-alike host, `http:`, `javascript:`, `data:`, relative, malformed) is refused with the generic problem notice and the browser stays. The URL is never rendered; the browser is moved with `location.assign` behind the `ExternalNavigation` seam.
+- **`/upgrade`.** The PRO card renders `vd-checkout-panel`, which follows the server only: `Plan.checkoutAvailable` from `GET /plans`, plan and `subscription.source` from `GET /me`. Without a provider nothing is rendered (no checkout button). With one: visitors get "Log in to subscribe" (returns to `/upgrade`), PRO from a promo code or a grant gets a short note, everyone else gets "Subscribe to PRO" with a note that payment happens on Stripe's page. While the session is created the button is `aria-busy`/`aria-disabled`, a polite status says the payment page is opening and repeated clicks are ignored; after a successful hand-over it stays busy (and is reset when the page comes back from the back-forward cache). Problems: `401` leads to `/auth/login?returnUrl=/upgrade` (unless the interceptor is already navigating there); `403 email_not_verified` is a warning with a link to `/account` (where the e-mail can be resent); `409 plan_already_active` reloads `/me` and shows an information notice with a link to the account; `429` keeps the existing `Retry-After` countdown; `503 billing_unavailable` and every other problem are retryable notices. The promo-code form stays. The how-to text is `upgrade.how_to_get_pro` (unchanged, "online payment is not available yet") without a provider and `upgrade.how_to_get_pro_online` when the server offers checkout.
+- **Return from Checkout** (`vd-checkout-return`). `/upgrade?checkout=canceled` says that nothing was charged. `/upgrade?checkout=success` never assumes a plan change: it shows "Confirming your payment…" and reloads `/me` after pauses of 1, 2, 4 and 8 s (bounded, about 15 s) until the server reports PRO ("PRO is active until <date>", link to the account), otherwise "Your payment is being processed" with a "Check again" button (a fresh `/me` reload, then the same bounded schedule). A signed-out visitor is asked to log in. Polling stops when the page is left. The parameter is removed from the address after the arriving navigation (`replaceUrl`), so a reload does not replay the banner; unknown values are ignored.
+- **Billing portal.** `vd-manage-subscription` ("Manage subscription", with a hint naming payment method, invoices and cancellation) appears in the plan card on `/account` and in the PRO card on `/upgrade` only when the ACTIVE subscription has `source = PROVIDER`. `409 no_billing_account` is an information notice; `401`, `429` and `503` are handled as above. The portal returns to `/account`, whose page already reloads `/me` on arrival.
+- **Copy.** All new texts are in the `upgrade` and `account` scope files in `en` and `tr` (`upgrade.checkout.*`, `upgrade.return.*`, `upgrade.how_to_get_pro_online`, `account.billing.*`); `scripts/check-i18n.mjs` and the translation parity test pass.
+- **Layout and accessibility.** Existing tokens and classes only (`card`, `btn`, `btn-primary`, `vd-notice`, `vd-problem-notice`, `hint`, `live-region`). The payment buttons wrap instead of `nowrap`, so long Turkish labels and wide fallback fonts never widen a card; the payment part sits at the bottom of the PRO card. Keyboard use was checked end to end (focus and Enter start the checkout); axe (WCAG 2.1 AA) finds no serious or critical violation on the upgrade page before and after checkout and at every width below.
+- **Disclaimer.** `disclaimer.not_medical_advice` stays where the other surfaces render it (results, compare, product detail, saved products); `/upgrade` and `/account` are not recommendation or comparison surfaces and did not show it before, and the footer disclaimer is on every page. Not added there.
+
+### 11.2 Files
+
+| Area | Files |
+|---|---|
+| Core | `core/api/api-types.ts`, `core/api/api-client.ts`, new `core/billing/billing-navigator.ts` |
+| Upgrade | `upgrade-page.component.{ts,html,scss}`, new `components/checkout-panel.component.ts`, new `components/checkout-return.component.ts` |
+| Account | `components/plan-card.component.ts`, new `components/manage-subscription.component.ts` |
+| i18n | `public/i18n/{en,tr}.json`, `public/i18n/upgrade/{en,tr}.json`, `public/i18n/account/{en,tr}.json` |
+| Tests | new `core/billing/billing-navigator.spec.ts`, `features/upgrade/components/checkout-return.component.spec.ts`, `features/account/components/manage-subscription.component.spec.ts`, `e2e/07-checkout.e2e.ts`, `e2e/support/billing-api.ts`; changed `api-client.spec.ts`, `upgrade-page.component.spec.ts`, `account-page.component.spec.ts`, `app.flows.spec.ts`, `testing/fake-backend.ts`, `results/testing/golden.fixtures.ts` |
+
+All paths are under `apps/web/src/app` unless they start with `public/` or `e2e/` (under `apps/web`). No contract change; `schema.d.ts` is unchanged.
+
+### 11.3 Tests and checks
+
+| Check | Command | Result |
+|---|---|---|
+| Web gate | `cd apps/web && npm run lint && npm test && npm run build` | PASS: lint (ESLint, Prettier, e2e type checks, i18n literal check); 67 files, 762 tests; coverage 95.67 % statements, 89.35 % branches; initial bundle 117.25 kB gzipped (limit 380 kB) |
+| Typed client | `npm run api:check` | `schema.d.ts` matches the contract |
+| Checkout e2e | `npx playwright test --project=e2e e2e/07-checkout.e2e.ts` (headless) | PASS: 9 tests |
+| Full e2e | `npm run e2e` against the local stack (`scripts/dev-up.sh`, `scripts/seed.sh`, API restarted first) | PASS: 57 tests (01 to 07), no retries; the web image was built from this branch |
+
+New and changed tests:
+
+- `billing-navigator.spec.ts`: accepted Checkout and Portal URLs; 16 refused URL shapes (http, other and look-alike hosts, bare and trailing-dot domain, credentials, user-info trick, port, `javascript:`, `data:`, relative, protocol-relative, malformed, empty, overlong) and non-strings; the API problem is passed on; a non-provider answer never navigates.
+- `upgrade-page.component.spec.ts`: no button without a provider; button, note and how-to text with one; busy state and single request; redirect; back-forward cache; refused URL never rendered; visitor login link; promo PRO note; "Manage subscription" for `PROVIDER`; 401, 403, 409 (reloads `/me`), 429 countdown, 503 retry; return handling through the real router (canceled banner and parameter removal, success waits for the server's PRO, unknown parameter ignored).
+- `checkout-return.component.spec.ts`: outcome parsing; default schedule; PRO at once; PRO after the second reload; bounded attempts then "processing" and a fresh check on request; signed-out visitor; no reload after leaving the page.
+- `manage-subscription.component.spec.ts`: portal hand-over, busy state, 409 `no_billing_account`, 503 retry, 429 countdown, 401.
+- `app.flows.spec.ts` against the stateful fake API (now serving `GET /plans` and both billing routes): checkout hand-over with the bearer token, return before the webhook (three bounded reloads, then "processing"), webhook lands, "Check again" shows PRO, portal from the account page; and no billing request or button without a provider.
+- `07-checkout.e2e.ts` (mocked API; Stripe's hosts are served by local stand-in pages, so no request reaches Stripe): checkout by keyboard to the stand-in page, return with a delayed webhook until "PRO is active", portal from the account page, canceled return, no button without a provider; the payment parts at 375, 768 and 1280 px in English and Turkish with no sideways scroll and nothing past the viewport edge (tab rows and tables that scroll by design excepted, as in `06-long-text.e2e.ts`), axe on every width, no console errors or CSP violations.
+
+### 11.4 Commits (web part)
+
+- `12701e4` feat(web): know the billing problem codes and their messages
+- `32ef7f3` test(web): add checkoutAvailable to the typed plan fixtures
+- `c414d8f` feat(web): call the checkout and billing portal session operations
+- `14909ff` feat(web): follow only checked payment-provider URLs to the hosted pages
+- `f33af47` feat(web): open the billing portal for a provider subscription from the plan card
+- `ec3f68a` feat(web): offer the hosted checkout on /upgrade and confirm the plan after the return
+- `bdcb433` test(web): cover checkout, webhook delay and billing portal in the application flows
+- `0b831d8` test(web): run the checkout and billing portal flow end to end against stand-in provider pages
+- this section: docs: add the web part to the Phase 8 report
+
+### 11.5 Deviations, unverified items and decisions
+
+- **Provider host check.** The web app accepts only `https://*.stripe.com` URLs from the billing routes, stricter than the contract's `^https://` pattern. A future provider or a Stripe custom domain needs this list changed (`core/billing/billing-navigator.ts`).
+- **How-to text.** With a provider the page shows `upgrade.how_to_get_pro_online` instead of `upgrade.how_to_get_pro`, because the latter says that online payment is not available yet; without a provider the original key is shown unchanged.
+- **Already PRO.** A user whose PRO comes from a promo code or a grant sees no checkout button (the API would answer `409 plan_already_active`); subscribing ahead of the end of such a period is not possible from the web app.
+- **Not verified:** a real Stripe test-mode round trip in a browser (the e2e uses stand-in pages and a mocked API); the screen-reader wording of the live regions with real assistive technology; the Linux CI fonts locally (checks ran on Windows Chromium; the layout checks measure overflow, so they cover wider fonts only when CI runs them).
+- The `e2e/adversarial/**` billing cases are AGENT_REDTEAM's and are not part of this work.
