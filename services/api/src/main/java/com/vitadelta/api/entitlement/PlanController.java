@@ -90,9 +90,9 @@ public class PlanController {
       throw ProblemException.of(
           ProblemCode.FX_UNSUPPORTED_CURRENCY, "The display currency is not supported.");
     }
-    PriceConversion conversion = converter.conversion(nativeCurrency, display);
-    List<PlanView> items = all.stream().map(plan -> view(plan, conversion)).toList();
-    return new PlanList(conversion, items);
+    return PriceConversion.present(
+        converter.conversion(nativeCurrency, display),
+        shown -> new PlanList(shown, all.stream().map(plan -> view(plan, shown)).toList()));
   }
 
   private PlanView view(Plan plan, PriceConversion conversion) {

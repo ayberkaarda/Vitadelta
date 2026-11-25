@@ -191,7 +191,11 @@ public class RecommendationService {
     boolean answered = false;
     try {
       NativeRanking ranking = ranking(query, country, version);
-      QueryResponse result = present(ranking, parsed, conversion, principal, anonymous != null);
+      Principal caller = principal;
+      boolean anonymousCaller = anonymous != null;
+      QueryResponse result =
+          PriceConversion.present(
+              conversion, shown -> present(ranking, parsed, shown, caller, anonymousCaller));
       if (anonymous == null) {
         result = withWatchStates(result, userId.get());
       }
@@ -379,7 +383,9 @@ public class RecommendationService {
     com.vitadelta.api.recommendation.scoring.model.CompareResponse answer;
     try {
       answer = scoring.compare(scoringRequest);
-      return presentCompare(answer, snapshot, country, market, conversion);
+      com.vitadelta.api.recommendation.scoring.model.CompareResponse scored = answer;
+      return PriceConversion.present(
+          conversion, shown -> presentCompare(scored, snapshot, country, market, shown));
     } catch (RuntimeException e) {
       throw translate(e);
     }

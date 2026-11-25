@@ -8,6 +8,7 @@ import com.vitadelta.api.recommendation.scoring.api.HealthApi;
 import com.vitadelta.api.recommendation.scoring.model.EngineConfig;
 import com.vitadelta.api.recommendation.scoring.model.HealthResponse;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
+import java.math.BigDecimal;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -127,12 +128,21 @@ public class ScoringHealth implements EngineParametersSource {
     }
   }
 
+  /**
+   * Keeps the parameters of a complete answer within the documented ranges. A 200 answer whose
+   * {@code config} is missing, incomplete or outside the ranges clears the known parameters ({@code
+   * engine: null} on {@code GET /weights/defaults}) with an operator warning: the service now runs
+   * with values that cannot be published, so neither they nor older values are shown. A failed call
+   * (no answer) keeps what is known.
+   */
   private void remember(EngineConfig config) {
-    if (config == null
-        || config.getDiminishingBeta() == null
-        || config.getUtilityCeiling() == null
-        || config.getVerdictWorthItMaxRatio() == null
-        || config.getVerdictMarginalMaxRatio() == null) {
+    Optional<String> invalid = invalidParameter(config);
+    if (invalid.isPresent()) {
+      engine.set(null);
+      LOG.warn(
+          "Scoring engine parameters rejected ({} missing or out of range);"
+              + " /weights/defaults shows none",
+          invalid.get());
       return;
     }
     engine.set(
@@ -141,5 +151,44 @@ public class ScoringHealth implements EngineParametersSource {
             config.getUtilityCeiling(),
             config.getVerdictWorthItMaxRatio(),
             config.getVerdictMarginalMaxRatio()));
+  }
+
+  /**
+   * The first parameter that is missing or outside the ranges of the scoring contract {@code
+   * EngineConfig} and the public contract {@code EngineParameters}: {@code diminishing_beta > 0},
+   * {@code utility_ceiling >= 1}, both verdict ratios {@code > 0} and {@code
+   * verdict_marginal_max_ratio >= verdict_worth_it_max_ratio} (the scoring service's own config
+   * validation); empty when the config can be published.
+   */
+  static Optional<String> invalidParameter(EngineConfig config) {
+    if (config == null) {
+      return Optional.of("config");
+    }
+    if (config.getDiminishingBeta() == null) {
+      return Optional.of("diminishing_beta");
+    }
+    if (config.getUtilityCeiling() == null) {
+      return Optional.of("utility_ceiling");
+    }
+    if (config.getVerdictWorthItMaxRatio() == null) {
+      return Optional.of("verdict_worth_it_max_ratio");
+    }
+    if (config.getVerdictMarginalMaxRatio() == null) {
+      return Optional.of("verdict_marginal_max_ratio");
+    }
+    if (config.getDiminishingBeta().signum() <= 0) {
+      return Optional.of("diminishing_beta");
+    }
+    if (config.getUtilityCeiling().compareTo(BigDecimal.ONE) < 0) {
+      return Optional.of("utility_ceiling");
+    }
+    if (config.getVerdictWorthItMaxRatio().signum() <= 0) {
+      return Optional.of("verdict_worth_it_max_ratio");
+    }
+    if (config.getVerdictMarginalMaxRatio().signum() <= 0
+        || config.getVerdictMarginalMaxRatio().compareTo(config.getVerdictWorthItMaxRatio()) < 0) {
+      return Optional.of("verdict_marginal_max_ratio");
+    }
+    return Optional.empty();
   }
 }
