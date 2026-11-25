@@ -1,0 +1,158 @@
+<section class="stack-3" [attr.aria-labelledby]="headingId">
+  <div class="row-between">
+    <h2 class="h3" [id]="headingId">{{ 'compare.table.heading' | transloco }}</h2>
+    <p class="text-xs muted">
+      {{ 'compare.table.caption' | transloco: { reference: reference() } }}
+    </p>
+  </div>
+
+  <div class="tbl-wrap">
+    <table class="tbl dt" [class.show-unchanged]="showUnchanged()">
+      <caption class="sr-only">
+        {{
+          'compare.table.sr_caption' | transloco
+        }}
+      </caption>
+      <thead>
+        <tr>
+          <th scope="col">{{ 'compare.table.nutrient' | transloco }}</th>
+          <th scope="col" class="r">{{ 'compare.table.a_day' | transloco }}</th>
+          <th scope="col" class="r">{{ 'compare.table.b_day' | transloco }}</th>
+          <th scope="col" class="r">{{ 'compare.table.delta_amount' | transloco }}</th>
+          <th scope="col" class="r">{{ 'compare.table.coverage' | transloco }}</th>
+          <th scope="col" class="r">{{ 'compare.table.utility' | transloco }}</th>
+          <th scope="col" class="r">{{ 'compare.table.weight' | transloco }}</th>
+          <th scope="col">{{ 'compare.table.delta_contribution' | transloco }}</th>
+          <th scope="col">{{ 'compare.table.flags' | transloco }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (view of views(); track view.row.code) {
+          @let open = expanded().has(view.row.code);
+          <tr
+            [class.unchanged]="!view.changed"
+            [class.is-open]="open"
+            [attr.data-code]="view.row.code"
+          >
+            <td class="nut">
+              <span class="nut-in">
+                @if (view.readings.length > 0) {
+                  <button
+                    type="button"
+                    class="btn btn-ghost btn-sm btn-icon exp"
+                    [attr.aria-expanded]="open"
+                    [attr.aria-controls]="view.detailId"
+                    [attr.aria-label]="'compare.table.details' | transloco: { code: view.row.code }"
+                    (click)="toggle(view.row.code)"
+                  >
+                    <vd-icon name="chev" size="sm" />
+                  </button>
+                }
+                <span class="stack-1">
+                  <span class="ncode">{{ view.row.code }}</span>
+                  <span class="text-xs muted">{{
+                    'category.' + view.row.category | transloco
+                  }}</span>
+                </span>
+              </span>
+            </td>
+            <td class="r" [attr.data-label]="'compare.table.a_day' | transloco">
+              {{ view.amountA ?? ('common.none' | transloco) }}
+            </td>
+            <td class="r" [attr.data-label]="'compare.table.b_day' | transloco">
+              {{ view.amountB ?? ('common.none' | transloco) }}
+            </td>
+            <td
+              class="r delta"
+              [class.muted]="!view.changed"
+              [class.strong]="view.changed"
+              [attr.data-label]="'compare.table.delta_amount' | transloco"
+            >
+              {{ view.delta }}
+            </td>
+            <td class="r" [attr.data-label]="'compare.table.coverage' | transloco">
+              {{
+                'compare.table.arrow'
+                  | transloco
+                    : {
+                        a: view.coverageA ?? ('common.none' | transloco),
+                        b: view.coverageB ?? ('common.none' | transloco),
+                      }
+              }}
+            </td>
+            <td class="r" [attr.data-label]="'compare.table.utility' | transloco">
+              {{ 'compare.table.arrow' | transloco: { a: view.utilityA, b: view.utilityB } }}
+            </td>
+            <td class="r" [attr.data-label]="'compare.table.weight' | transloco">
+              {{ view.weight }}
+            </td>
+            <td class="bar" [attr.data-label]="'compare.table.delta_contribution' | transloco">
+              <vd-delta-bar [delta]="view.row.deltaContribution" [maxAbs]="maxAbs()" />
+            </td>
+            <td class="flags">
+              @if (view.readings.length > 0) {
+                <ul role="list" class="flag-list">
+                  @for (flag of view.row.flags; track flag) {
+                    <li><vd-flag-badge [code]="flag" /></li>
+                  }
+                </ul>
+              }
+            </td>
+          </tr>
+          @if (view.readings.length > 0 && open) {
+            <tr class="detail" [class.unchanged]="!view.changed" [id]="view.detailId">
+              <td colspan="9">
+                <div class="detail-in">
+                  @if (view.bars.length > 0) {
+                    <vd-coverage-strip
+                      [bars]="view.bars"
+                      [ceiling]="ceiling()"
+                      [refLabel]="refLabel()"
+                      [ceilLabel]="
+                        ceilingLabel()
+                          ? ('compare.table.ceiling' | transloco: { percent: ceilingLabel() })
+                          : null
+                      "
+                    />
+                  }
+                  <p class="text-sm" data-role="reading">
+                    @for (reading of view.readings; track $index) {
+                      {{ reading.key | transloco: reading.params }}
+                    }
+                  </p>
+                </div>
+              </td>
+            </tr>
+          }
+        }
+      </tbody>
+      <tfoot>
+        <tr>
+          <td colspan="7">{{ 'compare.table.total' | transloco }}</td>
+          <td class="total" data-role="total">{{ totalText() }}</td>
+          <td></td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+
+  @if (unchangedCount() > 0) {
+    <button
+      type="button"
+      class="btn btn-block mobile-only"
+      [attr.aria-expanded]="showUnchanged()"
+      (click)="showUnchanged.set(!showUnchanged())"
+    >
+      @if (showUnchanged()) {
+        {{ 'compare.table.hide_unchanged' | transloco }}
+      } @else {
+        {{
+          (unchangedCount() === 1
+            ? 'compare.table.show_unchanged_one'
+            : 'compare.table.show_unchanged'
+          ) | transloco: { count: unchangedCount() }
+        }}
+      }
+    </button>
+  }
+</section>

@@ -1,0 +1,79 @@
+{
+  "page_title": "Compare",
+  "back": "Back to results",
+  "eyebrow": "Compare · {{ country }} · {{ stock }}",
+  "stock": {
+    "IN_STOCK_ONLY": "in stock only",
+    "INCLUDE_OUT_OF_STOCK": "including out of stock"
+  },
+  "title_question": "Is {{ b }} worth {{ cost }} more per day?",
+  "title_or": "{{ a }} or {{ b }}?",
+  "swapped_title": "Order switched",
+  "swapped_body": "You opened {{ b }} first. A is always the product that costs less per day, so {{ a }} is shown as A.",
+  "loading": "Comparing products…",
+  "loaded": "Comparison of {{ a }} and {{ b }} loaded",
+  "pair": {
+    "label": "Products compared",
+    "letter_a": "A",
+    "letter_b": "B",
+    "vs": "vs",
+    "pack": "{{ price }} demo price · {{ days }} days",
+    "cost_per_day": "Cost per day",
+    "content": "Content score",
+    "value": "Value score"
+  },
+  "verdict": {
+    "heading": "Verdict",
+    "extra_cost": "Extra cost per day",
+    "extra_content": "Extra content",
+    "marginal_rate": "Price of the extra (per point per day)",
+    "ratio": "Ratio to market rate",
+    "difference": "{{ b }} − {{ a }}",
+    "market_rate": "market rate {{ amount }}",
+    "ratio_value": "{{ ratio }}×",
+    "thresholds": "worth it ≤ {{ worth }} · marginal ≤ {{ marginal }}"
+  },
+  "scale": {
+    "label": "Ratio {{ ratio }} to the market rate; worth it up to {{ worth }}, marginal up to {{ marginal }}",
+    "value": "{{ ratio }}×",
+    "off_scale": "{{ ratio }}× · off scale"
+  },
+  "table": {
+    "heading": "What changes per nutrient",
+    "caption": "Amounts per day · coverage against {{ reference }} · bars scaled to the largest change",
+    "sr_caption": "Change per nutrient from A to B",
+    "nutrient": "Nutrient",
+    "a_day": "A / day",
+    "b_day": "B / day",
+    "delta_amount": "Δ amount",
+    "coverage": "Coverage A → B",
+    "utility": "Utility A → B",
+    "weight": "Weight",
+    "delta_contribution": "Δ contribution",
+    "flags": "Flags",
+    "arrow": "{{ a }} → {{ b }}",
+    "details": "Details for {{ code }}",
+    "total": "Total change in content score",
+    "show_unchanged": "Show {{ count }} unchanged nutrients",
+    "show_unchanged_one": "Show 1 unchanged nutrient",
+    "hide_unchanged": "Hide unchanged nutrients",
+    "ceiling": "ceiling {{ percent }}"
+  },
+  "flag_reading": {
+    "NEW_IN_B": "Only B contains this nutrient.",
+    "REMOVED_IN_B": "A contains this nutrient, B does not.",
+    "DIMINISHING": "A already covers the reference, so the extra amount in B adds less and less.",
+    "ABOVE_CEILING_NO_CREDIT": "Part of the extra amount lands above the utility ceiling and earns nothing.",
+    "ABOVE_UL_NO_CREDIT": "Part of the extra amount lies above the upper limit and is not credited.",
+    "ceiling_split": "The first {{ credited }} of the extra {{ delta }} still adds a little; the last {{ wasted }} lands above the {{ ceiling }} ceiling and earns nothing."
+  },
+  "error": {
+    "title": "These products cannot be compared",
+    "same_product": "Both links point to the same product. Choose two different products.",
+    "no_offer": "{{ product }} has no offer in this country.",
+    "no_stock": "{{ product }} has no offer in stock. Include out-of-stock offers in your query to compare it.",
+    "baseline": "The first product",
+    "candidate": "The second product",
+    "either": "One of the products"
+  }
+}
