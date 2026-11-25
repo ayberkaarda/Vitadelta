@@ -1,16 +1,22 @@
 package com.vitadelta.api.catalog.web;
 
+import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.NOT_REQUIRED;
+import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
+
 import com.vitadelta.api.catalog.AvailabilityStatus;
 import com.vitadelta.api.catalog.DosageForm;
 import com.vitadelta.api.catalog.NutrientCategory;
+import com.vitadelta.api.catalog.UlBasis;
 import com.vitadelta.api.catalog.price.EffectivePrice;
 import com.vitadelta.api.catalog.price.EffectivePriceResolver;
 import com.vitadelta.api.catalog.price.OfferSnapshot;
 import com.vitadelta.api.catalog.price.StockFilter;
 import com.vitadelta.api.catalog.read.CatalogViews.CatalogProduct;
+import com.vitadelta.api.catalog.read.CatalogViews.NutrientFacts;
 import com.vitadelta.api.catalog.read.CatalogViews.ProductInCountry;
 import com.vitadelta.api.catalog.read.CatalogViews.ProductNutrientView;
 import com.vitadelta.api.catalog.read.CatalogViews.ProvenanceView;
+import com.vitadelta.api.catalog.unit.Unit;
 import com.vitadelta.api.common.numeric.Rounding;
 import com.vitadelta.api.common.watch.WatchState;
 import com.vitadelta.api.common.watch.WatchedAlert;
@@ -35,6 +41,11 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class ProductPresenter {
+
+  /** {@code NutrientReference.source}: product detail shows regulatory values only. */
+  static final String REGULATORY = "REGULATORY";
+
+  private static final BigDecimal HUNDRED = BigDecimal.valueOf(100);
 
   /** Contract schema {@code ProductFlag}. */
   public record Flag(String code, List<String> nutrientCodes) {
@@ -77,17 +88,52 @@ public class ProductPresenter {
   /** Contract schema {@code ProductAvailability}. */
   public record Availability(AvailabilityStatus status, String note) {}
 
-  /** Contract schema {@code ProductNutrient}. */
+  /**
+   * Contract schema {@code ProductNutrient}. {@code reference} and {@code upperLimit} are always
+   * written ({@code null} when no value applies) but optional in the contract for compatibility.
+   */
   public record Nutrient(
-      String code,
-      NutrientCategory category,
-      BigDecimal amountPerServing,
-      BigDecimal amountPerDay,
+      @Schema(requiredMode = REQUIRED) String code,
+      @Schema(requiredMode = REQUIRED) NutrientCategory category,
+      @Schema(requiredMode = REQUIRED) BigDecimal amountPerServing,
+      @Schema(requiredMode = REQUIRED) BigDecimal amountPerDay,
+      @Schema(
+              requiredMode = REQUIRED,
+              allowableValues = {"mg", "mcg"})
+          String unit,
+      @Schema(requiredMode = REQUIRED) BigDecimal ulAmountPerServing,
+      @Schema(requiredMode = REQUIRED) String formCode,
+      @Schema(requiredMode = REQUIRED) String formLabel,
+      @Schema(requiredMode = REQUIRED) boolean conversionAssumed,
+      @Schema(requiredMode = NOT_REQUIRED) NutrientReference reference,
+      @Schema(requiredMode = NOT_REQUIRED) NutrientUpperLimit upperLimit) {}
+
+  /**
+   * Contract schema {@code NutrientReference}: the reference value of the country's reference set
+   * and the product's daily amount as a percentage of it.
+   */
+  public record NutrientReference(
+      BigDecimal amount,
       @Schema(allowableValues = {"mg", "mcg"}) String unit,
-      BigDecimal ulAmountPerServing,
+      String setCode,
+      // The contract narrows ReferenceSource to REGULATORY with a const.
+      @Schema(allowableValues = {"REGULATORY", "MARKET_MEDIAN", "PRESENCE_ONLY"}) String source,
+      BigDecimal percentOfReference) {}
+
+  /**
+   * Contract schema {@code NutrientUpperLimit}: the upper limit of the country's UL set that
+   * applies to the nutrient and form, and whether the product's UL-relevant daily amount exceeds
+   * it.
+   */
+  public record NutrientUpperLimit(
+      BigDecimal amount,
+      @Schema(allowableValues = {"mg", "mcg"}) String unit,
+      UlBasis basis,
+      String setCode,
       String formCode,
-      String formLabel,
-      boolean conversionAssumed) {}
+      String note,
+      BigDecimal ulAmountPerDay,
+      boolean exceeded) {}
 
   /** Contract schema {@code Offer}. */
   public record Offer(
@@ -197,7 +243,9 @@ public class ProductPresenter {
               resolver.isStale(offer, now)));
     }
     List<Nutrient> nutrients =
-        product.nutrients().stream().map(n -> nutrient(n, product.servingsPerDay())).toList();
+        product.nutrients().stream()
+            .map(n -> nutrient(n, product.servingsPerDay(), found.facts()))
+            .toList();
     SelectedOffer selected =
         price == null
             ? null
@@ -277,17 +325,78 @@ public class ProductPresenter {
     return List.copyOf(flags);
   }
 
-  private static Nutrient nutrient(ProductNutrientView n, BigDecimal servingsPerDay) {
+  /**
+   * One nutrient row with the regulatory facts of the requested country. Every value is computed
+   * from the exact (unrounded) amounts and rounded once to 4 decimals, half-even (section 6.12);
+   * {@code exceeded} compares the exact values. A pure function of catalog data: no scoring call,
+   * no clock.
+   *
+   * @throws IllegalStateException when a reference or UL row is not stored in the nutrient's
+   *     canonical unit (a data error; amounts are never converted here)
+   */
+  static Nutrient nutrient(ProductNutrientView n, BigDecimal servingsPerDay, NutrientFacts facts) {
+    BigDecimal amountPerDay = n.amountPerDay(servingsPerDay);
+    NutrientReference reference =
+        facts
+            .reference(n.code())
+            .map(r -> {
+              requireCanonical(n, r.unit(), "reference value of " + facts.referenceSetCode());
+              return new NutrientReference(
+                  amount4(r.amount()),
+                  r.unit().symbol(),
+                  facts.referenceSetCode(),
+                  REGULATORY,
+                  amountPerDay
+                      .multiply(HUNDRED)
+                      .divide(r.amount(), Rounding.SCALE, RoundingMode.HALF_EVEN));
+            })
+            .orElse(null);
+    NutrientUpperLimit upperLimit =
+        facts
+            .upperLimit(n.code(), n.formCode())
+            .map(u -> {
+              requireCanonical(n, u.unit(), "upper limit of " + facts.ulSetCode());
+              BigDecimal ulAmountPerDay =
+                  n.ulAmountPerServing() == null
+                      ? amountPerDay
+                      : n.ulAmountPerServing().multiply(servingsPerDay);
+              return new NutrientUpperLimit(
+                  amount4(u.amount()),
+                  u.unit().symbol(),
+                  u.basis(),
+                  facts.ulSetCode(),
+                  u.formCode(),
+                  u.note() == null || u.note().isEmpty() ? null : u.note(),
+                  amount4(ulAmountPerDay),
+                  ulAmountPerDay.compareTo(u.amount()) > 0);
+            })
+            .orElse(null);
     return new Nutrient(
         n.code(),
         n.category(),
         amount4(n.amountPerServing()),
-        amount4(n.amountPerDay(servingsPerDay)),
+        amount4(amountPerDay),
         n.unit().symbol(),
         n.ulAmountPerServing() == null ? null : amount4(n.ulAmountPerServing()),
         n.formCode(),
         n.formLabel(),
-        n.conversionAssumed());
+        n.conversionAssumed(),
+        reference,
+        upperLimit);
+  }
+
+  private static void requireCanonical(ProductNutrientView n, Unit stored, String what) {
+    if (stored != n.unit()) {
+      throw new IllegalStateException(
+          "the "
+              + what
+              + " for "
+              + n.code()
+              + " is stored in "
+              + stored.symbol()
+              + ", not in the canonical unit "
+              + n.unit().symbol());
+    }
   }
 
   private static Provenance provenance(ProvenanceView view) {

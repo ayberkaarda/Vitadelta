@@ -9,6 +9,7 @@ import com.vitadelta.api.catalog.price.OfferSnapshot;
 import com.vitadelta.api.catalog.read.CatalogViews.CatalogProduct;
 import com.vitadelta.api.catalog.read.CatalogViews.CountryView;
 import com.vitadelta.api.catalog.read.CatalogViews.FormView;
+import com.vitadelta.api.catalog.read.CatalogViews.NutrientFacts;
 import com.vitadelta.api.catalog.read.CatalogViews.NutrientView;
 import com.vitadelta.api.catalog.read.CatalogViews.ProductInCountry;
 import com.vitadelta.api.catalog.read.CatalogViews.ProductNutrientView;
@@ -156,11 +157,17 @@ public class CatalogReadService {
   }
 
   /**
-   * One product with its availability, nutrients and offers in {@code country}; empty when the
-   * product does not exist.
+   * One product with its availability, nutrients and offers in {@code country}, and the country's
+   * reference values and upper limits of the product's nutrients, all from one snapshot; empty when
+   * the product does not exist.
+   *
+   * @param country a country of the registry
    */
   @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
   public Optional<ProductInCountry> product(UUID id, String country) {
+    CountryView countryView =
+        findCountry(country)
+            .orElseThrow(() -> new IllegalArgumentException("unknown country " + country));
     List<ProductRow> rows =
         jdbc.sql("SELECT " + PRODUCT_COLUMNS + " FROM product p WHERE p.id = :id")
             .param("id", id)
@@ -181,11 +188,23 @@ public class CatalogReadService {
                     AvailabilityStatus.valueOf(rs.getString("status")), rs.getString("note")))
             .optional();
     CatalogProduct product = assemble(rows, country).getFirst();
+    List<String> codes = product.nutrients().stream().map(ProductNutrientView::code).toList();
+    NutrientFacts facts =
+        new NutrientFacts(
+            countryView.referenceSetCode(),
+            countryView.ulSetCode(),
+            referenceValues(countryView.referenceSetCode()).stream()
+                .filter(r -> codes.contains(r.nutrientCode()))
+                .toList(),
+            upperLimits(countryView.ulSetCode()).stream()
+                .filter(u -> codes.contains(u.nutrientCode()))
+                .toList());
     return Optional.of(
         new ProductInCountry(
             product,
             availability.map(Availability::status).orElse(null),
-            availability.map(Availability::note).orElse(null)));
+            availability.map(Availability::note).orElse(null),
+            facts));
   }
 
   /**
@@ -228,24 +247,8 @@ public class CatalogReadService {
     }
     long version = version();
     List<NutrientView> nutrients = registry();
-    List<ReferenceAmount> referenceValues =
-        jdbc.sql(
-                "SELECT nutrient_code, amount, unit FROM reference_value"
-                    + " WHERE reference_set_code = :set ORDER BY nutrient_code")
-            .param("set", country.referenceSetCode())
-            .query((rs, i) ->
-                new ReferenceAmount(
-                    rs.getString("nutrient_code"),
-                    rs.getBigDecimal("amount"),
-                    unit(rs.getString("unit"))))
-            .list();
-    List<UpperLimitView> upperLimits =
-        jdbc.sql(
-                "SELECT nutrient_code, form_code, amount, unit, basis, note FROM upper_limit"
-                    + " WHERE ul_set_code = :set ORDER BY nutrient_code, form_code")
-            .param("set", country.ulSetCode())
-            .query(CatalogReadService::upperLimit)
-            .list();
+    List<ReferenceAmount> referenceValues = referenceValues(country.referenceSetCode());
+    List<UpperLimitView> upperLimits = upperLimits(country.ulSetCode());
     List<ProductRow> rows =
         jdbc.sql(
                 "SELECT "
@@ -273,6 +276,28 @@ public class CatalogReadService {
   @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
   public Optional<MarketProfile> marketProfile(String countryCode) {
     return loadCountry(countryCode).map(CountryCatalog::marketProfile);
+  }
+
+  private List<ReferenceAmount> referenceValues(String referenceSetCode) {
+    return jdbc.sql(
+            "SELECT nutrient_code, amount, unit FROM reference_value"
+                + " WHERE reference_set_code = :set ORDER BY nutrient_code")
+        .param("set", referenceSetCode)
+        .query((rs, i) ->
+            new ReferenceAmount(
+                rs.getString("nutrient_code"),
+                rs.getBigDecimal("amount"),
+                unit(rs.getString("unit"))))
+        .list();
+  }
+
+  private List<UpperLimitView> upperLimits(String ulSetCode) {
+    return jdbc.sql(
+            "SELECT nutrient_code, form_code, amount, unit, basis, note FROM upper_limit"
+                + " WHERE ul_set_code = :set ORDER BY nutrient_code, form_code")
+        .param("set", ulSetCode)
+        .query(CatalogReadService::upperLimit)
+        .list();
   }
 
   private long version() {
