@@ -391,7 +391,7 @@ API restarts; Stripe retries them.
   `ignored_type`, `ignored_mode`, `ignored_foreign`, `user_missing`, `customer_conflict`),
   `vitadelta.billing.webhook.rejected{reason}` (signature failures; the client always gets the
   same `400`), `vitadelta.billing.stripe.failed{operation,reason}`,
-  `vitadelta.billing.payment_failed`, `vitadelta.billing.duplicate_subscription`,
+  `vitadelta.billing.payment_failed`, `vitadelta.billing.surplus.detected`,
   `vitadelta.billing.cancel_on_delete.failed`.
 - `400` on every delivery: the signing secret does not belong to the endpoint (CLI and dashboard
   secrets differ), or the server clock is more than 5 minutes off (check NTP).
@@ -401,13 +401,11 @@ API restarts; Stripe retries them.
 - A renewal whose payment failed changes nothing: the paid period stays until it ends and
   `SubscriptionExpiryJob` then downgrades; a later successful retry re-activates PRO. A
   cancellation in the portal takes effect at the period end (`customer.subscription.deleted`).
-- The log line "duplicated the entitled subscription and was canceled"
-  (`vitadelta.billing.surplus.canceled`): a user paid two checkouts before the first webhook
-  arrived. The webhook kept the subscription that holds PRO and canceled the other at Stripe;
-  refund that subscription's payment in the dashboard. `vitadelta.billing.surplus.cancel_failed`
-  means the cancellation failed; the webhook answered `503` and Stripe's redelivery retries it.
-  The log line "none holds the entitlement" (no paid subscription to keep) needs a manual
-  decision: cancel the extra one with `stripe subscriptions cancel <sub_...>`.
+- `vitadelta.billing.surplus.detected` and the log line "has 2 live Stripe subscriptions ...
+  (PRO follows ...)": a user paid two checkouts before the first webhook arrived and is charged
+  twice. The API cancels nothing. Compare the subscriptions in the dashboard, cancel the one PRO
+  does not follow (`stripe subscriptions cancel <sub_...>`) and refund its payment; its
+  `customer.subscription.deleted` webhook leaves PRO on the other one.
 - `409 plan_already_active` on checkout for a FREE user: the user has a Stripe subscription that
   has not ended (for example past due after the expiry job downgraded the plan); it is settled in
   the billing portal.
