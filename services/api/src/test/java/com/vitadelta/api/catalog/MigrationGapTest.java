@@ -143,6 +143,49 @@ class MigrationGapTest extends PostgresIntegrationTest {
     assertThat(schema(existing)).isEqualTo(schema(fresh));
   }
 
+  /**
+   * V8 adds {@code billing_subscription.paid_through} without inventing a paid horizon: an active
+   * subscription applied before V8 has no proof of a paid invoice, so the column stays empty until
+   * the next webhook read-back sets it.
+   */
+  @Test
+  void v8LeavesThePaidHorizonUnsetWithoutProofOfPayment() throws Exception {
+    String url = createDatabase();
+    Flyway atV7 =
+        Flyway.configure()
+            .dataSource(url, POSTGRES.getUsername(), POSTGRES.getPassword())
+            .locations("classpath:db/migration")
+            .outOfOrder(true)
+            .cleanDisabled(true)
+            .target("7")
+            .load();
+    atV7.migrate();
+    try (Connection connection =
+            DriverManager.getConnection(url, POSTGRES.getUsername(), POSTGRES.getPassword());
+        Statement statement = connection.createStatement()) {
+      statement.execute(
+          "INSERT INTO app_user (id, email, password_hash, created_at, updated_at) VALUES"
+              + " ('7b1c4a52-0d6e-4f7a-9c3b-2a1e5d6f7a8b', 'v8@example.org', 'synthetic',"
+              + " now(), now())");
+      statement.execute(
+          "INSERT INTO billing_subscription (provider, external_ref, user_id, customer_ref,"
+              + " status, current_period_end, ended_at, updated_at) VALUES ('STRIPE',"
+              + " 'sub_V8Synthetic', '7b1c4a52-0d6e-4f7a-9c3b-2a1e5d6f7a8b', 'cus_V8Synthetic',"
+              + " 'active', now() + interval '20 days', NULL, now())");
+    }
+    flyway(url, true, "classpath:db/migration").migrate();
+    try (Connection connection =
+            DriverManager.getConnection(url, POSTGRES.getUsername(), POSTGRES.getPassword());
+        Statement statement = connection.createStatement();
+        ResultSet rows =
+            statement.executeQuery(
+                "SELECT paid_through FROM billing_subscription"
+                    + " WHERE external_ref = 'sub_V8Synthetic'")) {
+      assertThat(rows.next()).isTrue();
+      assertThat(rows.getObject("paid_through")).isNull();
+    }
+  }
+
   @Test
   void aChangedAppliedMigrationIsStillRejected() throws IOException, SQLException {
     String url = createDatabase();
