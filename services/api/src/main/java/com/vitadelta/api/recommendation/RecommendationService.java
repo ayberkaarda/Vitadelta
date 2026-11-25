@@ -128,6 +128,7 @@ public class RecommendationService {
   private final ScoringGateway scoring;
   private final WatchStateReader watchStates;
   private final RecommendationCaches caches;
+  private final UserRequestLimiter userLimits;
   private final int maxProductsPerCountry;
   private final Counter quotaRejections;
 
@@ -143,6 +144,7 @@ public class RecommendationService {
       ScoringGateway scoring,
       WatchStateReader watchStates,
       RecommendationCaches caches,
+      UserRequestLimiter userLimits,
       RecommendationProperties properties,
       MeterRegistry meters) {
     this.maxProductsPerCountry = properties.maxProductsPerCountry();
@@ -157,6 +159,7 @@ public class RecommendationService {
     this.scoring = scoring;
     this.watchStates = watchStates;
     this.caches = caches;
+    this.userLimits = userLimits;
     this.quotaRejections =
         Counter.builder(QUOTA_REJECTED_METRIC)
             .description("Anonymous recommendation queries rejected with quota_exceeded")
@@ -192,7 +195,7 @@ public class RecommendationService {
     }
     boolean answered = false;
     try {
-      NativeRanking ranking = ranking(query, country, version);
+      NativeRanking ranking = ranking(query, country, version, userId);
       Principal caller = principal;
       boolean anonymousCaller = anonymous != null;
       QueryResponse result =
@@ -252,11 +255,30 @@ public class RecommendationService {
   }
 
   /** The full native ranking from the cache or, on a miss, from the scoring service. */
-  private NativeRanking ranking(RankingQuery query, CountryView country, long version) {
+  private NativeRanking ranking(
+      RankingQuery query, CountryView country, long version, Optional<UUID> userId) {
     Optional<NativeRanking> cached = caches.ranking(query.cacheKey(version));
     if (cached.isPresent()) {
       return cached.get();
     }
+    // A cache miss loads the catalog and calls the scoring service: signed-in callers are admitted
+    // per user first (anonymous callers are limited per client IP).
+    UserRequestLimiter.Permit permit = admit(userId);
+    try {
+      return score(query, country, version);
+    } finally {
+      if (permit != null) {
+        permit.close();
+      }
+    }
+  }
+
+  private UserRequestLimiter.Permit admit(Optional<UUID> userId) {
+    return userId.isPresent() ? userLimits.admit(userId.get()) : null;
+  }
+
+  private NativeRanking score(RankingQuery query, CountryView country, long version) {
+    Optional<NativeRanking> cached;
     CountryCatalog snapshot = loadCountry(country.code());
     String key = query.cacheKey(snapshot.catalogVersion());
     if (snapshot.catalogVersion() != version) {
@@ -367,6 +389,21 @@ public class RecommendationService {
         currencies.resolve(country.currency(), parsed.displayCurrency(), authentication);
     requireInMarket(parsed.baseline(), country);
     requireInMarket(parsed.candidate(), country);
+    UserRequestLimiter.Permit permit = admit(CurrentUser.id(authentication));
+    try {
+      return compareAdmitted(parsed, country, weights, conversion);
+    } finally {
+      if (permit != null) {
+        permit.close();
+      }
+    }
+  }
+
+  private CompareResponse compareAdmitted(
+      ParsedCompare parsed,
+      CountryView country,
+      RankingQuery.Weights weights,
+      PriceConversion conversion) {
     CountryCatalog snapshot = loadCountry(country.code());
     CandidateSet market = candidates(snapshot, parsed.stockFilter());
     Candidate baseline = requirePriced(parsed.baseline(), "baselineProductId", snapshot, market);

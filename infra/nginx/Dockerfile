@@ -10,13 +10,18 @@
 
 FROM nginx:1.30.8-alpine@sha256:6437a63b5c529f0e06162b3f593c0154cff6fa2ea0f94fd7c27928cb399e022d AS runtime
 ENV VITADELTA_TLS=false \
+    VITADELTA_REAL_IP_FROM= \
     NGINX_ENVSUBST_FILTER=^VITADELTA_
 # nginx runs as the image's unprivileged "nginx" user (uid 101), master included. It listens on
 # 8080, keeps its pid and temporary files under /tmp (nginx.conf), and the entrypoint renders the
-# templates into /etc/nginx/conf.d, which is therefore owned by that user.
+# templates into /etc/nginx/conf.d, and the real-ip entrypoint script writes
+# /etc/nginx/generated/real-ip.conf; both are therefore owned by that user.
 RUN rm -f /etc/nginx/conf.d/default.conf \
-    && chown nginx:nginx /etc/nginx/conf.d
+    && mkdir -p /etc/nginx/generated \
+    && : > /etc/nginx/generated/real-ip.conf \
+    && chown -R nginx:nginx /etc/nginx/conf.d /etc/nginx/generated
 COPY infra/nginx/nginx.conf /etc/nginx/nginx.conf
+COPY --chmod=755 infra/nginx/entrypoint.d/ /docker-entrypoint.d/
 COPY infra/nginx/snippets/ /etc/nginx/snippets/
 COPY infra/nginx/templates/ /etc/nginx/templates/
 USER nginx

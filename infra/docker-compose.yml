@@ -140,6 +140,7 @@ services:
     restart: unless-stopped
     environment:
       VITADELTA_TLS: ${VITADELTA_TLS:-false}
+      VITADELTA_REAL_IP_FROM: ${VITADELTA_REAL_IP_FROM:-}
     ports:
       - "8080:8080"
     networks:

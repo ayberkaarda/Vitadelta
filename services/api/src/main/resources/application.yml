@@ -146,6 +146,9 @@ vitadelta:
     cache-max-ranked-items: 100000
     # Largest country catalog a recommendation or comparison loads (more: operator error, 503).
     max-products-per-country: 5000
+    # Per signed-in user: query cache misses and comparisons per minute, and in flight at once.
+    user-requests-per-minute: 30
+    user-concurrency: 2
   http:
     # Request body limits of /api/v1/** (query body 64 kB; import JSON and CSV 20 MB).
     max-body: 64KB

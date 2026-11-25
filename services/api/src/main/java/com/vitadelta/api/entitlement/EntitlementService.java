@@ -7,6 +7,7 @@ import com.vitadelta.api.identity.UserAccount;
 import com.vitadelta.api.identity.UserRepository;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.OptionalInt;
@@ -72,15 +73,25 @@ public class EntitlementService {
   }
 
   /**
-   * The plan of the user's ACTIVE subscription.
+   * The plan of the user's ACTIVE subscription. A subscription whose period has ended counts as
+   * FREE right away, without waiting for the daily expiry job that rewrites the rows.
    *
    * @throws IllegalStateException when the user has no ACTIVE subscription
    */
   public Plan currentPlan(UUID userId) {
     return subscriptions
         .findActive(userId)
-        .map(subscription -> plans.get(subscription.planCode()))
+        .map(this::effectivePlan)
         .orElseThrow(() -> new IllegalStateException("user has no ACTIVE subscription"));
+  }
+
+  /** The plan whose limits apply to {@code subscription} at the current time. */
+  Plan effectivePlan(Subscription subscription) {
+    Instant end = subscription.currentPeriodEnd();
+    if (end != null && !end.isAfter(clock.instant())) {
+      return plans.get(PlanCode.FREE);
+    }
+    return plans.get(subscription.planCode());
   }
 
   /** First day of the current calendar month (UTC), the key of {@code usage_counter}. */

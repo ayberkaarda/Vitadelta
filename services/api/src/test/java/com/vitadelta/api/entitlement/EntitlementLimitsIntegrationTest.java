@@ -167,6 +167,21 @@ class EntitlementLimitsIntegrationTest extends EntitlementIntegrationTest {
   }
 
   @Test
+  void anExpiredProPeriodGivesFreeLimitsBeforeTheDailyJobRuns() {
+    TestUser user = user();
+    pro(user);
+    savedProducts(user.id(), 5);
+    assertStatus(save(user, product()), 201);
+
+    clock.advance(java.time.Duration.ofDays(31));
+    assertThat(entitlements.currentPlan(user.id()).code()).isEqualTo(PlanCode.FREE);
+    TestUser later = new TestUser(user.id(), user.email(), token(user));
+    assertProblem(
+        save(later, product()), 403, "entitlement_exceeded", "EntitlementExceededProblem");
+    assertThat(usageProvider.summary(user.id()).plan().code()).isEqualTo("FREE");
+  }
+
+  @Test
   void limitChecksNeedTheWritingTransactionAndAnExistingUser() {
     TestUser user = user();
     assertThatThrownBy(() -> entitlements.requireSavedProductSlot(user.id()))

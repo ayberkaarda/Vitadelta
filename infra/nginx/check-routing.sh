@@ -29,7 +29,7 @@
 #
 # Usage: infra/nginx/check-routing.sh [path-to-built-browser-dir]
 # Default build path: apps/web/dist/web/browser (run `npm run build` in apps/web first).
-# Needs docker and curl. The containers listen on 127.0.0.1:${CHECK_PORT:-18089} and the next port.
+# Needs docker and curl. The containers listen on 127.0.0.1:${CHECK_PORT:-18089} and the next three ports.
 
 set -euo pipefail
 
@@ -44,6 +44,8 @@ web_image="vitadelta-nginx-check:$$"
 name="vitadelta-nginx-check-$$"
 tls_name="vitadelta-nginx-check-tls-$$"
 api_name="vitadelta-nginx-check-api-$$"
+trusted_name="vitadelta-nginx-check-trusted-$$"
+untrusted_name="vitadelta-nginx-check-untrusted-$$"
 network="vitadelta-nginx-check-$$"
 immutable="public, max-age=31536000, immutable"
 web_csp="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
@@ -64,7 +66,7 @@ to_docker_path() {
 # so the media caching rule is checked as well.
 site="$(mktemp -d)"
 cleanup() {
-  docker rm -f "$name" "$tls_name" "$api_name" > /dev/null 2>&1 || true
+  docker rm -f "$name" "$tls_name" "$trusted_name" "$untrusted_name" "$api_name" > /dev/null 2>&1 || true
   docker network rm "$network" > /dev/null 2>&1 || true
   docker image rm "$web_image" > /dev/null 2>&1 || true
   rm -rf "$site"
@@ -106,9 +108,9 @@ MSYS_NO_PATHCONV=1 docker run -d --name "$api_name" --network "$network" --netwo
   "$stub_image" > /dev/null
 
 start_web() {
-  # start_web <container name> <host port> <VITADELTA_TLS>
+  # start_web <container name> <host port> <VITADELTA_TLS> [VITADELTA_REAL_IP_FROM]
   MSYS_NO_PATHCONV=1 docker run -d --name "$1" --network "$network" \
-    -e VITADELTA_TLS="$3" -e NGINX_ENVSUBST_FILTER='^VITADELTA_' \
+    -e VITADELTA_TLS="$3" -e VITADELTA_REAL_IP_FROM="${4:-}" -e NGINX_ENVSUBST_FILTER='^VITADELTA_' \
     -p "127.0.0.1:$2:8080" \
     -v "$(to_docker_path "$site/html"):/usr/share/nginx/html:ro" \
     "$web_image" > /dev/null
@@ -370,6 +372,44 @@ tls_check "/chunk-DOESNOTEXIST.js" strict-origin-when-cross-origin "$web_csp"
 tls_check "/actuator/health" strict-origin-when-cross-origin "$web_csp"
 tls_check "/api/v1/health" no-referrer "$api_csp"
 early_checks "$tls_base" yes
+
+# Client-address forwarding to the API. The requests are sent from inside each container, so
+# the peer address nginx sees is 127.0.0.1. "xff" is what the API stand-in received (it echoes
+# the forwarding headers back as X-Echo-* response headers).
+upstream_view() {
+  # upstream_view <container> <forged X-Forwarded-For value>
+  local out
+  out="$(docker exec "$1" wget -S -q -O /dev/null --header "X-Forwarded-For: $2" \
+    --header "Forwarded: for=198.51.100.99" --header "X-Real-IP: 198.51.100.98" \
+    http://127.0.0.1:8080/api/v1/health 2>&1 | tr -d '\r' || true)"
+  printf 'xff=%s|forwarded=%s|real_ip=%s' \
+    "$(printf '%s\n' "$out" | awk -F': ' 'tolower($1) ~ /x-echo-forwarded-for$/ {print $2}')" \
+    "$(printf '%s\n' "$out" | awk -F': ' 'tolower($1) ~ /x-echo-forwarded$/ {print $2}')" \
+    "$(printf '%s\n' "$out" | awk -F': ' 'tolower($1) ~ /x-echo-real-ip$/ {print $2}')"
+}
+
+check_forwarding() {
+  # check_forwarding <label> <container> <forged X-Forwarded-For> <expected upstream view>
+  local got
+  got="$(upstream_view "$2" "$3")"
+  if [ "$got" = "$4" ]; then
+    pass "forwarding: $1 -> $got"
+  else
+    fail_check "forwarding: $1 -> $got (expected $4)"
+  fi
+}
+
+start_web "$trusted_name" "$((port + 2))" false "127.0.0.1/32"
+start_web "$untrusted_name" "$((port + 3))" false "192.0.2.0/24, 198.51.100.7"
+empty_forwarded="forwarded=|real_ip="
+# Default (VITADELTA_REAL_IP_FROM empty): a forged header is overwritten with the peer address.
+check_forwarding "default ignores a forged header" "$name" "203.0.113.7" "xff=127.0.0.1|$empty_forwarded"
+# The peer is a trusted proxy: the client address behind it is forwarded, recursively
+# skipping trusted hops, and other forwarding headers are still dropped.
+check_forwarding "trusted proxy restores the client" "$trusted_name" "203.0.113.7" "xff=203.0.113.7|$empty_forwarded"
+check_forwarding "trusted proxy chain keeps the right-most untrusted hop" "$trusted_name" "198.51.100.1, 203.0.113.7, 127.0.0.1" "xff=203.0.113.7|$empty_forwarded"
+# The peer is not in the trusted list: its own forged header is ignored.
+check_forwarding "untrusted peer cannot forge the client" "$untrusted_name" "203.0.113.7" "xff=127.0.0.1|$empty_forwarded"
 
 # API down: the 502/504 from nginx carries the web policy and every header as well.
 docker stop "$api_name" > /dev/null

@@ -146,4 +146,57 @@ class AdminUsersIntegrationTest extends IdentityIntegrationTest {
     assertThat(active.getStatus().value()).isEqualTo(200);
     ContractSchemas.assertConforms("AdminUser", active.getResponseBody());
   }
+
+  private UUID newAdmin(String email) {
+    UUID id = registerVerified(email);
+    jdbc.sql("UPDATE app_user SET role = 'ADMIN' WHERE id = ?").param(id).update();
+    return id;
+  }
+
+  private String statusOf(UUID id) {
+    return jdbc.sql("SELECT status FROM app_user WHERE id = ?")
+        .param(id)
+        .query(String.class)
+        .single();
+  }
+
+  private EntityExchangeResult<String> setStatus(UUID id, String status, String token) {
+    return post(
+        "/api/v1/admin/users/" + id + "/status",
+        body(Map.of("status", status)),
+        HttpHeaders.AUTHORIZATION,
+        "Bearer " + token);
+  }
+
+  @Test
+  void anAdminCannotChangeTheirOwnStatus() {
+    String email = uniqueEmail();
+    UUID id = newAdmin(email);
+    String token = login(email, PASSWORD).accessToken();
+    assertProblem(setStatus(id, "DISABLED", token), 403, "forbidden");
+    assertProblem(setStatus(id, "ACTIVE", token), 403, "forbidden");
+    assertThat(statusOf(id)).isEqualTo("ACTIVE");
+  }
+
+  @Test
+  void aDisabledAdminTokenStopsWorkingImmediately() {
+    String email = uniqueEmail();
+    UUID id = newAdmin(email);
+    String token = login(email, PASSWORD).accessToken();
+    assertThat(get("/api/v1/admin/users", token).getStatus().value()).isEqualTo(200);
+
+    jdbc.sql("UPDATE app_user SET status = 'DISABLED' WHERE id = ?").param(id).update();
+    assertProblem(get("/api/v1/admin/users", token), 403, "forbidden");
+    assertProblem(setStatus(id, "ACTIVE", token), 403, "forbidden");
+    assertThat(statusOf(id)).isEqualTo("DISABLED");
+  }
+
+  @Test
+  void aDemotedAdminTokenStopsWorkingImmediately() {
+    String email = uniqueEmail();
+    UUID id = newAdmin(email);
+    String token = login(email, PASSWORD).accessToken();
+    jdbc.sql("UPDATE app_user SET role = 'USER' WHERE id = ?").param(id).update();
+    assertProblem(get("/api/v1/admin/users", token), 403, "forbidden");
+  }
 }

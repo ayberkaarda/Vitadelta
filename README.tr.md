@@ -133,6 +133,10 @@ curl -s -X POST "$API/recommendations/query" -H "$JSON" -H "Authorization: Beare
 
 Fiyat düşüşü içe aktarımı (`POST /api/v1/admin/imports/offers`, multipart alanı `file`, yalnızca yönetici) Gold Standard Daily B'nin fiyatını 900.00 TRY'den 846.00 TRY'ye indirir ve yukarıdaki uyarıyı tetikler. İçe aktarım biçimleri [contracts/schemas](contracts/schemas/) altında tanımlıdır.
 
+### TLS sonlandıran bir vekilin arkasında çalıştırma
+
+Bu yığındaki nginx ilk duraktır ve her bağlantının eş adresini istemci adresi olarak kaydeder; API yalnızca bu girdiye güvenir (`X-Forwarded-For` üzerine yazılır, hiçbir zaman eklenmez), böylece istemci başına hız sınırları istemci başına çalışır. TLS'i nginx'in önünde sonlandıran başka bir vekil (örneğin yük dengeleyici) varsa `.env` içinde `VITADELTA_REAL_IP_FROM` değerini onun adresine veya CIDR bloğuna (virgül ya da boşlukla ayrılmış liste) ve birlikte `VITADELTA_TLS=true` olarak ayarlayın. nginx bu durumda istemci adresini yalnızca bu eşlerden gelen bağlantıların `X-Forwarded-For` başlığından geri kazanır (listedeki vekillerden biri olmayan en sağdaki adres) ve API'ye iletir. Bu ayar olmadan vekilin arkasındaki tüm istemciler tek bir hız sınırı kovasını paylaşır. İstemciler nginx'e doğrudan bağlanıyorsa boş bırakın; kontrol etmediğiniz ağları asla listelemeyin, çünkü onların ilettiği başlıklara inanılır. `infra/nginx/check-routing.sh` bu davranışı bir API taklidine karşı doğrular.
+
 ## Ürün ve veri sınırları
 
 VitaDelta yalnızca karşılaştırmalı bilgi sunar. Tıbbi tavsiye değildir ve bir hekim ya da eczacıyla görüşmenin yerini tutmaz; her öneri ve karşılaştırma ekranı bu notu gösterir.

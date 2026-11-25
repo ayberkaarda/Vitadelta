@@ -42,15 +42,6 @@ public final class LogRedactor {
               + "|refreshToken|access_token|refresh_token)\\b[\"']?\\s*[:=]\\s*)"
               + "(\"(?:[^\"\\\\]|\\\\.)*\"|'[^']*'|[^\\s,;&\"'\\]}]+)");
 
-  /**
-   * An e-mail address with its {@code @} plain, URL-encoded ({@code %40}), double-encoded ({@code
-   * %2540}) or as a JSON escape ({@code \u005Cu0040}); the local part may itself be encoded.
-   */
-  private static final Pattern EMAIL =
-      Pattern.compile(
-          "([A-Za-z0-9._%+-])[A-Za-z0-9._%+-]*(?:@|%40|%2540|\\\\u0040)"
-              + "([A-Za-z0-9.-]+\\.[A-Za-z]{2,})");
-
   /** Input text quoted by JSON parser messages ({@code Unrecognized token 'value'}). */
   private static final Pattern PARSER_TOKEN = Pattern.compile("(Unrecognized token ')[^']*(')");
 
@@ -72,8 +63,115 @@ public final class LogRedactor {
     result = replaceSecretFields(result);
     result = PARSER_TOKEN.matcher(result).replaceAll("$1" + REDACTED + "$2");
     result = PARSER_STRING.matcher(result).replaceAll("$1\"" + REDACTED + "\"");
-    result = EMAIL.matcher(result).replaceAll("$1***@$2");
-    return result;
+    return maskEmails(result);
+  }
+
+  private static boolean isLocal(char c) {
+    return (c >= 'a' && c <= 'z')
+        || (c >= 'A' && c <= 'Z')
+        || (c >= '0' && c <= '9')
+        || c == '.'
+        || c == '_'
+        || c == '%'
+        || c == '+'
+        || c == '-';
+  }
+
+  private static boolean isLetter(char c) {
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+  }
+
+  private static boolean isDomain(char c) {
+    return (c >= 'a' && c <= 'z')
+        || (c >= 'A' && c <= 'Z')
+        || (c >= '0' && c <= '9')
+        || c == '.'
+        || c == '-';
+  }
+
+  /** Length of the {@code @} form that starts at {@code i} (plain or encoded), or 0. */
+  private static int markerLength(String text, int i) {
+    char c = text.charAt(i);
+    if (c == '@') {
+      return 1;
+    }
+    if (c == '%') {
+      if (text.startsWith("%2540", i)) {
+        return 5;
+      }
+      return text.startsWith("%40", i) ? 3 : 0;
+    }
+    return c == '\\' && text.startsWith("\\u0040", i) ? 6 : 0;
+  }
+
+  /**
+   * Masks {@code local@domain} addresses to {@code l***@domain}; the {@code @} may be plain,
+   * URL-encoded ({@code %40}), double-encoded ({@code %2540}) or a JSON escape ({@code
+   * \u005Cu0040}). A single left-to-right scan anchored on each marker: the work is linear in the
+   * text length (a regular expression over the open-ended local part would rescan the text from
+   * every start position). The domain is matched first, so the local part is only walked back for a
+   * real match.
+   */
+  private static String maskEmails(String text) {
+    int length = text.length();
+    StringBuilder out = null;
+    int copied = 0;
+    int i = 0;
+    while (i < length) {
+      int marker = markerLength(text, i);
+      if (marker == 0) {
+        i++;
+        continue;
+      }
+      int domainStart = i + marker;
+      int domainEnd = domainStart;
+      while (domainEnd < length && isDomain(text.charAt(domainEnd))) {
+        domainEnd++;
+      }
+      int end = matchEnd(text, domainStart, domainEnd);
+      int start = i;
+      if (end > 0) {
+        while (start > copied && isLocal(text.charAt(start - 1))) {
+          start--;
+        }
+      }
+      if (end > 0 && start < i) {
+        if (out == null) {
+          out = new StringBuilder(length);
+        }
+        out.append(text, copied, start).append(text.charAt(start)).append("***@");
+        out.append(text, domainStart, end);
+        copied = end;
+        i = end;
+      } else {
+        i += marker;
+      }
+    }
+    if (out == null) {
+      return text;
+    }
+    return out.append(text, copied, length).toString();
+  }
+
+  /**
+   * End of the domain {@code [A-Za-z0-9.-]+\.[A-Za-z]{2,}} that starts at {@code from} inside the
+   * run {@code [from, runEnd)}, preferring the longest one; {@code -1} when there is none.
+   */
+  private static int matchEnd(String text, int from, int runEnd) {
+    int dot = runEnd - 1;
+    while (dot > from) {
+      if (text.charAt(dot) == '.') {
+        int letters = dot + 1;
+        while (letters < runEnd && isLetter(text.charAt(letters))) {
+          letters++;
+        }
+        if (letters - (dot + 1) >= 2) {
+          return letters;
+        }
+      }
+      dot--;
+    }
+    return -1;
   }
 
   private static String replaceSecretFields(String text) {

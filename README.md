@@ -133,6 +133,10 @@ curl -s -X POST "$API/recommendations/query" -H "$JSON" -H "Authorization: Beare
 
 The price-drop import (`POST /api/v1/admin/imports/offers`, multipart field `file`, administrator only) lowers the price of Gold Standard Daily B from 900.00 to 846.00 TRY, which fires the alert above. Import formats are defined in [contracts/schemas](contracts/schemas/).
 
+### Running behind a TLS-terminating proxy
+
+nginx in this stack is the first hop and records the peer address of each connection as the client address; the API trusts only that entry (`X-Forwarded-For` is overwritten, never appended), so per-client rate limits work per client. When another proxy such as a load balancer terminates TLS in front of nginx, set `VITADELTA_REAL_IP_FROM` to its address or CIDR (comma- or space-separated list) in `.env`, together with `VITADELTA_TLS=true`. nginx then restores the client address from the `X-Forwarded-For` header of connections from those peers only (right-most address that is not itself a listed proxy) and passes it on to the API. Without it, all clients behind the proxy would share one rate-limit bucket. Leave it empty when clients connect to nginx directly; never list networks you do not control, because their forwarded headers are believed. `infra/nginx/check-routing.sh` verifies this behaviour against a stand-in API.
+
 ## Product and data boundaries
 
 VitaDelta provides comparative information only. It is not medical advice and does not replace a conversation with a physician or pharmacist; every recommendation and comparison screen shows this notice.
