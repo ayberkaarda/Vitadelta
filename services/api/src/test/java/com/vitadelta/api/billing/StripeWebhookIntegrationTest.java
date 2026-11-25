@@ -634,20 +634,33 @@ class StripeWebhookIntegrationTest extends StripeIntegrationTest {
   }
 
   @Test
-  void aPaidSubscriptionTakesOverWhenTheEntitledOneEnds() {
+  void aSecondSubscriptionPaidForAShorterPeriodIsCanceledAsSurplus() {
     Paid first = paidUser();
     String second = stripeId("sub_");
-    // The second subscription is paid for a shorter period: the first keeps the entitlement.
+    STRIPE.stubFor(
+        WireMock.delete(urlPathEqualTo("/v1/subscriptions/" + second))
+            .willReturn(
+                aResponse()
+                    .withStatus(200)
+                    .withHeader("Content-Type", "application/json")
+                    .withBody("{\"id\":\"" + second + "\",\"status\":\"canceled\"}")));
+    // The second subscription is paid for a shorter period: the first keeps the entitlement and
+    // the second is canceled at Stripe.
     secondCheckout(first, second, stripeId("cus_"), 20);
     assertThat(active(first.user().id()).get("external_ref")).isEqualTo(first.subscription());
     assertThat(activeEnd(first.user().id())).isEqualTo(end(30));
+    assertThat(STRIPE.findAll(deleteRequestedFor(urlPathEqualTo("/v1/subscriptions/" + second))))
+        .hasSize(1);
+    assertThat(
+            jdbc.sql("SELECT ended_at FROM billing_subscription WHERE external_ref = ?")
+                .param(second)
+                .query(java.sql.Timestamp.class)
+                .single())
+        .isNotNull();
 
+    // When the entitled subscription ends, nothing else pays for PRO.
     deleted(first);
-
-    Map<String, Object> active = active(first.user().id());
-    assertThat(active.get("plan_code")).isEqualTo("PRO");
-    assertThat(active.get("external_ref")).isEqualTo(second);
-    assertThat(activeEnd(first.user().id())).isEqualTo(end(20));
+    assertThat(active(first.user().id()).get("plan_code")).isEqualTo("FREE");
   }
 
   @Test

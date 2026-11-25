@@ -188,6 +188,16 @@ public class BillingAccountRepository {
         .optional();
   }
 
+  /** Marks a subscription ended (canceled by this API); an end time already stored is kept. */
+  public void markEnded(String externalRef, Instant now) {
+    jdbc.sql(
+            "UPDATE billing_subscription SET status = CASE WHEN ended_at IS NULL"
+                + " THEN 'canceled' ELSE status END, ended_at = COALESCE(ended_at, ?),"
+                + " updated_at = ? WHERE provider = ? AND external_ref = ?")
+        .params(ts(now), ts(now), STRIPE, externalRef)
+        .update();
+  }
+
   /** Provider subscriptions of the user that have not ended. */
   public List<String> liveSubscriptions(UUID userId) {
     return jdbc.sql(
@@ -196,67 +206,6 @@ public class BillingAccountRepository {
         .params(userId, STRIPE)
         .query(String.class)
         .list();
-  }
-
-  /**
-   * A claim of the user's checkout creation, with the user's latest session (all three {@code null}
-   * when there is none).
-   */
-  public record CheckoutClaim(
-      String previousSessionRef, String previousUrl, Instant previousExpiresAt) {
-
-    /** The latest session when it has not expired at {@code now}. */
-    public Optional<String> openSession(Instant now) {
-      return previousSessionRef != null && previousExpiresAt.isAfter(now)
-          ? Optional.of(previousSessionRef)
-          : Optional.empty();
-    }
-  }
-
-  /**
-   * Claims the creation of a checkout for the user until {@code leaseUntil}, unless another request
-   * holds an unexpired claim.
-   *
-   * @return the claim with the user's latest session, or empty while another creation runs
-   */
-  public Optional<CheckoutClaim> claimCheckout(UUID userId, Instant leaseUntil, Instant now) {
-    return jdbc.sql(
-            "INSERT INTO billing_checkout_session (user_id, provider, claim_until, created_at)"
-                + " VALUES (?, ?, ?, ?)"
-                + " ON CONFLICT (user_id) DO UPDATE SET claim_until = EXCLUDED.claim_until"
-                + " WHERE billing_checkout_session.claim_until IS NULL"
-                + " OR billing_checkout_session.claim_until <= EXCLUDED.created_at"
-                + " RETURNING session_ref, url, expires_at")
-        .params(userId, STRIPE, ts(leaseUntil), ts(now))
-        .query((rs, row) ->
-            new CheckoutClaim(
-                rs.getString("session_ref"), rs.getString("url"), instant(rs, "expires_at")))
-        .optional();
-  }
-
-  /** Records the session the claim created and releases the claim. */
-  public void openCheckout(UUID userId, String sessionRef, String url, Instant expiresAt) {
-    jdbc.sql(
-            "UPDATE billing_checkout_session SET session_ref = ?, url = ?, expires_at = ?,"
-                + " claim_until = NULL WHERE user_id = ?")
-        .params(sessionRef, url, ts(expiresAt), userId)
-        .update();
-  }
-
-  /** Releases the claim and keeps the latest session as it was. */
-  public void releaseCheckout(UUID userId) {
-    jdbc.sql("UPDATE billing_checkout_session SET claim_until = NULL WHERE user_id = ?")
-        .param(userId)
-        .update();
-  }
-
-  /** Forgets the user's latest session (its checkout completed). */
-  public void clearCheckout(UUID userId) {
-    jdbc.sql(
-            "UPDATE billing_checkout_session SET session_ref = NULL, url = NULL, expires_at = NULL"
-                + " WHERE user_id = ?")
-        .param(userId)
-        .update();
   }
 
   private static final String STATE_COLUMNS =
