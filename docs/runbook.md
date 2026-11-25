@@ -404,7 +404,10 @@ API restarts; Stripe retries them.
 - `vitadelta.billing.duplicate_subscription` or the log line "second live Stripe subscription":
   a user completed two checkouts. Cancel and refund the extra one in the dashboard or with
   `stripe subscriptions cancel <sub_...>`.
-- Account deletion cancels the user's Stripe subscriptions after the deletion commits. When
+- Account deletion cancels the user's Stripe subscriptions after the deletion commits; a
+  subscription that reaches the API only after the deletion (checkout paid later, or a webhook in
+  flight during the deletion) is canceled by the webhook, which answers `503` until the
+  cancellation succeeds. When
   `vitadelta.billing.cancel_on_delete.failed` rises, the log line names the subscription id; cancel
   it with `stripe subscriptions cancel <sub_...>`.
 - State of a user:

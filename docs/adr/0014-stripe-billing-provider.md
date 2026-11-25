@@ -38,6 +38,8 @@ ADR-0010 deferred payments: PRO was obtainable only through promo codes and manu
 
 `UserDeletingEvent` collects the user's Stripe subscriptions that have not ended; after the deletion commits they are canceled at Stripe (`DELETE /v1/subscriptions/{id}`). The deletion never waits for Stripe; a failed cancellation is logged with the subscription id and counted (`vitadelta.billing.cancel_on_delete.failed`) for the operator. The provider rows are removed by the deletion cascade.
 
+A subscription the deletion cannot see, because it reaches the API only after the account is gone (a hosted checkout paid after the deletion, or a deletion that commits while a webhook is reading Stripe), is caught by the webhook: when the subscription's user no longer exists and the subscription has not ended, it is canceled at Stripe after the webhook transaction and only then is the event recorded as `user_missing`. A failed cancellation is counted in `vitadelta.billing.cancel_on_delete.failed` and answered `503`, so Stripe's delivery retry retries the cancellation.
+
 ### Plain REST instead of the SDK
 
 The adapter uses the JDK HTTP client (Spring `RestClient`, no redirects, connect 5 s, read 20 s, responses up to 1 MiB, strict JSON with duplicate-key detection) and pins `Stripe-Version: 2026-11-18.endive` on every request. Verified on 2026-11-25:
