@@ -18,8 +18,8 @@ import tools.jackson.databind.JsonNode;
  * NOT_SOLD}, {@code DISCONTINUED} or without an availability row in a country never appears for
  * that country in {@code /products}, {@code /products/{id}}, the ranking (neither as a candidate
  * nor in the market profile sent to the scoring service) or a comparison; random and malformed ids
- * get the same answers as unknown ids; {@code saved} and {@code alerts} are always {@code false}
- * and {@code []} in Phase 4.
+ * get the same answers as unknown ids; {@code saved} and {@code alerts} show the signed-in owner's
+ * own state only and are {@code false} and {@code []} for everyone else.
  */
 class AvailabilityAdversarialTest extends CatalogAdversarialTest {
 
@@ -229,18 +229,83 @@ class AvailabilityAdversarialTest extends CatalogAdversarialTest {
     assertThat(scoringRequests("compare")).isEmpty();
   }
 
+  private UUID insertAlert(TestUser owner, UUID product, String trigger, boolean active) {
+    UUID id = UUID.randomUUID();
+    jdbc.sql(
+            "INSERT INTO alert_subscription (id, user_id, product_id, country_code, trigger,"
+                + " threshold_percent, baseline_price, active, created_at)"
+                + " VALUES (?, ?, ?, 'TR', ?, ?, ?, ?, now())")
+        .params(
+            id,
+            owner.id(),
+            product,
+            trigger,
+            trigger.equals("PRICE_DROP") ? new java.math.BigDecimal("5.00") : null,
+            trigger.equals("PRICE_DROP") ? new java.math.BigDecimal("100.00") : null,
+            active)
+        .update();
+    return id;
+  }
+
+  /**
+   * Phase 5 rule (contract {@code saved} / {@code alerts} of the ranking item and the product
+   * detail): only the signed-in owner sees their saved state and subscriptions on a product in the
+   * country; anonymous callers and every other user see {@code false} / {@code []}, also when the
+   * owner's ranking was served from the cache first, and no other user's subscription data ever
+   * appears in their bytes.
+   */
   @Test
-  void savedAndAlertsAreAlwaysFalseAndEmptyForEveryPrincipal() {
+  void savedAndAlertsAreShownToTheOwnerOnlyAndNeverLeakToOtherPrincipals() {
     stubScore(inStock("TR"), StockFilter.IN_STOCK_ONLY);
     UUID product = pricedIn("TR");
     TestUser owner = user(Role.USER);
+    TestUser other = user(Role.USER);
     jdbc.sql(
             "INSERT INTO saved_product (user_id, product_id, country_code, created_at)"
                 + " VALUES (?, ?, 'TR', now())")
         .params(owner.id(), product)
         .update();
+    UUID priceDrop = insertAlert(owner, product, "PRICE_DROP", true);
+    UUID backInStock = insertAlert(owner, product, "BACK_IN_STOCK", false);
+    UUID otherProduct =
+        inStock("TR").stream()
+            .map(p -> p.id())
+            .filter(id -> !id.equals(product))
+            .findFirst()
+            .orElseThrow();
+    jdbc.sql(
+            "INSERT INTO saved_product (user_id, product_id, country_code, created_at)"
+                + " VALUES (?, ?, 'TR', now())")
+        .params(other.id(), otherProduct)
+        .update();
+    UUID otherAlert = insertAlert(other, otherProduct, "PRICE_CHANGE", true);
+
+    // The owner first, so that every later ranking comes from the cache the owner filled.
+    Resp ownerDetail = rawGet(API + "/products/" + product + "?country=TR", owner.token());
+    assertThat(ownerDetail.status()).isEqualTo(200);
+    assertThat(ownerDetail.json().get("product").get("saved").asBoolean()).isTrue();
+    List<String> ownerAlerts = new ArrayList<>();
+    ownerDetail
+        .json()
+        .get("product")
+        .get("alerts")
+        .forEach(a -> ownerAlerts.add(a.get("id").asString()));
+    assertThat(ownerAlerts)
+        .as("active and inactive, ordered by trigger")
+        .containsExactly(priceDrop.toString(), backInStock.toString());
+    Resp ownerRanking = rawQuery("{\"country\":\"TR\",\"pageSize\":100}", owner.token(), null);
+    assertThat(ownerRanking.status()).isEqualTo(200);
+    for (JsonNode item : ownerRanking.json().get("items")) {
+      boolean mine = item.get("productId").asString().equals(product.toString());
+      assertThat(item.get("saved").asBoolean())
+          .as(item.get("productId").asString())
+          .isEqualTo(mine);
+      assertThat(item.get("alerts").size()).isEqualTo(mine ? 2 : 0);
+    }
+    assertThat(ownerRanking.body()).doesNotContain(otherAlert.toString());
+
     for (String token :
-        java.util.Arrays.asList(null, owner.token(), user(Role.USER).token(), proUser().token())) {
+        java.util.Arrays.asList(null, other.token(), user(Role.USER).token(), proUser().token())) {
       Resp detail = rawGet(API + "/products/" + product + "?country=TR", token);
       assertThat(detail.status()).isEqualTo(200);
       assertThat(detail.json().get("product").get("saved").asBoolean()).isFalse();
@@ -248,9 +313,26 @@ class AvailabilityAdversarialTest extends CatalogAdversarialTest {
       Resp ranking = rawQuery("{\"country\":\"TR\",\"pageSize\":100}", token, null);
       assertThat(ranking.status()).isEqualTo(200);
       for (JsonNode item : ranking.json().get("items")) {
-        assertThat(item.get("saved").asBoolean()).isFalse();
-        assertThat(item.get("alerts").toString()).isEqualTo("[]");
+        boolean theirs =
+            token != null
+                && token.equals(other.token())
+                && item.get("productId").asString().equals(otherProduct.toString());
+        assertThat(item.get("saved").asBoolean()).isEqualTo(theirs);
+        assertThat(item.get("alerts").size()).isEqualTo(theirs ? 1 : 0);
       }
+      for (Resp response : List.of(detail, ranking)) {
+        assertThat(response.body())
+            .doesNotContain(priceDrop.toString())
+            .doesNotContain(backInStock.toString())
+            .doesNotContain(owner.id().toString());
+      }
+    }
+    Resp otherCountry = rawGet(API + "/products/" + product + "?country=DE", owner.token());
+    if (otherCountry.status() == 200) {
+      assertThat(otherCountry.json().get("product").get("saved").asBoolean())
+          .as("saved in TR is not saved in DE")
+          .isFalse();
+      assertThat(otherCountry.json().get("product").get("alerts").toString()).isEqualTo("[]");
     }
   }
 
