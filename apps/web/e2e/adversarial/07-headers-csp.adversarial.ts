@@ -1,6 +1,6 @@
-import { type APIRequestContext, expect, test } from '@playwright/test';
+import { type APIRequestContext, type APIResponse, expect, test } from '@playwright/test';
 
-import { open } from '../support/app';
+import { header, open } from '../support/app';
 import { e2eEnv } from '../support/env';
 import { watch } from './support/attack';
 
@@ -58,7 +58,7 @@ async function servedAssets(request: APIRequestContext): Promise<Map<string, str
     const body = await response.text();
     files.set(path, body);
     for (const match of body.matchAll(
-      /["'`(/]((?:\.\/)?(?:chunk|main|polyfills|styles)-[A-Za-z0-9]+\.(?:js|css))/g,
+      /["'`(/]((?:\.\/)?(?:chunk|main|polyfills|styles|worker)-[A-Za-z0-9_-]{8}\.(?:js|mjs|css))/g,
     )) {
       queue.push(match[1] ?? '');
     }
@@ -102,18 +102,139 @@ test('every HTML, asset and API response of a page load carries the §15.2 heade
   }
 });
 
+/** `POST /auth/refresh` without the browser cookie jar: every header is set by the caller. */
+async function refreshWith(
+  request: APIRequestContext,
+  headers: Record<string, string>,
+): Promise<APIResponse> {
+  return request.post(`${e2eEnv().apiBase}/auth/refresh`, {
+    headers: { 'Content-Type': 'application/json', ...headers },
+    data: {},
+  });
+}
+
+function refreshCookies(response: APIResponse): string[] {
+  return response
+    .headersArray()
+    .filter((entry) => entry.name.toLowerCase() === 'set-cookie')
+    .map((entry) => entry.value);
+}
+
 test('the API keeps its own headers and auth answers are not cacheable', async ({ request }) => {
   const api = e2eEnv().apiBase;
   const health = await request.get(`${api}/health`);
   expectHardened(health.headers(), '/api/v1/health', 'api');
   expect(await health.json()).toEqual({ status: expect.any(String) });
-  const refresh = await request.post(`${api}/auth/refresh`, {
-    headers: { 'X-Requested-With': 'vitadelta', 'Content-Type': 'application/json' },
-    data: {},
-  });
-  expect(refresh.status()).toBe(401);
+  const refresh = await refreshWith(request, { 'X-Requested-With': 'vitadelta' });
+  expect(refresh.status(), 'cookie-less refresh').toBe(204);
   expectHardened(refresh.headers(), '/api/v1/auth/refresh', 'api');
   expect(refresh.headers()['cache-control'] ?? '', '/auth/** Cache-Control').toContain('no-store');
+});
+
+test('a refresh without a cookie answers 204 only for exactly that case', async ({ request }) => {
+  const csrf = { 'X-Requested-With': 'vitadelta' };
+
+  // No cookie and the CSRF header: "no session", nothing more.
+  for (const [label, extra] of [
+    ['no cookie', {}],
+    ['empty cookie value', { Cookie: 'vd_refresh=' }],
+    ['only unrelated cookies', { Cookie: 'other=1; vd_refresh_x=abc' }],
+  ] as const) {
+    const response = await refreshWith(request, { ...csrf, ...extra });
+    expect(response.status(), `${label}: status`).toBe(204);
+    expect(await response.body(), `${label}: empty body`).toHaveLength(0);
+    expect(refreshCookies(response), `${label}: no Set-Cookie`).toEqual([]);
+    expect(response.headers()['content-type'], `${label}: no content type`).toBeUndefined();
+    expect(response.headers()['cache-control'] ?? '', `${label}: Cache-Control`).toContain(
+      'no-store',
+    );
+    expect(response.headers()['x-request-id'] ?? '', `${label}: request id`).not.toBe('');
+    expectHardened(response.headers(), `/api/v1/auth/refresh (${label})`, 'api');
+  }
+
+  // The CSRF rule comes first: without the header a cookie-less call is still forbidden.
+  for (const [label, headers] of [
+    ['no CSRF header', {}],
+    ['wrong CSRF header value', { 'X-Requested-With': 'XMLHttpRequest' }],
+    ['form content type', { 'Content-Type': 'text/plain' }],
+  ] as const) {
+    const response = await refreshWith(request, headers);
+    expect(response.status(), `${label}: status`).toBe(403);
+    expect(response.headers()['content-type'] ?? '', `${label}: problem JSON`).toContain(
+      'application/problem+json',
+    );
+    expect(refreshCookies(response), `${label}: no Set-Cookie`).toEqual([]);
+    expectHardened(response.headers(), `/api/v1/auth/refresh (${label})`, 'api');
+  }
+
+  // A cookie that is present but not a live refresh token still ends the session.
+  for (const [label, value] of [
+    ['garbage cookie', 'not-a-token'],
+    ['long garbage cookie', 'A'.repeat(512)],
+    ['unsigned token-shaped cookie', 'eyJhbGciOiJub25lIn0.eyJzdWIiOiJ4In0.'],
+  ] as const) {
+    const response = await refreshWith(request, { ...csrf, Cookie: `vd_refresh=${value}` });
+    expect(response.status(), `${label}: status`).toBe(401);
+    const problem = (await response.json()) as { type?: string };
+    expect(problem.type ?? '', `${label}: problem type`).toMatch(/\/problems\/unauthorized$/);
+    const cleared = refreshCookies(response).find((line) => line.startsWith('vd_refresh='));
+    expect(cleared, `${label}: clearing cookie`).toBeDefined();
+    expect(cleared ?? '', `${label}: cookie emptied`).toMatch(/^vd_refresh=;/);
+    expect(cleared ?? '', `${label}: cookie expired`).toMatch(/Max-Age=0/i);
+    expect(cleared ?? '', `${label}: HttpOnly`).toMatch(/HttpOnly/i);
+    expect(cleared ?? '', `${label}: Path`).toMatch(/Path=\/api\/v1\/auth/i);
+    expect(response.headers()['cache-control'] ?? '', `${label}: Cache-Control`).toContain(
+      'no-store',
+    );
+    expectHardened(response.headers(), `/api/v1/auth/refresh (${label})`, 'api');
+  }
+});
+
+test('an anonymous visitor starts with one quiet 204 refresh and no console error', async ({
+  page,
+}) => {
+  const consoleProblems: string[] = [];
+  page.on('console', (message) => {
+    if (message.type() === 'error') {
+      consoleProblems.push(message.text());
+    }
+  });
+  page.on('pageerror', (error) => consoleProblems.push(`pageerror: ${error.message}`));
+  const refreshes: number[] = [];
+  const failures: string[] = [];
+  page.on('response', (response) => {
+    const url = new URL(response.url());
+    if (!url.pathname.startsWith('/api/')) {
+      return;
+    }
+    if (url.pathname === '/api/v1/auth/refresh') {
+      refreshes.push(response.status());
+    } else if (response.status() >= 400) {
+      failures.push(`${response.request().method()} ${url.pathname} ${response.status()}`);
+    }
+  });
+
+  for (const path of ['/', '/results?country=TR', '/account', '/auth/login']) {
+    refreshes.length = 0;
+    await open(page, path);
+    await page.waitForLoadState('networkidle');
+    expect(refreshes, `${path}: one cookie-less refresh answered 204`).toEqual([204]);
+    expect(
+      await header(page)
+        .getByRole('button', { name: /^Account menu/ })
+        .count(),
+      `${path}: still anonymous`,
+    ).toBe(0);
+    if (path === '/account') {
+      await expect(page, 'a protected page sends the visitor to the login').toHaveURL(
+        /\/auth\/login/,
+      );
+    }
+  }
+  expect(failures, 'API errors during anonymous start').toEqual([]);
+  expect(consoleProblems, 'console errors').toEqual([]);
+  const cookies = (await page.context().cookies()).map((cookie) => cookie.name);
+  expect(cookies, 'the 204 set no refresh cookie').not.toContain('vd_refresh');
 });
 
 test('the CSP leaves no room for inline or evaluated script', async ({ page }) => {
@@ -194,13 +315,98 @@ test('index.html is always revalidated while hashed assets are cached immutably'
     expect(cache, `${path} Cache-Control`).not.toContain('immutable');
   }
   const assets = [...(await servedAssets(request)).keys()].filter((path) =>
-    /-[A-Za-z0-9]{8,}\.(js|css)$/.test(path),
+    /-[A-Za-z0-9_-]{8}\.(js|mjs|css)$/.test(path),
   );
   expect(assets.length, 'hashed assets').toBeGreaterThan(0);
   for (const path of assets) {
     const cache = (await request.get(`${base}${path}`)).headers()['cache-control'] ?? '';
     expect.soft(cache, `${path} Cache-Control`).toMatch(/immutable|max-age=(?:[3-9]\d{6,}|\d{8,})/);
   }
+});
+
+test('every static file class keeps the headers and repository files are never served', async ({
+  request,
+}) => {
+  const base = e2eEnv().baseURL;
+  const assets = [...(await servedAssets(request)).keys()];
+  const script = assets.find((path) => path.endsWith('.js')) ?? '/missing.js';
+  const style = assets.find((path) => path.endsWith('.css')) ?? '/missing.css';
+  const served: readonly [string, RegExp, RegExp][] = [
+    [script, /javascript/, /immutable/],
+    [style, /text\/css/, /immutable/],
+    ['/favicon.ico', /image\//, /^(?!.*immutable)/],
+    ['/i18n/en.json', /application\/json/, /no-cache/],
+    ['/i18n/product/tr.json', /application\/json/, /no-cache/],
+  ];
+  for (const [path, type, cache] of served) {
+    const response = await request.get(`${base}${path}`);
+    expect(response.status(), `${path} status`).toBe(200);
+    expect(response.headers()['content-type'] ?? '', `${path} type`).toMatch(type);
+    expect(response.headers()['cache-control'] ?? '', `${path} Cache-Control`).toMatch(cache);
+    expectHardened(response.headers(), path, 'web');
+  }
+
+  // A missing fingerprinted or media file is a plain 404 that is never cached as immutable.
+  for (const path of [
+    '/main-ZZZZZZZZ.js',
+    '/chunk-AAAA_-AA.js',
+    '/styles-QQQQQQQQ.css',
+    '/media/missing-abcdefgh.woff2',
+    '/media/',
+    '/i18n/xx.json',
+    '/i18n/product/xx.json',
+  ]) {
+    const response = await request.get(`${base}${path}`);
+    const label = `${path} (missing)`;
+    expect(response.status(), `${label} status`).toBe(404);
+    expect(response.headers()['cache-control'] ?? '', `${label} Cache-Control`).not.toContain(
+      'immutable',
+    );
+    expect(await response.text(), `${label} is not the app document`).not.toContain('<vd-shell');
+    expectHardened(response.headers(), path, 'web');
+  }
+
+  // Documentation, screenshots and build inputs are not part of the web image. A path that
+  // is not a static file class may fall back to the app document, but never to the file.
+  const leaks: readonly [string, RegExp][] = [
+    ['/docs/screenshots/overview-en.png', /^\x89PNG/],
+    ['/docs/screenshots/compare-tr.png', /^\x89PNG/],
+    ['/screenshots/results-breakdown-en.png', /^\x89PNG/],
+    ['/overview-en.png', /^\x89PNG/],
+    ['/docs/', /#\s|runbook/i],
+    ['/docs/runbook.md', /VitaDelta operations runbook/],
+    ['/docs/architecture.md', /^#\s/m],
+    ['/README.md', /^#\s/m],
+    ['/package.json', /"devDependencies"/],
+    ['/angular.json', /"projects"/],
+    ['/playwright.config.ts', /defineConfig/],
+    ['/e2e/screenshots.ts', /@playwright\/test/],
+    ['/src/main.ts', /bootstrapApplication/],
+    ['/.env', /VITADELTA_/],
+    ['/.git/config', /\[core\]/],
+    ['/contracts/public-api.openapi.yaml', /openapi:/],
+    ['/index.html.map', /"mappings"/],
+  ];
+  for (const [path, content] of leaks) {
+    const response = await request.get(`${base}${path}`, { maxRedirects: 0 });
+    const body = (await response.body()).toString('latin1');
+    const type = response.headers()['content-type'] ?? '';
+    const shell =
+      response.status() === 200 && type.startsWith('text/html') && /<vd-shell/.test(body);
+    expect(
+      response.status() === 404 || shell,
+      `${path}: 404 or the app document (got ${response.status()} ${type})`,
+    ).toBe(true);
+    if (!shell) {
+      expect(body, `${path}: file content served`).not.toMatch(content);
+    }
+    expect(type, `${path}: served as an image`).not.toMatch(/^image\//);
+    expectHardened(response.headers(), path, 'web');
+  }
+
+  // HSTS stays off on plain HTTP (the TLS variant is covered by the nginx routing check).
+  const root = await request.get(`${base}/`);
+  expect(root.headers()['strict-transport-security'], 'HSTS on plain HTTP').toBeUndefined();
 });
 
 test('unknown API paths answer problem JSON, never the SPA shell', async ({ request }) => {

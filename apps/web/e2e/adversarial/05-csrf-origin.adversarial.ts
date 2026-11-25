@@ -213,6 +213,80 @@ for (const attacker of ATTACKERS) {
   });
 }
 
+for (const attacker of ATTACKERS) {
+  test(`${attacker.label} cannot use the cookie-less refresh of an anonymous visitor`, async ({
+    browser,
+  }) => {
+    const context = await browser.newContext();
+    const evil = await context.newPage();
+    const answers = apiAnswers(evil);
+    await evil.goto(`${attacker.host()}/`);
+    const api = e2eEnv().apiBase;
+
+    const results = await evil.evaluate(async (url) => {
+      const attempt = async (label: string, init: RequestInit) => {
+        try {
+          const response = await fetch(url, init);
+          return {
+            label,
+            status: response.status,
+            type: response.type,
+            body: await response.text(),
+          };
+        } catch (error) {
+          return { label, status: -1, type: `blocked ${String(error)}`, body: '' };
+        }
+      };
+      return [
+        await attempt('with the CSRF header (preflighted)', {
+          method: 'POST',
+          headers: { 'X-Requested-With': 'vitadelta', 'Content-Type': 'application/json' },
+          body: '{}',
+        }),
+        await attempt('with the CSRF header and credentials', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'X-Requested-With': 'vitadelta' },
+        }),
+        await attempt('as a simple cors request', {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain' },
+          body: '{}',
+        }),
+        await attempt('as a no-cors request', {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'text/plain' },
+          body: '{}',
+        }),
+      ];
+    }, `${api}/auth/refresh`);
+
+    for (const result of results) {
+      // The attacker learns nothing: the call is blocked or its answer is opaque.
+      expect(result.type === 'opaque' || result.type.startsWith('blocked'), result.label).toBe(
+        true,
+      );
+      expect(result.body, `${result.label}: readable body`).toBe('');
+    }
+    // A request that reached the API without the CSRF header was refused there as well; the
+    // preflighted ones never left the browser.
+    const posts = answers.filter((answer) => answer.method === 'POST');
+    for (const answer of posts) {
+      expect(answer.status, `POST ${answer.path} from the attacker`).toBe(403);
+    }
+    const preflights = answers.filter((answer) => answer.method === 'OPTIONS');
+    for (const answer of preflights) {
+      expect(answer.status, 'preflight from the attacker').toBeGreaterThanOrEqual(400);
+    }
+    expect(
+      (await context.cookies()).map((cookie) => cookie.name),
+      'cookies after the attack',
+    ).not.toContain('vd_refresh');
+    await context.close();
+  });
+}
+
 test('the app cannot be framed by another origin', async ({ browser }) => {
   const context = await browser.newContext();
   await victim(context);
