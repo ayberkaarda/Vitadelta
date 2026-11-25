@@ -26,12 +26,18 @@ const FOCUSABLE = [
  */
 export type DrawerPlacement = 'right' | 'top' | 'center';
 
+/** Open drawers, innermost last: only the innermost one answers Escape. */
+const openDrawers: DrawerComponent[] = [];
+
 /**
  * Modal drawer / sheet primitive (design hand-off §3, §6): `role="dialog"`, `aria-modal`,
  * labelled by the element id given in `labelledBy`, focus moved inside on open (the element
  * marked `data-initial-focus`, else the first focusable one), Tab trapped, Esc and scrim click
  * emit `closed`, the rest of the page is `inert` while open and focus returns to the trigger
- * on close. Slides in 200 ms; no motion with `prefers-reduced-motion`.
+ * on close. Escape is handled on the document while the drawer is open, so it closes the drawer
+ * wherever focus is (also when it fell back to `body`); a control inside that consumes Escape
+ * itself (`preventDefault` or `stopPropagation`) keeps it, and with nested drawers only the
+ * innermost one closes. Slides in 200 ms; no motion with `prefers-reduced-motion`.
  *
  * ```html
  * <vd-drawer [open]="drawerOpen()" labelledBy="bd-title" (closed)="drawerOpen.set(false)">
@@ -69,6 +75,17 @@ export class DrawerComponent {
   private readonly panel = viewChild<ElementRef<HTMLElement>>('panel');
   private readonly scrim = viewChild<ElementRef<HTMLElement>>('scrim');
   private readonly onScrimClick = (): void => this.closed.emit();
+  private readonly onDocumentKeydown = (event: KeyboardEvent): void => {
+    if (
+      event.key !== 'Escape' ||
+      event.defaultPrevented ||
+      openDrawers[openDrawers.length - 1] !== this
+    ) {
+      return;
+    }
+    event.preventDefault();
+    this.closed.emit();
+  };
 
   readonly open = input.required<boolean>();
   /** Id of the element that names the dialog (its heading). */
@@ -100,11 +117,6 @@ export class DrawerComponent {
   }
 
   protected onKeydown(event: KeyboardEvent): void {
-    if (event.key === 'Escape') {
-      event.stopPropagation();
-      this.closed.emit();
-      return;
-    }
     if (event.key !== 'Tab') {
       return;
     }
@@ -135,6 +147,8 @@ export class DrawerComponent {
     this.returnFocus = active instanceof HTMLElement ? active : null;
     this.setBackgroundInert();
     this.scrim()?.nativeElement.addEventListener('click', this.onScrimClick);
+    openDrawers.push(this);
+    this.document.addEventListener('keydown', this.onDocumentKeydown);
     const initial =
       panel.querySelector<HTMLElement>('[data-initial-focus]') ??
       this.focusables(panel)[0] ??
@@ -143,6 +157,11 @@ export class DrawerComponent {
   }
 
   private deactivate(): void {
+    this.document.removeEventListener('keydown', this.onDocumentKeydown);
+    const index = openDrawers.indexOf(this);
+    if (index >= 0) {
+      openDrawers.splice(index, 1);
+    }
     for (const element of this.inerted) {
       element.inert = false;
     }

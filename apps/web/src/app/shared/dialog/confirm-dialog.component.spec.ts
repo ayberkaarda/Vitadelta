@@ -101,6 +101,28 @@ describe('ConfirmDialogComponent', () => {
     expect(fixture.componentInstance.confirmed).toBe(0);
   });
 
+  it('cancels on Escape wherever focus is, but not while busy', async () => {
+    const { fixture, host, trigger } = await setup();
+    const escape = () =>
+      document.body.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }),
+      );
+    fixture.componentInstance.busy.set(true);
+    await fixture.whenStable();
+    (document.activeElement as HTMLElement | null)?.blur();
+    escape();
+    await fixture.whenStable();
+    expect(fixture.componentInstance.open()).toBe(true);
+
+    fixture.componentInstance.busy.set(false);
+    await fixture.whenStable();
+    escape();
+    await fixture.whenStable();
+    expect(host.querySelector('[role="dialog"]')).toBeNull();
+    expect(fixture.componentInstance.confirmed).toBe(0);
+    expect(document.activeElement).toBe(trigger);
+  });
+
   it('uses the primary style for a non-destructive confirmation', async () => {
     const { fixture, dialog } = await setup();
     fixture.componentInstance.tone.set('default');
