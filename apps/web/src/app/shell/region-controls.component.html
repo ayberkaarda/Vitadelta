@@ -1,0 +1,62 @@
+<div class="controls" [class.sheet]="layout() === 'sheet'">
+  <label class="ctl" [for]="ids.country">
+    <span class="ctl-lbl">{{ 'shell.country.label' | transloco }}</span>
+    <select [id]="ids.country" (change)="onCountryChange($event)">
+      @if (!region.countryCode()) {
+        <option value="" selected disabled>{{ 'common.loading' | transloco }}</option>
+      }
+      @for (country of region.countries(); track country.code) {
+        <option [value]="country.code" [selected]="country.code === region.countryCode()">
+          {{ country.nameEn }}
+        </option>
+      }
+    </select>
+  </label>
+
+  <div class="ctl currency">
+    <label class="ctl-lbl" [for]="ids.currency">{{ 'shell.currency.label' | transloco }}</label>
+    <select
+      [id]="ids.currency"
+      [attr.aria-describedby]="ids.currencyMeta"
+      (change)="onCurrencyChange($event)"
+    >
+      <option value="" [selected]="currency.displayCurrency() === null">
+        {{ currency.nativeCurrency() ?? '' }}
+      </option>
+      @for (code of currencyOptions(); track code) {
+        <option [value]="code" [selected]="code === currency.displayCurrency()">{{ code }}</option>
+      }
+    </select>
+    @let meta = rateMeta();
+    <span
+      class="ctl-meta"
+      [id]="ids.currencyMeta"
+      [class.is-stale]="meta.kind === 'stale'"
+      [attr.data-state]="meta.kind"
+    >
+      @if (meta.kind === 'stale') {
+        <vd-icon name="clock" size="sm" />
+      } @else if (meta.kind === 'unavailable') {
+        <vd-icon name="fx" size="sm" />
+      }
+      {{ meta.key | transloco: meta.params }}
+    </span>
+  </div>
+
+  <div class="lang-row">
+    <span class="lang-label" [id]="ids.lang">{{ 'shell.language.label' | transloco }}</span>
+    <div class="lang" role="group" [attr.aria-labelledby]="ids.lang">
+      @for (lang of langs; track lang) {
+        <button
+          type="button"
+          [attr.aria-pressed]="region.lang() === lang"
+          [attr.lang]="lang"
+          (click)="setLang(lang)"
+        >
+          {{ 'shell.language.' + lang | transloco }}
+          <span class="sr-only">{{ 'shell.language.' + lang + '_name' | transloco }}</span>
+        </button>
+      }
+    </div>
+  </div>
+</div>
