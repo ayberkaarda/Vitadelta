@@ -16,7 +16,11 @@ public final class HealthViews {
 
   /** Contract schema {@code FxHealth}. */
   public record FxHealth(
-      HealthStatus status, LocalDate newestAsOf, Integer rateAgeDays, boolean stale) {}
+      HealthStatus status,
+      LocalDate newestAsOf,
+      Integer rateAgeDays,
+      boolean stale,
+      List<String> unsupportedBases) {}
 
   /** Contract schema {@code OutboxHealth}. */
   public record OutboxHealth(

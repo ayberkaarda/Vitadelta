@@ -87,6 +87,7 @@ public class FxController {
       throw ProblemException.of(
           ProblemCode.CONFLICT_RETRY, "The FX refresh is running at this moment; retry later.");
     }
-    return new FxRefreshResult(result.upsertedRows(), result.failedBases());
+    return new FxRefreshResult(
+        result.upsertedRows(), result.failedBases(), result.unsupportedBases());
   }
 }

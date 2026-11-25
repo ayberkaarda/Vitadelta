@@ -60,9 +60,10 @@ import tools.jackson.databind.json.JsonMapper;
  *
  * A rejection names what the provider does not publish, so the refresh job can request the base
  * again without it: a 400 or 422 answer reports the requested quotes its body names (for example
- * {@code {"status":422,"message":"invalid currency: XYZ"}}, verified on 2026-11-25) and whether it
- * names the base; a 200 answer that leaves requested quotes out (the verified answer for an ISO
- * code the ECB does not publish, such as {@code ARS}) reports the missing ones.
+ * {@code {"status":422,"message":"invalid currency: XYZ"}}, verified on 2026-11-25); the base
+ * counts as rejected only when a 422 answer is exactly that message for the requested base ({@link
+ * #namesInvalidBase}); a 200 answer that leaves requested quotes out (the verified answer for an
+ * ISO code the ECB does not publish, such as {@code ARS}) reports the missing ones.
  *
  * <p>Rates are parsed from the JSON text as decimals (never through a double) and rounded half-even
  * to the 8 stored decimals. Failure messages carry at most a {@link ResponseSummary} of the body.
@@ -85,6 +86,9 @@ public class FrankfurterFxRateProvider implements FxRateProvider {
   private static final Pattern CODE = Pattern.compile("^[A-Z]{3}$");
 
   private static final Pattern NAMED_CODE = Pattern.compile("(?<![A-Za-z])[A-Z]{3}(?![A-Za-z])");
+
+  /** The verified message of a 422 answer for a currency the provider does not know. */
+  private static final Pattern INVALID_CURRENCY = Pattern.compile("invalid currency: ([A-Z]{3})");
 
   private static final JsonMapper JSON =
       JsonMapper.builder()
@@ -158,7 +162,7 @@ public class FrankfurterFxRateProvider implements FxRateProvider {
                   "status " + status + ", " + ResponseSummary.of(body),
                   status,
                   status == 400 || status == 422 ? unsupported : Set.of(),
-                  (status == 400 || status == 422) && named.contains(base));
+                  status == 422 && namesInvalidBase(body, base));
             }
             MediaType type = response.getHeaders().getContentType();
             if (type == null
@@ -286,6 +290,33 @@ public class FrankfurterFxRateProvider implements FxRateProvider {
       throw new FxProviderException(Reason.INVALID_ROWS, where + " has a rate out of range");
     }
     return scaled;
+  }
+
+  /**
+   * Whether a 422 body is the verified "unknown currency" answer for {@code base}: a JSON object
+   * whose {@code message} member is a string that is exactly {@code invalid currency: <base>}
+   * (other members are ignored). Free text that merely contains the code, a message naming another
+   * or several currencies, and a body that is not such an object are not.
+   */
+  static boolean namesInvalidBase(byte[] body, String base) {
+    if (body == null || body.length == 0) {
+      return false;
+    }
+    JsonNode root;
+    try {
+      root = JSON.readTree(body);
+    } catch (JacksonException e) {
+      return false;
+    }
+    if (root == null || !root.isObject()) {
+      return false;
+    }
+    JsonNode message = root.get("message");
+    if (message == null || !message.isString()) {
+      return false;
+    }
+    Matcher matcher = INVALID_CURRENCY.matcher(message.stringValue());
+    return matcher.matches() && matcher.group(1).equals(base);
   }
 
   /** The currency codes (three upper-case letters) an error body names. */

@@ -50,7 +50,8 @@ public class FxProviderException extends RuntimeException {
    *
    * @param status HTTP status of the answer, 0 when there was none
    * @param unsupportedQuotes requested quote currencies the answer names as invalid or leaves out
-   * @param baseRejected whether the answer names the base currency as invalid
+   * @param baseRejected whether the answer is the verified 422 "invalid currency" answer for the
+   *     requested base
    */
   public FxProviderException(
       Reason reason,
@@ -82,7 +83,10 @@ public class FxProviderException extends RuntimeException {
     return unsupportedQuotes;
   }
 
-  /** Whether the provider named the base currency itself as invalid. */
+  /**
+   * Whether the provider rejected the base currency itself: a 422 answer whose message is exactly
+   * the verified {@code invalid currency: <base>} for the requested base.
+   */
   public boolean baseRejected() {
     return baseRejected;
   }

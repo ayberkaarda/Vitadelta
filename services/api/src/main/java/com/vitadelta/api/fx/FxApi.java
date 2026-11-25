@@ -42,7 +42,10 @@ public final class FxApi {
    * Contract schema {@code FxRefreshResult}.
    *
    * @param upsertedRows rows inserted or updated by the run
-   * @param failedBases bases whose provider call failed, ascending
+   * @param failedBases bases whose provider call failed, ascending; unsupported bases excluded
+   * @param unsupportedBases bases the provider rejected with the verified {@code invalid currency:
+   *     <base>} answer, ascending
    */
-  public record FxRefreshResult(int upsertedRows, List<String> failedBases) {}
+  public record FxRefreshResult(
+      int upsertedRows, List<String> failedBases, List<String> unsupportedBases) {}
 }

@@ -30,12 +30,14 @@ import org.springframework.transaction.support.TransactionTemplate;
  * per base. A failed base (provider error, rejected answer, database error) is logged with a
  * bounded summary and counted, and the run continues with the next base; the stored rates stay in
  * use. A quote the provider does not publish (for example a mistyped extra currency) is dropped
- * from the request of a base instead of failing it ({@link #fetchPublished}); a base the provider
- * names as an invalid currency is dropped from the run the same way (operator warning, counted in
- * {@code vitadelta.fx.refresh.unsupported}) and does not fail it, although it is still listed among
- * the failed bases of the result. A run fails when a base failed for another reason, when it was
- * aborted, or when every base was dropped. A run never throws to its caller. After every run the
- * lookup cache is cleared.
+ * from the request of a base instead of failing it ({@link #fetchPublished}). A base is unsupported
+ * only when the provider answers with the verified 422 {@code invalid currency: <base>} for exactly
+ * that base ({@link FxProviderException#baseRejected()}): it is left out of the run (operator
+ * warning, counted in {@code vitadelta.fx.refresh.unsupported}), listed among the unsupported bases
+ * of the result and not among the failed ones, and does not fail the run on its own. Any other
+ * rejection fails the base. A run fails when a base failed, when no base at all could be refreshed,
+ * or when it was aborted. A run never throws to its caller. After every run the lookup cache is
+ * cleared.
  *
  * <p>Scheduling ({@link FxRefreshSchedule}): at start-up only when {@link #isRefreshDue()}, then
  * every {@code vitadelta.fx.refresh-interval}. {@code POST /admin/fx/refresh} calls {@link #run()}.
@@ -101,11 +103,11 @@ public class FxRefreshJob {
    *
    * @param ran false when the run was skipped because another session holds the lock
    * @param upsertedRows rows inserted or updated
-   * @param failedBases bases whose rates were not refreshed (the provider call or the write
-   *     failed), sorted; includes the dropped bases
-   * @param droppedBases the failed bases the provider names as invalid currencies, sorted; they are
-   *     left out of the run and do not fail it (they cannot be refreshed until the configuration
-   *     changes)
+   * @param failedBases bases whose rates were not refreshed because the provider call or the write
+   *     failed, sorted; the unsupported bases are not among them
+   * @param unsupportedBases bases the provider rejected with the verified 422 {@code invalid
+   *     currency: <base>} answer, sorted; they get no rate and do not fail the run on their own
+   *     (they cannot be refreshed until the configuration changes)
    * @param refreshedBases bases whose rates were fetched and stored
    * @param aborted true when an error ended the run before every base was tried (for example the
    *     country registry could not be read)
@@ -114,43 +116,45 @@ public class FxRefreshJob {
       boolean ran,
       int upsertedRows,
       List<String> failedBases,
-      List<String> droppedBases,
+      List<String> unsupportedBases,
       int refreshedBases,
       boolean aborted) {
 
     public Result {
       failedBases = List.copyOf(failedBases);
-      droppedBases = List.copyOf(droppedBases);
-    }
-
-    /** A run without dropped bases. */
-    public Result(boolean ran, int upsertedRows, List<String> failedBases, boolean aborted) {
-      this(ran, upsertedRows, failedBases, List.of(), 0, aborted);
+      unsupportedBases = List.copyOf(unsupportedBases);
     }
 
     static Result skipped() {
-      return new Result(false, 0, List.of(), false);
+      return new Result(false, 0, List.of(), List.of(), 0, false);
+    }
+
+    static Result abortedRun() {
+      return new Result(true, 0, List.of(), List.of(), 0, true);
     }
 
     /**
-     * Whether the run obtained the lock, was not aborted and no base failed. Dropped bases do not
-     * fail a run, unless every base was dropped and nothing at all was refreshed.
+     * Whether the run obtained the lock, was not aborted, no base failed and at least one base was
+     * refreshed (contract {@code JobRun.lastOutcome}). Unsupported bases alone do not fail a run.
      */
     public boolean succeeded() {
-      return ran
-          && !aborted
-          && droppedBases.containsAll(failedBases)
-          && !(refreshedBases == 0 && !droppedBases.isEmpty());
+      return ran && !aborted && failedBases.isEmpty() && refreshedBases > 0;
     }
   }
 
   /**
-   * End time and outcome of the last run that obtained the lock (input of {@code GET
-   * /admin/health}).
+   * End time, outcome and unsupported bases of the last run that obtained the lock (input of {@code
+   * GET /admin/health}).
    *
-   * @param succeeded false when a base failed or an error ended the run
+   * @param succeeded false when a base failed, nothing was refreshed or an error ended the run
+   * @param unsupportedBases {@link Result#unsupportedBases()} of that run
    */
-  public record LastRun(Instant endedAt, boolean succeeded) {}
+  public record LastRun(Instant endedAt, boolean succeeded, List<String> unsupportedBases) {
+
+    public LastRun {
+      unsupportedBases = List.copyOf(unsupportedBases);
+    }
+  }
 
   /** The last run that obtained the lock since start; empty before the first one. */
   public Optional<LastRun> lastRun() {
@@ -198,7 +202,7 @@ public class FxRefreshJob {
       meters.counter("vitadelta.fx.refresh.failure", "reason", RUN_FAILURE).increment();
       LOG.warn("{}: run failed ({})", NAME, e.getClass().getSimpleName());
       Result done = result.get();
-      return done != null ? done : new Result(true, 0, List.of(), true);
+      return done != null ? done : Result.abortedRun();
     } finally {
       lookup.invalidate();
     }
@@ -215,13 +219,13 @@ public class FxRefreshJob {
     } catch (RuntimeException e) {
       meters.counter("vitadelta.fx.refresh.failure", "reason", RUN_FAILURE).increment();
       LOG.warn("{}: run aborted ({})", NAME, e.getClass().getSimpleName());
-      result = new Result(true, 0, List.of(), true);
+      result = Result.abortedRun();
     }
     if (!result.succeeded()) {
       // The run handled its failures itself: the job-run registry must still record it as FAILED.
       JobLock.reportFailure();
     }
-    lastRun.set(new LastRun(clock.instant(), result.succeeded()));
+    lastRun.set(new LastRun(clock.instant(), result.succeeded(), result.unsupportedBases()));
     return result;
   }
 
@@ -231,7 +235,7 @@ public class FxRefreshJob {
     int rows = 0;
     int refreshed = 0;
     List<String> failed = new ArrayList<>();
-    List<String> dropped = new ArrayList<>();
+    List<String> unsupportedBases = new ArrayList<>();
     for (String base : supported) {
       SortedSet<String> quotes = new TreeSet<>(supported);
       quotes.remove(base);
@@ -252,12 +256,12 @@ public class FxRefreshJob {
         refreshed++;
         meters.counter("vitadelta.fx.refresh.success").increment();
       } catch (FxProviderException e) {
-        failed.add(base);
         if (e.baseRejected()) {
-          dropped.add(base);
+          unsupportedBases.add(base);
           unsupportedBase(base, e);
           continue;
         }
+        failed.add(base);
         meters.counter("vitadelta.fx.refresh.failure", "reason", e.reason().name()).increment();
         LOG.warn(
             "{}: rates for base {} not refreshed ({}: {})", NAME, base, e.reason(), e.getMessage());
@@ -268,13 +272,13 @@ public class FxRefreshJob {
       }
     }
     LOG.info(
-        "{}: {} rows upserted for {} bases, failed bases {}, dropped bases {}",
+        "{}: {} rows upserted for {} bases, failed bases {}, unsupported bases {}",
         NAME,
         rows,
         refreshed,
         failed,
-        dropped);
-    return new Result(true, rows, failed, dropped, refreshed, false);
+        unsupportedBases);
+    return new Result(true, rows, failed, unsupportedBases, refreshed, false);
   }
 
   /**

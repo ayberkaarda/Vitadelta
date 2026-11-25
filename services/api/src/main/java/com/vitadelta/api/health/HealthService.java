@@ -189,10 +189,11 @@ public class HealthService {
           HealthStatus.valueOf(snapshot.status()),
           snapshot.newestAsOf(),
           snapshot.rateAgeDays(),
-          snapshot.stale());
+          snapshot.stale(),
+          snapshot.unsupportedBases());
     } catch (RuntimeException e) {
       LOG.warn("FX health check failed: {}", e.getClass().getSimpleName());
-      return new FxHealth(HealthStatus.DEGRADED, null, null, false);
+      return new FxHealth(HealthStatus.DEGRADED, null, null, false, List.of());
     }
   }
 
