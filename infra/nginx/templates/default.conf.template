@@ -28,6 +28,22 @@ map $upstream_http_referrer_policy $vitadelta_api_referrer_policy {
     default $upstream_http_referrer_policy;
 }
 
+# Path written to the access log. $uri is already decoded and normalised (no query string, merged
+# slashes, no dot segments), so every spelling of a path is caught here:
+# - everything after a /promo-codes/ segment (any letter case) is masked, so a promo code sent to
+#   DELETE /api/v1/admin/promo-codes/<code> never reaches the log, valid or not;
+# - from the first token-like segment on (32 or more base64url characters that are not a UUID, or a
+#   JWT) the path is masked, so a token pasted into a path never reaches the log either.
+# Ordinary paths, file names (they contain a dot) and UUIDs stay readable.
+map $uri $vitadelta_log_uri_promo {
+    "~*^(?<vd_promo_prefix>.*/promo-codes/).+$" "${vd_promo_prefix}<redacted>";
+    default $uri;
+}
+map $vitadelta_log_uri_promo $vitadelta_log_uri {
+    "~^(?<vd_token_prefix>(?:/[^/]*)*?/)(?:(?![0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}(?:/|$))[A-Za-z0-9_-]{32,}|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_.-]+)(?:/.*)?$" "${vd_token_prefix}<redacted>";
+    default $vitadelta_log_uri_promo;
+}
+
 # HTML documents are always revalidated so a new build is picked up immediately.
 map $sent_http_content_type $vitadelta_cache_control {
     "~^text/html" "no-cache";
@@ -43,6 +59,13 @@ server {
 
     # The admin import accepts up to 20 MB; the API enforces that limit with problem+json.
     client_max_body_size 25m;
+
+    # Responses nginx produces before or without selecting a location (a malformed request target,
+    # an invalid Host header, a request URI or header that is too long) take these server-level
+    # headers. Every location below declares its own complete set, and add_header is not inherited
+    # into a location that declares any, so each header is still sent exactly once.
+    include /etc/nginx/snippets/security-headers.conf;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 
     location / {
         include /etc/nginx/snippets/security-headers.conf;

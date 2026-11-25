@@ -2,9 +2,10 @@
 # Routing, caching, header and proxy check of the web nginx configuration, without the compose
 # stack.
 #
-# Starts a throwaway nginx container (same image as the web Dockerfile) with this directory's
-# configuration and a copy of an already built web app, next to a small stand-in for the API (an
-# nginx that answers like the API does and echoes the forwarding headers it received), then checks:
+# Builds the "runtime" stage of infra/nginx/Dockerfile (the web image without the web build: same
+# pinned base image, configuration, unprivileged user) and starts it with a copy of an already built
+# web app, next to a small stand-in for the API (an nginx that answers like the API does and echoes
+# the forwarding headers it received), then checks:
 #   - application routes answer the SPA document (200, text/html);
 #   - existing static files and translations are served with their own type;
 #   - missing hashed chunks, styles, translations and media answer 404, not the SPA;
@@ -20,7 +21,11 @@
 #   - X-Forwarded-For is overwritten with the peer address, never appended; client-supplied
 #     Forwarded and X-Real-IP never reach the API; X-Request-Id is forwarded only when it matches
 #     the API pattern;
-#   - the access log holds the path without the query string.
+#   - the access log holds the path without the query string, with promo codes and token-like
+#     path segments masked;
+#   - errors nginx answers itself, also before a location is selected (malformed request target,
+#     invalid Host, URI or header too long, body too large), carry every security header once;
+#   - nginx (master and workers) runs as an unprivileged user.
 #
 # Usage: infra/nginx/check-routing.sh [path-to-built-browser-dir]
 # Default build path: apps/web/dist/web/browser (run `npm run build` in apps/web first).
@@ -33,7 +38,9 @@ repo="$(cd "$here/../.." && pwd)"
 dist="${1:-$repo/apps/web/dist/web/browser}"
 port="${CHECK_PORT:-18089}"
 tls_port=$((port + 1))
-image="nginx:1.30.8-alpine"
+# Stand-in API: the same pinned nginx base image (tag and digest), with its own configuration.
+stub_image="nginx:1.30.8-alpine@sha256:6437a63b5c529f0e06162b3f593c0154cff6fa2ea0f94fd7c27928cb399e022d"
+web_image="vitadelta-nginx-check:$$"
 name="vitadelta-nginx-check-$$"
 tls_name="vitadelta-nginx-check-tls-$$"
 api_name="vitadelta-nginx-check-api-$$"
@@ -59,6 +66,7 @@ site="$(mktemp -d)"
 cleanup() {
   docker rm -f "$name" "$tls_name" "$api_name" > /dev/null 2>&1 || true
   docker network rm "$network" > /dev/null 2>&1 || true
+  docker image rm "$web_image" > /dev/null 2>&1 || true
   rm -rf "$site"
 }
 trap cleanup EXIT
@@ -86,21 +94,24 @@ server {
 }
 EOF
 
+if ! docker build -q --target runtime -f "$(to_docker_path "$here/Dockerfile")" -t "$web_image" "$(to_docker_path "$repo")" > "$site/build.log" 2>&1; then
+  cat "$site/build.log" >&2
+  echo "could not build the runtime stage of infra/nginx/Dockerfile" >&2
+  exit 1
+fi
+
 docker network create "$network" > /dev/null
 MSYS_NO_PATHCONV=1 docker run -d --name "$api_name" --network "$network" --network-alias api \
   -v "$(to_docker_path "$site/api/default.conf"):/etc/nginx/conf.d/default.conf:ro" \
-  "$image" > /dev/null
+  "$stub_image" > /dev/null
 
 start_web() {
   # start_web <container name> <host port> <VITADELTA_TLS>
   MSYS_NO_PATHCONV=1 docker run -d --name "$1" --network "$network" \
     -e VITADELTA_TLS="$3" -e NGINX_ENVSUBST_FILTER='^VITADELTA_' \
     -p "127.0.0.1:$2:8080" \
-    -v "$(to_docker_path "$here/nginx.conf"):/etc/nginx/nginx.conf:ro" \
-    -v "$(to_docker_path "$here/snippets"):/etc/nginx/snippets:ro" \
-    -v "$(to_docker_path "$here/templates"):/etc/nginx/templates:ro" \
     -v "$(to_docker_path "$site/html"):/usr/share/nginx/html:ro" \
-    "$image" > /dev/null
+    "$web_image" > /dev/null
   for _ in $(seq 1 50); do
     if curl -fsS -o /dev/null "http://127.0.0.1:$2/" 2> /dev/null; then return 0; fi
     sleep 0.2
@@ -264,6 +275,80 @@ else
   fail_check "access log missing the request or containing its query string: ${log_lines:-no line}"
 fi
 
+# The access log never holds a promo code or another token-like path segment: the code segment of
+# /api/v1/admin/promo-codes/<code> (any letter case, encoded or not) and any long opaque segment
+# are masked, while ordinary paths and UUIDs stay readable.
+# Both opaque values are assembled at run time, so this file holds neither.
+opaque_segment="$(od -An -N 24 -tx1 /dev/urandom | tr -d ' \n')"
+jwt_segment="$(printf 'ey%s.ey%s.%s' JhbGciOiJIUzI1NiJ9 JzdWIiOiJsb2ctY2hlY2sifQ c2lnbmF0dXJl)"
+curl -sS -o /dev/null -X DELETE "$base/api/v1/admin/promo-codes/LAUNCH-PROMOSECRET4711"
+curl -sS -o /dev/null "$base/api/v1/admin/promo-codes/LAUNCH-PROMOSECRET4712/redemptions"
+curl -sS -o /dev/null "$base/api/v1/ADMIN/PROMO-CODES/LAUNCH-PROMOSECRET4713"
+curl -sS -o /dev/null "$base/api/v1/admin/promo-codes/LAUNCH%2DPROMOSECRET4714"
+curl -sS -o /dev/null --path-as-is "$base//api/v1/admin//promo-codes/LAUNCH-PROMOSECRET4715"
+curl -sS -o /dev/null "$base/api/v1/me/alerts/$opaque_segment"
+curl -sS -o /dev/null "$base/api/v1/me/alerts/$jwt_segment/read"
+curl -sS -o /dev/null "$base/api/v1/products/3b2f0c4e-6a1d-4f0e-9c3a-1a2b3c4d5e01"
+sleep 0.3
+access_log="$(docker logs "$name" 2> /dev/null || true)"
+if printf '%s' "$access_log" | grep -q 'PROMOSECRET47'; then
+  fail_check "access log contains a promo code: $(printf '%s' "$access_log" | grep 'PROMOSECRET47' | head -n 2 | tr '\n' ' ')"
+elif [ "$(printf '%s' "$access_log" | grep -ic 'promo-codes/<redacted>')" -lt 5 ]; then
+  fail_check "access log does not show the masked promo-code requests: $(printf '%s' "$access_log" | grep -i 'promo-codes' | tr '\n' ' ')"
+else
+  pass "access log masks the promo code in every spelling (DELETE, sub-path, upper case, encoded, double slashes)"
+fi
+if printf '%s' "$access_log" | grep -q "$opaque_segment"; then
+  fail_check "access log contains a token-like path segment"
+elif [ "$(printf '%s' "$access_log" | grep -c '/api/v1/me/alerts/<redacted>')" -ge 2 ] && ! printf '%s' "$access_log" | grep -qF "$jwt_segment"; then
+  pass "access log masks token-like path segments (opaque value, JWT)"
+else
+  fail_check "access log does not show the masked token request"
+fi
+if printf '%s' "$access_log" | grep -q '/api/v1/products/3b2f0c4e-6a1d-4f0e-9c3a-1a2b3c4d5e01 '; then
+  pass "access log keeps ordinary paths and UUIDs readable"
+else
+  fail_check "access log lost an ordinary path with a UUID"
+fi
+
+# Errors that nginx answers itself, also before a location is selected (malformed request target,
+# invalid Host, URI or headers too long, body too large), carry every security header once.
+early_check() {
+  # early_check <label> <expected status> <base url> <want hsts: yes|no> <curl args...>
+  local label="$1" want_status="$2" url="$3" want_hsts="$4" headers status problems
+  shift 4
+  headers="$(curl -sS -o /dev/null -D - "$@" "$url" 2> /dev/null || true)"
+  status="$(printf '%s' "$headers" | awk 'NR==1 {print $2}')"
+  problems="$(security_headers "$headers" strict-origin-when-cross-origin "$web_csp" "$want_hsts")"
+  if [ "$status" = "$want_status" ] && [ -z "$problems" ]; then
+    pass "$label -> $status with every security header"
+  else
+    fail_check "$label -> ${status:-no answer} (expected $want_status; headers:${problems:- ok})"
+  fi
+}
+long_path="/$(printf 'a%.0s' $(seq 1 9000))"
+long_header="$(printf 'b%.0s' $(seq 1 9000))"
+head -c 26214500 /dev/zero > "$site/large-body.bin"
+early_checks() {
+  # early_checks <base url> <want hsts>
+  early_check "malformed request target" 400 "$1/" "$2" --request-target 'no-leading-slash'
+  early_check "invalid Host header" 400 "$1/" "$2" -H 'Host: bad host'
+  early_check "request URI too long" 414 "$1$long_path" "$2"
+  early_check "request header too large" 400 "$1/" "$2" -H "X-Large: $long_header"
+  early_check "request body too large (app)" 413 "$1/" "$2" --data-binary "@$site/large-body.bin"
+  early_check "request body too large (api)" 413 "$1/api/v1/admin/imports/products" "$2" --data-binary "@$site/large-body.bin"
+}
+early_checks "$base" no
+
+# nginx runs without root: master and workers belong to an unprivileged user.
+users="$(docker exec "$name" ps -o user,comm 2> /dev/null | awk 'NR > 1 && $2 == "nginx" { print $1 }' | sort -u | tr '\n' ' ')"
+exec_uid="$(docker exec "$name" id -u 2> /dev/null | tr -d '\r')"
+if [ -n "$users" ] && ! printf '%s' "$users" | grep -Eq '(^| )(root|0)( |$)' && [ "$exec_uid" != "0" ]; then
+  pass "nginx master and workers run unprivileged (users: ${users% }, container uid $exec_uid)"
+else
+  fail_check "nginx runs as root (process users: ${users:-none}, container uid ${exec_uid:-unknown})"
+fi
+
 # HSTS only when VITADELTA_TLS=true: a second container with the flag set.
 start_web "$tls_name" "$tls_port" true
 tls_base="http://127.0.0.1:$tls_port"
@@ -284,6 +369,7 @@ tls_check "/auth/reset" no-referrer "$web_csp"
 tls_check "/chunk-DOESNOTEXIST.js" strict-origin-when-cross-origin "$web_csp"
 tls_check "/actuator/health" strict-origin-when-cross-origin "$web_csp"
 tls_check "/api/v1/health" no-referrer "$api_csp"
+early_checks "$tls_base" yes
 
 # API down: the 502/504 from nginx carries the web policy and every header as well.
 docker stop "$api_name" > /dev/null
