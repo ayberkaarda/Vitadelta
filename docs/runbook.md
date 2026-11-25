@@ -401,15 +401,16 @@ API restarts; Stripe retries them.
 - A renewal whose payment failed changes nothing: the paid period stays until it ends and
   `SubscriptionExpiryJob` then downgrades; a later successful retry re-activates PRO. A
   cancellation in the portal takes effect at the period end (`customer.subscription.deleted`).
-- `vitadelta.billing.duplicate_subscription` or the log line "more than one live Stripe
-  subscription": a user pays for two subscriptions. The API refuses a checkout while a provider
-  subscription has not ended and expires the previous open session before creating another, so
-  this needs a session that could not be expired or a subscription created outside the API. PRO
-  and the portal follow the subscription paid furthest ahead; cancel and refund the extra one in
-  the dashboard or with `stripe subscriptions cancel <sub_...>`.
+- The log line "duplicated the entitled subscription and was canceled"
+  (`vitadelta.billing.surplus.canceled`): a user paid two checkouts before the first webhook
+  arrived. The webhook kept the subscription that holds PRO and canceled the other at Stripe;
+  refund that subscription's payment in the dashboard. `vitadelta.billing.surplus.cancel_failed`
+  means the cancellation failed; the webhook answered `503` and Stripe's redelivery retries it.
+  The log line "none holds the entitlement" (no paid subscription to keep) needs a manual
+  decision: cancel the extra one with `stripe subscriptions cancel <sub_...>`.
 - `409 plan_already_active` on checkout for a FREE user: the user has a Stripe subscription that
-  has not ended (for example past due after the expiry job downgraded the plan; it is settled in
-  the billing portal), or the previous session was just paid and its webhook has not arrived.
+  has not ended (for example past due after the expiry job downgraded the plan); it is settled in
+  the billing portal.
 - Account deletion cancels the user's Stripe subscriptions after the deletion commits; a
   subscription that reaches the API only after the deletion (checkout paid later, or a webhook in
   flight during the deletion) is canceled by the webhook, which answers `503` until the
