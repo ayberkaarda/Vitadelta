@@ -7,7 +7,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.github.tomakehurst.wiremock.client.WireMock;
 import com.github.tomakehurst.wiremock.http.Fault;
 import com.vitadelta.api.common.jobs.JobLockKeys;
+import com.vitadelta.api.common.jobs.JobRunRegistry;
 import com.vitadelta.api.fx.FxRefreshJob.Result;
+import com.vitadelta.api.identity.Role;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.math.BigDecimal;
 import java.sql.Connection;
@@ -27,16 +29,21 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import tools.jackson.databind.JsonNode;
 
 /** {@link FxRefreshJob} against the WireMock provider and the real {@code fx_rate} table. */
+@ExtendWith(OutputCaptureExtension.class)
 class FxRefreshIntegrationTest extends FxApiTestBase {
 
   @Autowired DataSource dataSource;
   @Autowired MeterRegistry meters;
+  @Autowired JobRunRegistry jobRuns;
 
   private double failures(String reason) {
     var counter = meters.find("vitadelta.fx.refresh.failure").tag("reason", reason).counter();
@@ -200,10 +207,23 @@ class FxRefreshIntegrationTest extends FxApiTestBase {
     return rest;
   }
 
-  /** Every pair is stored except those from or to {@link #EXTRA}; the extra has no rate. */
-  private void assertEveryPairButTheExtraIsStored(Result result) {
+  /**
+   * Every pair is stored except those from or to {@link #EXTRA}; the extra has no rate.
+   *
+   * @param extraBaseDropped whether the provider named the extra as an invalid base (dropped from
+   *     the run) rather than answering it with an empty list (a failed base)
+   */
+  private void assertEveryPairButTheExtraIsStored(Result result, boolean extraBaseDropped) {
     assertThat(result.ran()).isTrue();
+    // The provider call for the extra failed either way (contract FxRefreshResult.failedBases).
     assertThat(result.failedBases()).containsExactly(EXTRA);
+    if (extraBaseDropped) {
+      assertThat(result.droppedBases()).containsExactly(EXTRA);
+      assertThat(result.succeeded()).as("a dropped base does not fail the run").isTrue();
+    } else {
+      assertThat(result.droppedBases()).isEmpty();
+      assertThat(result.succeeded()).isFalse();
+    }
     int others = currencies.all().size() - 1;
     assertThat(result.upsertedRows()).isEqualTo(others * (others - 1));
     for (String base : currencies.all()) {
@@ -244,7 +264,7 @@ class FxRefreshIntegrationTest extends FxApiTestBase {
 
     Result result = job.run();
 
-    assertEveryPairButTheExtraIsStored(result);
+    assertEveryPairButTheExtraIsStored(result, false);
     assertThat(unsupported(EXTRA) - before).isEqualTo(currencies.all().size() - 1);
     // One request per base plus one retry per base that listed the extra currency.
     assertThat(providerRequests()).isEqualTo(2 * currencies.all().size() - 1);
@@ -252,6 +272,7 @@ class FxRefreshIntegrationTest extends FxApiTestBase {
 
   @Test
   void anInvalidCurrencyRejectionIsRetriedWithoutItOrQuoteByQuote() {
+    double before = unsupported(EXTRA);
     String invalid = "{\"status\":422,\"message\":\"invalid currency: " + EXTRA + "\"}";
     for (String base : currencies.all()) {
       SortedSet<String> quotes = quotesFor(base);
@@ -279,8 +300,70 @@ class FxRefreshIntegrationTest extends FxApiTestBase {
 
     Result result = job.run();
 
-    assertEveryPairButTheExtraIsStored(result);
+    assertEveryPairButTheExtraIsStored(result, true);
     assertThat(lookup.newest("TRY", "USD").orElseThrow().rate()).isEqualTo(TRY_USD);
+    // Dropped as a quote of every other base and once as a base of its own.
+    assertThat(unsupported(EXTRA) - before).isEqualTo(currencies.all().size());
+  }
+
+  /**
+   * The verified provider answer for a base it does not know ({@code 422 invalid currency: X},
+   * 2026-11-25): that base is dropped from the run with an operator warning and counted as
+   * unsupported; the run and the job-run registry stay successful, and nothing converts from it.
+   */
+  @Test
+  void aBaseTheProviderNamesInvalidIsDroppedAndTheRunSucceeds(CapturedOutput output) {
+    String invalid = "{\"status\":422,\"message\":\"invalid currency: " + EXTRA + "\"}";
+    for (String base : currencies.all()) {
+      SortedSet<String> quotes = quotesFor(base);
+      if (base.equals(EXTRA)) {
+        stubRequest(base, quotes, 422, invalid);
+        continue;
+      }
+      SortedSet<String> published = without(quotes, EXTRA);
+      stubRequest(base, quotes, 422, invalid);
+      stubRequest(base, published, 200, verifiedBody(base, published, today()));
+    }
+    double before = unsupported(EXTRA);
+
+    Result result = job.run();
+
+    assertEveryPairButTheExtraIsStored(result, true);
+    assertThat(unsupported(EXTRA) - before).isEqualTo(currencies.all().size());
+    assertThat(job.lastRun().orElseThrow().succeeded()).isTrue();
+    assertThat(jobRuns.lastRun(JobLockKeys.FX_REFRESH).orElseThrow().lastOutcome())
+        .isEqualTo(JobRunRegistry.Outcome.SUCCEEDED);
+    JsonNode jobs = json(get("/api/v1/admin/health", token(Role.ADMIN))).get("jobs");
+    JsonNode fxJob = null;
+    for (JsonNode job : jobs) {
+      if (job.get("name").asString().equals("FX_REFRESH")) {
+        fxJob = job;
+      }
+    }
+    assertThat(fxJob).isNotNull();
+    assertThat(fxJob.get("lastOutcome").asString()).isEqualTo("SUCCEEDED");
+    assertThat(output.getAll())
+        .contains("the provider does not publish base " + EXTRA)
+        .contains("VITADELTA_FX_EXTRA_CURRENCIES");
+    assertThat(json(get("/api/v1/fx/rates?base=" + EXTRA, null)).get("rates").isEmpty())
+        .as("no conversion from the dropped base")
+        .isTrue();
+  }
+
+  @Test
+  void theRunFailsWhenNoBaseAtAllCouldBeRefreshed() {
+    for (String base : currencies.all()) {
+      stubBase(base, 422, "{\"status\":422,\"message\":\"invalid currency: " + base + "\"}");
+    }
+
+    Result result = job.run();
+
+    assertThat(result.upsertedRows()).isZero();
+    assertThat(result.failedBases()).containsExactlyElementsOf(currencies.all());
+    assertThat(result.droppedBases()).containsExactlyElementsOf(currencies.all());
+    assertThat(result.succeeded()).isFalse();
+    assertThat(jobRuns.lastRun(JobLockKeys.FX_REFRESH).orElseThrow().lastOutcome())
+        .isEqualTo(JobRunRegistry.Outcome.FAILED);
   }
 
   @Test

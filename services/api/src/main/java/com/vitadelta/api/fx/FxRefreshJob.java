@@ -30,14 +30,19 @@ import org.springframework.transaction.support.TransactionTemplate;
  * per base. A failed base (provider error, rejected answer, database error) is logged with a
  * bounded summary and counted, and the run continues with the next base; the stored rates stay in
  * use. A quote the provider does not publish (for example a mistyped extra currency) is dropped
- * from the request of a base instead of failing it ({@link #fetchPublished}). A run never throws to
- * its caller. After every run the lookup cache is cleared.
+ * from the request of a base instead of failing it ({@link #fetchPublished}); a base the provider
+ * names as an invalid currency is dropped from the run the same way (operator warning, counted in
+ * {@code vitadelta.fx.refresh.unsupported}) and does not fail it, although it is still listed among
+ * the failed bases of the result. A run fails when a base failed for another reason, when it was
+ * aborted, or when every base was dropped. A run never throws to its caller. After every run the
+ * lookup cache is cleared.
  *
  * <p>Scheduling ({@link FxRefreshSchedule}): at start-up only when {@link #isRefreshDue()}, then
  * every {@code vitadelta.fx.refresh-interval}. {@code POST /admin/fx/refresh} calls {@link #run()}.
  *
  * <p>Metrics: {@code vitadelta.fx.refresh.success} (one per refreshed base), {@code
- * vitadelta.fx.refresh.failure} with tag {@code reason} (one per failed base or failed run), and
+ * vitadelta.fx.refresh.failure} with tag {@code reason} (one per failed base or failed run), {@code
+ * vitadelta.fx.refresh.unsupported} with tag {@code currency} (one per dropped quote or base), and
  * the gauge {@code vitadelta.fx.rate.age} (days between today in UTC and the newest stored rate
  * date; NaN without rates).
  */
@@ -96,23 +101,46 @@ public class FxRefreshJob {
    *
    * @param ran false when the run was skipped because another session holds the lock
    * @param upsertedRows rows inserted or updated
-   * @param failedBases bases whose rates were not refreshed, sorted
+   * @param failedBases bases whose rates were not refreshed (the provider call or the write
+   *     failed), sorted; includes the dropped bases
+   * @param droppedBases the failed bases the provider names as invalid currencies, sorted; they are
+   *     left out of the run and do not fail it (they cannot be refreshed until the configuration
+   *     changes)
+   * @param refreshedBases bases whose rates were fetched and stored
    * @param aborted true when an error ended the run before every base was tried (for example the
    *     country registry could not be read)
    */
-  public record Result(boolean ran, int upsertedRows, List<String> failedBases, boolean aborted) {
+  public record Result(
+      boolean ran,
+      int upsertedRows,
+      List<String> failedBases,
+      List<String> droppedBases,
+      int refreshedBases,
+      boolean aborted) {
 
     public Result {
       failedBases = List.copyOf(failedBases);
+      droppedBases = List.copyOf(droppedBases);
+    }
+
+    /** A run without dropped bases. */
+    public Result(boolean ran, int upsertedRows, List<String> failedBases, boolean aborted) {
+      this(ran, upsertedRows, failedBases, List.of(), 0, aborted);
     }
 
     static Result skipped() {
       return new Result(false, 0, List.of(), false);
     }
 
-    /** Whether the run obtained the lock and refreshed every base. */
+    /**
+     * Whether the run obtained the lock, was not aborted and no base failed. Dropped bases do not
+     * fail a run, unless every base was dropped and nothing at all was refreshed.
+     */
     public boolean succeeded() {
-      return ran && !aborted && failedBases.isEmpty();
+      return ran
+          && !aborted
+          && droppedBases.containsAll(failedBases)
+          && !(refreshedBases == 0 && !droppedBases.isEmpty());
     }
   }
 
@@ -201,7 +229,9 @@ public class FxRefreshJob {
     SortedSet<String> supported = currencies.all();
     Instant fetchedAt = clock.instant();
     int rows = 0;
+    int refreshed = 0;
     List<String> failed = new ArrayList<>();
+    List<String> dropped = new ArrayList<>();
     for (String base : supported) {
       SortedSet<String> quotes = new TreeSet<>(supported);
       quotes.remove(base);
@@ -219,9 +249,15 @@ public class FxRefreshJob {
               return upserted;
             });
         rows += written == null ? 0 : written;
+        refreshed++;
         meters.counter("vitadelta.fx.refresh.success").increment();
       } catch (FxProviderException e) {
         failed.add(base);
+        if (e.baseRejected()) {
+          dropped.add(base);
+          unsupportedBase(base, e);
+          continue;
+        }
         meters.counter("vitadelta.fx.refresh.failure", "reason", e.reason().name()).increment();
         LOG.warn(
             "{}: rates for base {} not refreshed ({}: {})", NAME, base, e.reason(), e.getMessage());
@@ -232,12 +268,13 @@ public class FxRefreshJob {
       }
     }
     LOG.info(
-        "{}: {} rows upserted for {} bases, failed bases {}",
+        "{}: {} rows upserted for {} bases, failed bases {}, dropped bases {}",
         NAME,
         rows,
-        supported.size() - failed.size(),
-        failed);
-    return new Result(true, rows, failed, false);
+        refreshed,
+        failed,
+        dropped);
+    return new Result(true, rows, failed, dropped, refreshed, false);
   }
 
   /**
@@ -313,6 +350,21 @@ public class FxRefreshJob {
           quote,
           base);
     }
+  }
+
+  /**
+   * A base the provider names as an invalid currency: left out of this run (it cannot be refreshed
+   * until the configuration changes), logged as an operator warning and counted as unsupported.
+   */
+  private void unsupportedBase(String base, FxProviderException e) {
+    meters.counter("vitadelta.fx.refresh.unsupported", "currency", base).increment();
+    LOG.warn(
+        "{}: the provider does not publish base {} ({}); {} is left out of this run and"
+            + " conversions from it stay unavailable (check VITADELTA_FX_EXTRA_CURRENCIES)",
+        NAME,
+        base,
+        e.getMessage(),
+        base);
   }
 
   private static double rateAgeDays(FxRateRepository repository, FxRateLookup lookup) {
