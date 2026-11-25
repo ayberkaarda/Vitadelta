@@ -1,0 +1,121 @@
+{
+  "page_title": "Results",
+  "eyebrow": "Results · {{ country }} · {{ mode }}",
+  "mode": {
+    "PRICE": "Price",
+    "RICHNESS": "Richness",
+    "VALUE": "Value",
+    "CUSTOM": "Custom"
+  },
+  "title": "{{ total }} products ranked",
+  "title_one": "1 product ranked",
+  "stock": {
+    "IN_STOCK_ONLY": "In stock only",
+    "INCLUDE_OUT_OF_STOCK": "Including out of stock"
+  },
+  "excluded": {
+    "no_stock": "{{ count }} products left out because no offer is in stock",
+    "no_stock_one": "1 product left out because no offer is in stock",
+    "no_offer": "{{ count }} products without an offer",
+    "no_offer_one": "1 product without an offer",
+    "required": "{{ count }} products miss a required nutrient",
+    "required_one": "1 product misses a required nutrient",
+    "exceeds_ul": "{{ count }} products above an upper limit left out",
+    "exceeds_ul_one": "1 product above an upper limit left out"
+  },
+  "reference_line": "reference {{ reference }}, upper limits {{ ul }}",
+  "edit_query": "Edit query",
+  "market_rate": "Market rate {{ amount }} per content point per day (median of {{ count }})",
+  "select_hint": "Select two products to compare",
+  "table": {
+    "caption": "Ranked products",
+    "select": "Compare",
+    "rank": "Rank",
+    "product": "Product",
+    "cost": "Cost / day",
+    "content": "Content",
+    "value": "Value",
+    "custom": "Custom",
+    "flags": "Flags",
+    "actions": "Actions",
+    "select_label": "Select {{ name }} for comparison",
+    "breakdown": "Breakdown",
+    "breakdown_label": "Score breakdown of {{ name }}",
+    "per_day": "per day"
+  },
+  "loading": "Ranking products…",
+  "announce": "{{ total }} products ranked, page {{ page }}",
+  "selection": {
+    "label": "Products selected for comparison",
+    "count": "{{ count }} selected",
+    "remove": "Remove {{ name }} from the comparison",
+    "compare": "Compare",
+    "replaced": "Only two products can be compared, so {{ name }} was taken out of the selection."
+  },
+  "empty": {
+    "title": "No product matches all your requirements",
+    "text": "These products of the market were left out:",
+    "required": "Missing a required nutrient",
+    "exceeds_ul": "Above an upper limit (excluded)",
+    "no_stock": "No offer in stock",
+    "no_offer": "No offer in {{ country }}",
+    "edit_required": "Edit required nutrients",
+    "include_out_of_stock": "Include out of stock"
+  },
+  "quota": {
+    "title": "You have used your {{ limit }} free queries",
+    "text": "Create a free account to keep ranking. Nothing is charged and your current settings are kept.",
+    "benefits": "What a free account adds",
+    "unlimited": "Unlimited queries and full result lists",
+    "saved": "Save up to {{ count }} products",
+    "saved_unlimited": "Save as many products as you like",
+    "alerts": "{{ count }} price or stock alerts",
+    "alerts_unlimited": "Unlimited price or stock alerts",
+    "open_note": "Compare and product pages stay open without an account."
+  },
+  "error": {
+    "edit": "Edit query"
+  },
+  "drawer": {
+    "title": "{{ name }} · score breakdown",
+    "close": "Close the breakdown",
+    "cost_per_day": "Cost per day",
+    "content": "Content score",
+    "value": "Value score",
+    "of_100": "{{ value }} of 100",
+    "value_sub": "per {{ currency }} · {{ value }} of 100",
+    "note": "Rows ordered by nutrient code. Reference: {{ reference }} for {{ country }}. Contribution = weight × utility.",
+    "amount": "Amount/day",
+    "reference": "Reference",
+    "coverage": "Coverage",
+    "utility_weight": "Utility × weight",
+    "contribution": "Contribution {{ value }}",
+    "source": {
+      "MARKET_MEDIAN": "Market median",
+      "PRESENCE_ONLY": "Presence only"
+    },
+    "capped_umax": "At ceiling, extra earns nothing",
+    "capped_ul": "Capped at upper limit",
+    "ul_below_reference": "The upper limit for this nutrient is lower than its reference amount.",
+    "below_floor": "Below the presence floor",
+    "ref_line": "100 % ({{ amount }})",
+    "ceiling": "ceiling {{ percent }}",
+    "total": "Content score {{ value }}",
+    "empty": "No nutrient breakdown is available for this product.",
+    "product_page": "Product page",
+    "nutrients": "Nutrients"
+  },
+  "actions": {
+    "save": "Save",
+    "saved": "Saved",
+    "save_named": "Save {{ name }}",
+    "alert": "Price alert",
+    "alert_on": "Alert on",
+    "alert_named": "Price alert for {{ name }}",
+    "login_save": "Log in to save {{ name }}",
+    "login_alert": "Log in to create a price alert for {{ name }}",
+    "manage_saved": "Manage saved products",
+    "manage_alerts": "Manage alerts",
+    "resend": "Resend verification e-mail"
+  }
+}

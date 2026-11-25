@@ -1,0 +1,222 @@
+.pick {
+  width: 2.5rem;
+}
+
+.prod {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 11rem;
+
+  .b {
+    font-size: var(--vd-font-size-xs);
+    font-weight: var(--vd-font-weight-semibold);
+    color: var(--vd-color-text-muted);
+  }
+
+  .n {
+    font-weight: var(--vd-font-weight-semibold);
+    color: var(--vd-color-text);
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+
+  .meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--vd-space-1) var(--vd-space-3);
+  }
+}
+
+.cost {
+  .per {
+    display: none;
+  }
+}
+
+.sc {
+  min-width: 9rem;
+}
+
+.ml {
+  display: none;
+}
+
+.fl {
+  min-width: 9rem;
+}
+
+.acts {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--vd-space-2);
+
+  vd-product-action-buttons {
+    flex-wrap: nowrap;
+  }
+}
+
+.note-row td {
+  background: var(--vd-color-surface);
+  padding-top: 0;
+}
+
+@media (max-width: 48rem) {
+  .tbl-wrap {
+    border: 0;
+    background: transparent;
+    overflow: visible;
+  }
+
+  table,
+  tbody,
+  tr,
+  td {
+    display: block;
+  }
+
+  thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+
+  tbody {
+    display: flex;
+    flex-direction: column;
+    gap: var(--vd-space-3);
+  }
+
+  tr {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      'rk pc cost'
+      'content content content'
+      'value value value'
+      'custom custom custom'
+      'fl fl fl'
+      'ac ac pick';
+    gap: var(--vd-space-2) var(--vd-space-3);
+    padding: var(--vd-space-4);
+    border: 1px solid var(--vd-color-border);
+    border-radius: var(--vd-radius-lg);
+    background: var(--vd-color-surface);
+  }
+
+  .tbl td,
+  .tbl tr.is-selected td {
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+
+  tr.is-selected {
+    background: color-mix(in srgb, var(--vd-color-accent-bg) 70%, var(--vd-color-surface));
+    border-color: var(--vd-color-accent);
+  }
+
+  .rk {
+    grid-area: rk;
+  }
+
+  .pc {
+    grid-area: pc;
+  }
+
+  .prod {
+    min-width: 0;
+  }
+
+  .cost {
+    grid-area: cost;
+
+    .per {
+      display: block;
+      font-size: var(--vd-font-size-xs);
+      color: var(--vd-color-text-muted);
+    }
+  }
+
+  .sc {
+    display: grid;
+    grid-template-columns: 4rem minmax(0, 1fr);
+    align-items: start;
+    min-width: 0;
+  }
+
+  .content {
+    grid-area: content;
+  }
+
+  .value {
+    grid-area: value;
+  }
+
+  .custom {
+    grid-area: custom;
+  }
+
+  .ml {
+    display: block;
+    font-size: var(--vd-font-size-xs);
+    color: var(--vd-color-text-muted);
+  }
+
+  .fl {
+    grid-area: fl;
+    min-width: 0;
+
+    &:empty {
+      display: none;
+    }
+  }
+
+  .ac {
+    grid-area: ac;
+  }
+
+  .acts {
+    justify-content: flex-start;
+  }
+
+  .pick {
+    grid-area: pick;
+    width: auto;
+    align-self: center;
+    justify-self: end;
+  }
+
+  .selbox {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--vd-space-2);
+    min-height: var(--vd-control-height);
+    padding: 0 var(--vd-space-3);
+    border: 1px solid var(--vd-color-border-strong);
+    border-radius: var(--vd-radius-md);
+    font-size: var(--vd-font-size-xs);
+    font-weight: var(--vd-font-weight-semibold);
+    cursor: pointer;
+
+    .ml {
+      color: var(--vd-color-text);
+      font-size: inherit;
+    }
+  }
+
+  .note-row {
+    display: block;
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+}

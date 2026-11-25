@@ -1,0 +1,171 @@
+<vd-drawer [open]="item() !== null" [labelledBy]="titleId" (closed)="closed.emit()">
+  @if (item(); as it) {
+    @let m = meta();
+    <div class="hd">
+      <div class="grow stack-1">
+        <p class="text-xs muted">
+          {{ it.brand }} · <span class="code">{{ it.code }}</span>
+        </p>
+        <h2 class="h3" [id]="titleId">
+          {{ 'results.drawer.title' | transloco: { name: it.name } }}
+        </h2>
+        <vd-provenance [provenance]="it.provenance" />
+      </div>
+      <button
+        type="button"
+        class="btn btn-icon"
+        data-initial-focus
+        [attr.aria-label]="'results.drawer.close' | transloco"
+        (click)="closed.emit()"
+      >
+        <vd-icon name="close" />
+      </button>
+    </div>
+
+    <div class="bd">
+      <dl class="stats">
+        <div>
+          <dt>{{ 'results.drawer.cost_per_day' | transloco }}</dt>
+          <dd class="big">{{ format.money(it.cost.costPerDay, it.cost.currency) }}</dd>
+          <dd class="sub">
+            {{
+              'money.days_supply'
+                | transloco
+                  : {
+                      price: format.money(it.cost.effectivePrice, it.cost.currency),
+                      days: format.integer(it.cost.daysSupply),
+                    }
+            }}
+          </dd>
+        </div>
+        <div>
+          <dt>{{ 'results.drawer.content' | transloco }}</dt>
+          <dd class="big">{{ format.amount(it.contentScore, 4) }}</dd>
+          <dd class="sub">
+            {{
+              'results.drawer.of_100' | transloco: { value: format.integer(it.contentScoreDisplay) }
+            }}
+          </dd>
+        </div>
+        <div>
+          <dt>{{ 'results.drawer.value' | transloco }}</dt>
+          <dd class="big">{{ format.amount(it.valueScore, 4) }}</dd>
+          <dd class="sub">
+            {{
+              'results.drawer.value_sub'
+                | transloco
+                  : { currency: m.nativeCurrency, value: format.integer(it.valueScoreDisplay) }
+            }}
+          </dd>
+        </div>
+      </dl>
+
+      <p class="text-xs muted">
+        {{
+          'results.drawer.note'
+            | transloco: { reference: referenceSet(), country: country()?.nameEn ?? m.country }
+        }}
+      </p>
+
+      @if (rows().length === 0) {
+        <p class="text-sm muted">{{ 'results.drawer.empty' | transloco }}</p>
+      } @else {
+        <ul role="list" class="rows" [attr.aria-label]="'results.drawer.nutrients' | transloco">
+          @for (v of rows(); track v.row.code) {
+            <li class="bd-row" [class.is-target]="v.target" [id]="'bd-row-' + v.row.code">
+              <div class="name">
+                <span class="ncode">{{ v.row.code }}</span>
+                <span class="text-xs muted">{{ 'category.' + v.row.category | transloco }}</span>
+                @if (v.row.cappedAtUMax) {
+                  <span class="badge t-info"
+                    ><vd-icon name="ceil" />{{ 'results.drawer.capped_umax' | transloco }}</span
+                  >
+                }
+                @if (v.row.cappedAtUl) {
+                  <span class="badge t-warn"
+                    ><vd-icon name="warn" />{{ 'results.drawer.capped_ul' | transloco }}</span
+                  >
+                }
+                @if (v.row.belowPresenceFloor) {
+                  <span class="badge t-info"
+                    ><vd-icon name="info" />{{ 'results.drawer.below_floor' | transloco }}</span
+                  >
+                }
+              </div>
+              <span class="contrib">
+                <span class="sr-only">{{
+                  'results.drawer.contribution'
+                    | transloco: { value: format.amount(v.row.contribution, 4) }
+                }}</span>
+                <span aria-hidden="true">{{ format.amount(v.row.contribution, 4) }}</span>
+              </span>
+              <dl class="facts">
+                <div>
+                  <dt>{{ 'results.drawer.amount' | transloco }}</dt>
+                  <dd>{{ v.amount }}</dd>
+                </div>
+                <div>
+                  <dt>{{ 'results.drawer.reference' | transloco }}</dt>
+                  <dd>{{ v.reference ?? ('common.none' | transloco) }}</dd>
+                  <dd class="src">
+                    {{ v.sourceKey ? (v.sourceKey | transloco) : v.sourceLabel }}
+                  </dd>
+                </div>
+                <div>
+                  <dt>{{ 'results.drawer.coverage' | transloco }}</dt>
+                  <dd>{{ v.coverage ?? ('common.none' | transloco) }}</dd>
+                </div>
+                <div>
+                  <dt>{{ 'results.drawer.utility_weight' | transloco }}</dt>
+                  <dd>
+                    {{ format.amount(v.row.utility, 4) }} × {{ format.amount(v.row.weight, 1) }}
+                  </dd>
+                </div>
+              </dl>
+              @if (v.strip; as s) {
+                <vd-coverage-strip
+                  class="strip"
+                  [bars]="s.bars"
+                  [ceiling]="s.ceiling"
+                  [ul]="s.ul"
+                  [refLabel]="'results.drawer.ref_line' | transloco: { amount: v.refLine }"
+                  [ceilLabel]="
+                    s.ceiling !== null && ceilingLabel()
+                      ? ('results.drawer.ceiling' | transloco: { percent: ceilingLabel() })
+                      : null
+                  "
+                />
+              }
+              @if (v.row.ulBelowReference) {
+                <p class="text-xs muted wide">
+                  {{ 'results.drawer.ul_below_reference' | transloco }}
+                </p>
+              }
+            </li>
+          }
+        </ul>
+      }
+
+      <p class="total">
+        {{ 'results.drawer.total' | transloco: { value: format.amount(it.contentScore, 4) } }}
+      </p>
+      <vd-disclaimer variant="inline" />
+    </div>
+
+    <div class="ft">
+      @if (state(); as s) {
+        <vd-product-action-buttons [state]="s" [name]="it.name" variant="text" />
+      }
+      <a
+        class="btn btn-ghost btn-sm"
+        [routerLink]="['/products', it.productId]"
+        [queryParams]="linkParams()"
+      >
+        {{ 'results.drawer.product_page' | transloco }}<vd-icon name="arrow" />
+      </a>
+      @if (state(); as s) {
+        <vd-product-action-notice class="wide" [state]="s" />
+      }
+    </div>
+  }
+</vd-drawer>

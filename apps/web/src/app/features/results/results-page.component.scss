@@ -1,0 +1,9 @@
+.summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--vd-space-1);
+}
+
+.toolbar vd-fx-notice {
+  display: contents;
+}

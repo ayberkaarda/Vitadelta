@@ -1,0 +1,166 @@
+@let m = meta();
+<div class="tbl-wrap">
+  <table class="tbl results" [class.custom]="mode() === 'CUSTOM'">
+    <caption class="sr-only">
+      {{
+        'results.table.caption' | transloco
+      }}
+    </caption>
+    <thead>
+      <tr>
+        <th scope="col" class="pick">
+          <span class="sr-only">{{ 'results.table.select' | transloco }}</span>
+        </th>
+        <th scope="col" class="c">
+          <span aria-hidden="true">#</span>
+          <span class="sr-only">{{ 'results.table.rank' | transloco }}</span>
+        </th>
+        <th scope="col">{{ 'results.table.product' | transloco }}</th>
+        <th scope="col" class="r" [attr.aria-sort]="sortOf('PRICE')">
+          {{ 'results.table.cost' | transloco }}
+          @if (sortOf('PRICE')) {
+            <span aria-hidden="true">▴</span>
+          }
+        </th>
+        <th scope="col" [attr.aria-sort]="sortOf('RICHNESS')">
+          {{ 'results.table.content' | transloco }}
+          @if (sortOf('RICHNESS')) {
+            <span aria-hidden="true">▾</span>
+          }
+        </th>
+        <th scope="col" [attr.aria-sort]="sortOf('VALUE')">
+          {{ 'results.table.value' | transloco }}
+          @if (sortOf('VALUE')) {
+            <span aria-hidden="true">▾</span>
+          }
+        </th>
+        @if (mode() === 'CUSTOM') {
+          <th scope="col" aria-sort="descending">
+            {{ 'results.table.custom' | transloco }} <span aria-hidden="true">▾</span>
+          </th>
+        }
+        <th scope="col">{{ 'results.table.flags' | transloco }}</th>
+        <th scope="col">
+          <span class="sr-only">{{ 'results.table.actions' | transloco }}</span>
+        </th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (item of items(); track item.productId) {
+        @let state = states().get(item.productId);
+        <tr [class.is-selected]="isSelected(item)" [attr.data-product]="item.code">
+          <td class="pick">
+            <label class="selbox">
+              <input
+                type="checkbox"
+                [checked]="isSelected(item)"
+                [attr.aria-label]="'results.table.select_label' | transloco: { name: item.name }"
+                (change)="toggleSelect.emit(item)"
+              />
+              <span class="ml" aria-hidden="true">{{ 'results.table.select' | transloco }}</span>
+            </label>
+          </td>
+          <td class="rk c">
+            <span class="rank">{{ item.rank }}</span>
+          </td>
+          <td class="pc">
+            <div class="prod">
+              <span class="b">{{ item.brand }}</span>
+              <a
+                class="n"
+                [routerLink]="['/products', item.productId]"
+                [queryParams]="linkParams()"
+                >{{ item.name }}</a
+              >
+              <span class="meta"
+                ><span class="code">{{ item.code }}</span>
+                <vd-provenance [provenance]="item.provenance"
+              /></span>
+            </div>
+          </td>
+          <td class="r cost">
+            <vd-money
+              [amount]="item.cost.costPerDay"
+              [currency]="item.cost.currency"
+              [nativeAmount]="item.cost.costPerDayNative"
+              [nativeCurrency]="m.nativeCurrency"
+              [fx]="m.fx"
+              [price]="item.cost.effectivePrice"
+              [daysSupply]="item.cost.daysSupply"
+              [retailer]="item.selectedOffer.retailer"
+              [checkedAt]="item.selectedOffer.checkedAt"
+            />
+            <span class="per">{{ 'results.table.per_day' | transloco }}</span>
+          </td>
+          <td class="sc content">
+            <span class="ml" aria-hidden="true">{{ 'results.table.content' | transloco }}</span>
+            <vd-score-bar
+              kind="content"
+              [display]="item.contentScoreDisplay"
+              [raw]="item.contentScore"
+              [active]="mode() === 'RICHNESS'"
+            />
+          </td>
+          <td class="sc value">
+            <span class="ml" aria-hidden="true">{{ 'results.table.value' | transloco }}</span>
+            <vd-score-bar
+              kind="value"
+              [display]="item.valueScoreDisplay"
+              [raw]="item.valueScore"
+              [active]="mode() === 'VALUE'"
+            />
+          </td>
+          @if (mode() === 'CUSTOM') {
+            <td class="sc custom">
+              <span class="ml" aria-hidden="true">{{ 'results.table.custom' | transloco }}</span>
+              <vd-score-bar
+                kind="custom"
+                [display]="(item.customScore ?? 0) * 100"
+                [raw]="item.customScore ?? 0"
+                [active]="true"
+              />
+            </td>
+          }
+          <td class="fl">
+            <vd-flag-badges
+              [flags]="item.flags"
+              [omit]="['FX_STALE']"
+              [collapseMethodNotes]="true"
+              [interactiveCodes]="['EXCEEDS_UL']"
+              [currency]="m.nativeCurrency"
+              (activate)="breakdown.emit({ item, codes: $event.nutrientCodes })"
+            />
+          </td>
+          <td class="ac">
+            <div class="acts">
+              <button
+                type="button"
+                class="btn btn-sm"
+                data-action="breakdown"
+                [attr.aria-label]="'results.table.breakdown_label' | transloco: { name: item.name }"
+                (click)="breakdown.emit({ item, codes: [] })"
+              >
+                <vd-icon name="list" />
+                <span aria-hidden="true">{{ 'results.table.breakdown' | transloco }}</span>
+              </button>
+              @if (state) {
+                <vd-product-action-buttons
+                  [state]="state"
+                  [name]="item.name"
+                  [alertWideOnly]="true"
+                />
+              }
+            </div>
+          </td>
+        </tr>
+        @if (state && (state.problem() || state.resentKey())) {
+          <tr class="note-row">
+            <td [attr.colspan]="columns()">
+              <vd-product-action-notice [state]="state" />
+            </td>
+          </tr>
+        }
+      }
+    </tbody>
+  </table>
+</div>
