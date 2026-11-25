@@ -1,127 +1,114 @@
 # VitaDelta
 
-English: [README.md](README.md)
+[English](README.md) · [Türkçe](README.tr.md)
 
-VitaDelta, vitamin ve takviye karşılaştırma hizmetidir. Takviye ürünlerini, ülkeye göre referans besin değerlerini ne kadar karşıladıklarına bakarak karşılaştırır; üst sınırları ve etkin doz başına fiyatı da hesaba katar ve ürünleri şeffaf biçimde sıralar. Böylece kullanıcılar parasının karşılığında gerçekte ne aldığını görebilir. Puanlama deterministiktir: aynı girdi her zaman aynı sıralamayı üretir.
+VitaDelta, bir ülkedeki multivitamin ve mineral ürünlerini karşılaştırır. Her ürün için etiketin o ülkenin referans alım değerlerini ne ölçüde karşıladığını, hangi besin öğesinin tolere edilebilir üst sınıra ulaştığını ve etkili bir günlük dozun maliyetini gösterir. Ürünler deterministik olarak sıralanır ve her puan bileşenlerine ayrılabilir; böylece okuyucu bir ürünün neden diğerinin önünde olduğunu ve başka bir ürüne geçmenin bir şey katıp katmadığını görebilir.
 
-> VitaDelta yalnızca karşılaştırmalı bilgi sunar. Tıbbi tavsiye değildir ve bir hekim ya da eczacıyla yapılacak görüşmenin yerini tutmaz.
+Sistem; nginx üzerinden sunulan bir Angular web uygulaması, PostgreSQL veritabanının tek sahibi olan bir Spring Boot API ve yalnızca API'nin erişebildiği durumsuz bir Python puanlama servisinden oluşur. Arayüz Türkçe ve İngilizce dillerini destekler.
 
-**Durum: Faz 6, web uygulaması (sorgu oluşturucu, ziyaretçiler için kilitli satırlı sıralı sonuçlar, karşılaştırma kararları, ürün sayfaları, hesaplar, kayıtlı ürünler, uyarılar, bildirimler, yükseltme sayfası, yönetici sayfaları ve gizlilik bildirimi; Türkçe ve İngilizce arayüz; açık ve koyu tema), temelde Faz 5 kayıtlı ürünler, uyarı abonelikleri, işlemsel outbox ile e-posta teslimatlı bildirimler, gösterim para birimi dönüşümlü döviz kurları ile yönetici sağlık ve outbox istatistikleri; ayrıca Faz 4 katalog ve ürün uç noktaları, kayıt olmadan deneme sınırıyla sıralı öneriler, ikili karşılaştırma ve yönetici içe aktarmaları, Faz 3 hesapları, planları ve promosyon kodları ile Faz 2 puanlama motoru (`/score` ve `/compare`, golden ve property testleri, karar kalibrasyonu) yer alır.** Depo; tüm servislerin çalıştırılabilir iskeletlerini, sözleşmeleri, yerel ortamı ve CI iş akışını, katalog veritabanı şemasını, referans verileri ve bunları yükleyen bir seed yükleyiciyi, ayrıca dahili `/score` ve `/compare` uç noktalarının arkasındaki puanlama motorunu içerir. Puanlama formülleri, yapılandırma ve hata modeli [services/scoring/README.md](services/scoring/README.md) dosyasında; karar kalibrasyonu sonucu [services/scoring/calibration/verdict-calibration.md](services/scoring/calibration/verdict-calibration.md) dosyasında yer alır. API artık kayıt, e-posta doğrulama, yenileme oturumlu giriş, parola sıfırlama, plan yetkileri ve promosyon kodlarını da sağlar. Katalog API üzerinden okunabilir (ülkeler, besinler, ürün arama ve ayrıntı), öneri sorguları puanlama servisinin puanladığı sıralı bir liste döndürür ve iki ürün ikili olarak karşılaştırılabilir. Kalan ürün özellikleri sonraki fazlarda gelecektir.
+Geliştirme Faz 7'ye ulaşmıştır: tamamlanmış ürün özelliklerinin üzerine uçtan uca test paketleri, güvenlik taraması, şifreli yedekleme ve geri yükleme ile bir işletim kılavuzu getiren entegrasyon ve sağlamlaştırma fazı. Herhangi bir ödeme sağlayıcısı entegre edilmemiştir ve herkese açık bir kurulum yoktur; sistem Docker Compose ile yerel olarak çalışır. Ayrıntılar için [mimari](docs/architecture.md), [faz raporları](docs/reports/) ve [işletim kılavuzu](docs/runbook.md) belgelerine bakın.
 
-## Mimariye genel bakış
+## Ekran görüntüleri
 
-```
-browser --> nginx (web, :8080, single public origin)
-              |-- /      static Angular app
-              '-- /api   --> api (Spring Boot) --> PostgreSQL
-                                  |
-                                  |--> scoring (FastAPI, internal only)
-                                  '--> Mailpit (SMTP, local development)
-```
+Aşağıdaki ekranlarda tohumlanan fikstürlerden gelen sentetik demo verileri kullanılmıştır; içlerindeki markalar ve fiyatlar kurgusaldır.
 
-| Bileşen | Teknoloji | Notlar |
+![Demo verileriyle VitaDelta sorgu oluşturucu](docs/screenshots/overview-tr.png)
+*Sorgu oluşturucu: ülke, sıralama modu, besin öğesi ağırlıkları ve filtreler.*
+
+![Puan dökümü açık sıralı sonuçlar](docs/screenshots/results-breakdown-tr.png)
+*Bir ürünün puan dökümüyle sıralı sonuçlar: besin öğesi başına karşılama, üst sınır uygulaması ve etkili bir dozun fiyatı.*
+
+![Kararıyla birlikte ikili karşılaştırma](docs/screenshots/compare-tr.png)
+*İki ürünün karşılaştırması: besin öğesi başına marjinal değişim ve geçişin fiyatına değip değmediğine dair karar.*
+
+## Uygulanan kapsam
+
+| Faz | Alan | Yetenekler |
 |---|---|---|
-| `apps/web` | Angular 22, nginx ile sunulur | Tek herkese açık origin; `/api` isteklerini API'ye yönlendirir |
-| `services/api` | Spring Boot 4, Java 25, Gradle | Herkese açık REST API, yayınlanmış port yok |
-| `services/scoring` | FastAPI, Python 3.14, uv | Saf puanlama motoru, yalnızca API'den erişilebilir |
-| PostgreSQL 18 | Docker | Kalıcı adlandırılmış volume |
-| Mailpit | Docker | Geliştirme ortamında giden e-postaları yakalar |
+| 0 | Temel | Monorepo, doğrulanmış sürüm sabitlemeleri, OpenAPI ve JSON Schema sözleşmeleri, tek genel giriş noktası nginx olan Compose yığını, CI iş akışı |
+| 1 | Katalog verisi | Dört ülke için kaynak gösterilmiş referans değerleri ve üst sınırlar, sentetik fikstürler, 84 ABD ürününden oluşan NIH DSLD etiket anlık görüntüsü, katalog şeması ve idempotent tohumlama |
+| 2 | Puanlama motoru | Azalan getirili karşılama, üst sınır uygulaması, etkili doz başına değer, deterministik sıralama, ikili kararlar; altın ve özellik tabanlı testler, karar kalibrasyonu |
+| 3 | Kimlik ve planlar | E-posta doğrulamalı kayıt, dönen yenileme oturumları, parola sıfırlama, FREE ve PRO planları, promosyon kodları, tek bir yetki karar noktası |
+| 4 | Çekirdek API | Katalog ve ürün uç noktaları, ziyaretçi deneme kotası ve sıralama önbelleğiyle sıralı öneriler, ikili karşılaştırma, ürün ve teklif için yönetici içe aktarımları |
+| 5 | Uyarılar ve döviz kurları | Kaydedilen ürünler, işlemsel outbox üzerinden fiyat ve stok uyarıları, bildirim kutusu ve e-posta, gösterim para birimleri için ECB kurları, yönetici sağlık ekranı |
+| 6 | Web uygulaması | Sorgu oluşturucu, döküm ve kilitli satırlarla sıralı sonuçlar, karşılaştırma, ürün sayfaları, hesap, uyarılar, gelen kutusu, yönetici sayfaları; açık ve koyu tema |
+| 7 | Sağlamlaştırma | Güvenlik taraması, başlık ve yönlendirme doğrulamaları, kayıtlı tatbikatla şifreli yedekleme ve geri yükleme, işletim kılavuzu, istek kapsamlı loglar ve metrikler, sızıntı testleri, CI'da uçtan uca iş |
 
-`contracts/` altındaki OpenAPI ve JSON Schema dosyaları esas alınır: web uygulaması, API ve puanlama servisi bu sözleşmelere göre geliştirilir ve sözleşme değişikliği önce `contracts/` içinde yapılır.
+Kotalar, plan limitleri, sonuç kilitleme ve rol denetimleri yalnızca API tarafından kararlaştırılır; web uygulaması sunucunun kararlarını gösterir. Puanlama motoru saftır: aynı girdi aynı sıralamayı verir; rastgelelik, saat bağımlılığı yoktur ve eşitlikler kararlı biçimde bozulur. Bu davranışların ardındaki kurallar [mimari](docs/architecture.md) ve [puanlama servisi notları](services/scoring/README.md) belgelerinde açıklanır.
 
-## Gereksinimler
+## Teknolojiler
 
-- JDK 25 (Temurin önerilir), `JAVA_HOME` bu JDK'yı göstermelidir. `PATH` üzerinde daha yeni bir JDK bulunması yeterli değildir; Gradle `JAVA_HOME` değişkenini kullanır.
-- Node.js 22.23 veya 22 serisindeki daha yeni bir sürüm, npm ile birlikte
-- Python 3.14 ile [uv](https://docs.astral.sh/uv/) (`uv python install 3.14`)
-- Compose v2 ile Docker
-- Windows'ta Git Bash veya WSL; çünkü `scripts/` altındaki her şey POSIX `bash` betiğidir
+| Katman | Teknoloji |
+|---|---|
+| Web | Angular 22.3, TypeScript 6.0, Transloco 8.4, Vitest 5.1; Node.js 22.23+ ve npm |
+| API | Java 25, Spring Boot 4.2.0, Gradle 9.9.2, Flyway, Resilience4j 2.4.0, Bucket4j 8.23.0, springdoc-openapi 3.2.1 |
+| Puanlama | Python 3.14, FastAPI 0.165.0, Pydantic 2.14.4, uvicorn 0.54.0, uv 0.13.9; özellik tabanlı testler için Hypothesis |
+| Veri ve uç katman | PostgreSQL 18.7, nginx 1.30.8, Docker Compose; geliştirmede Mailpit 1.34.0 |
+| Sözleşmeler ve testler | OpenAPI 3.1, openapi-generator 7.27.0, Testcontainers 2.0.5, Playwright 1.65.1, axe-core 4.14.0 |
 
-## Hızlı başlangıç
+## Yerel kurulum
+
+Compose v2 ile Docker, JDK 25 (`JAVA_HOME` buna işaret edecek şekilde), 22 serisinde 22.23 veya daha yeni bir Node.js ve Python 3.14 ile [uv](https://docs.astral.sh/uv/) kurun. `scripts/` altındaki betikler POSIX `bash` betikleridir; Windows'ta Git Bash veya WSL içinden çalıştırın. JDK, Node.js ve uv test paketleri için gereklidir; yığının kendisi konteynerler içinde derlenir.
+
+Depo kök dizininde:
 
 ```bash
 scripts/dev-up.sh
-```
-
-İlk çalıştırmada betik, `.env.example` dosyasından `.env` oluşturur, geliştirme değerlerini doldurur ve rastgele yeni gizli anahtarlar üretir; ardından imajları derler, yığını başlatır ve tüm servisler sağlıklı olana kadar bekler. Son olarak aşağıdaki uç noktaları kontrol eder. Mevcut bir `.env` dosyasının üzerine asla yazılmaz. `.env` Git tarafından yok sayılır; asla commit etmeyin.
-
-| Ne | URL |
-|---|---|
-| Web uygulaması | http://localhost:8080 |
-| API sağlık kontrolü | http://localhost:8080/api/v1/health |
-| Mailpit gelen kutusu | http://127.0.0.1:8025 |
-| Mailpit SMTP | 127.0.0.1:1025 |
-| PostgreSQL | 127.0.0.1:54320 (konteyner portu 5432; yerel bir PostgreSQL ile çakışmaması için ana makine portu 54320'dir) |
-
-Kataloğu çalışan yığına şu komutla yükleyin:
-
-```bash
 scripts/seed.sh
 ```
 
-Betik referans verileri, sentetik fixture'ları ve gerçek ABD etiket anlık görüntüsünü (sentetik demo fiyatlarla) yükler. Seed idempotenttir: `data/` altındaki dosyaları değiştirdikten sonra yeniden çalıştırın. Hiçbir şeyi değiştirmeyen bir çalıştırma katalog sürümünü değiştirmez; değişen teklifler, yönetici içe aktarımı gibi fiyat uyarılarını tetikler.
+`scripts/dev-up.sh` ilk çalıştırmada `.env.example` dosyasından `.env` oluşturur, içine yeni rastgele gizli anahtarlar üretir, imajları derler, yığını başlatır ve her servis sağlıklı olana kadar bekler. Var olan bir `.env` asla üzerine yazılmaz ve `.env` Git tarafından yok sayılır. `scripts/seed.sh` referans verilerini, sentetik fikstürleri ve etiket anlık görüntüsünü yükler; idempotenttir. Ardından http://localhost:8080 adresini açın.
 
-Yığını şu komutlarla durdurun:
+Yığını durdurmak için:
 
 ```bash
 scripts/dev-down.sh             # keeps the database volume
-scripts/dev-down.sh --volumes   # also deletes the database volume (all local data is lost)
+scripts/dev-down.sh --volumes   # also deletes the database volume
 ```
 
-### POSIX kabuğu olmadan
+| Servis | Yerel adres |
+|---|---|
+| Web uygulaması ve API (nginx) | http://localhost:8080 (API `/api/v1` altında) |
+| Mailpit gelen kutusu | http://127.0.0.1:8025 |
+| Mailpit API | http://127.0.0.1:8025/api/v1 |
+| Mailpit SMTP | 127.0.0.1:1025 |
+| PostgreSQL | 127.0.0.1:54320 |
 
-Git Bash ya da WSL yoksa `.env.example` dosyasını kopyalayarak `.env` dosyasını kendiniz oluşturun ve her değişkene bir değer verin (gizli anahtarlar için uzun rastgele dizeler kullanın); ardından Compose'u doğrudan depo kök dizininden çalıştırın:
+Tüm arayüzlerde yayımlanan tek servis nginx'tir. API ve puanlama servisinin yayımlanan portu yoktur; puanlama servisi yalnızca API'nin katıldığı iç bir ağda bulunur. Mailpit ve PostgreSQL yalnızca loopback adresini dinler.
+
+Varsayılan giriş bilgisi yoktur. İlk yönetici, API açılışında `.env` içindeki `VITADELTA_BOOTSTRAP_ADMIN_EMAIL` ve `VITADELTA_BOOTSTRAP_ADMIN_PASSWORD` değerlerinden ve yalnızca henüz bir yönetici yoksa oluşturulur. İki değeri yerel bir adres ve üretilmiş bir parolayla doldurmak için:
 
 ```bash
-docker compose --env-file .env -f infra/docker-compose.yml up -d --build --wait
-docker compose --env-file .env -f infra/docker-compose.yml down
+scripts/dev-up.sh --bootstrap-admin
+grep '^VITADELTA_BOOTSTRAP_ADMIN_' .env
 ```
 
-Veritabanı volume'unu da silmek için `down` komutuna `--volumes` ekleyin.
+Parola yalnızca yerel `.env` dosyanızda bulunur. Değişkenleri sonradan değiştirmek mevcut yöneticiyi değiştirmez; bunun yerine parola sıfırlama akışını kullanın.
 
-## Geliştirmede hesaplar ve e-posta
+### Denemek için
 
-API üzerinden kayıt olun (`POST /api/v1/auth/register`); doğrulama ve parola sıfırlama e-postalarını Mailpit yakalar ve http://127.0.0.1:8025 adresinden okunabilir. İlk yönetici, `.env` içindeki `VITADELTA_BOOTSTRAP_ADMIN_EMAIL` ve `VITADELTA_BOOTSTRAP_ADMIN_PASSWORD` değerlerinden oluşturulur; varsayılan kimlik bilgisi yoktur, bu yüzden API'yi başlatmadan önce ikisini de ayarlayın, aksi halde yönetici oluşturulmaz. İlk `scripts/dev-up.sh` çalıştırması tüm gizli anahtarları `.env` içine üretir. Actuator sağlık ve metrik uç noktaları, api konteynerinin içinde yayınlanmayan ve proxy'lenmeyen dahili bir portta sunulur; loglar yapılandırılmış JSON'dur ve kimlik bilgileri ile e-posta adresleri maskelenir.
+- **Ziyaretçi.** Hesap olmadan bir sorgu oluşturup çalıştırın. Ziyaretçinin üç ücretsiz sorgu hakkı vardır ve her sıralamanın ilk üç sonucunu görür; kalan satırlar kilitli gösterilir ve verileri tarayıcıya hiç gönderilmez.
+- **Hesap.** Kayıt olun, doğrulama e-postasını Mailpit'te açıp bağlantısını izleyin, ardından giriş yapın. Aynı sorgu artık sayfalı, eksiksiz sıralamayı döndürür.
+- **Karşılaştırma.** Bir sonucun dökümünü açın ya da iki ürün seçip karşılaştırarak besin öğesi başına marjinal değişimi ve kararı görün.
+- **Uyarılar.** Bir ürünü kaydedin ve fiyat düşüşü uyarısı oluşturun. Yönetici olarak, yönetici içe aktarım sayfasında `data/fixtures/offers.price-drop.synthetic.csv` dosyasını içe aktarın; yaklaşık on saniye içinde gelen kutusunda bir bildirim belirir ve uyarı e-postası Mailpit'e düşer.
 
-## Web uygulamasını kullanma
-
-`scripts/dev-up.sh` ve `scripts/seed.sh` çalıştırıldıktan sonra http://localhost:8080 adresini açın. Arayüz Türkçe ve İngilizce olarak, açık ve koyu temayla sunulur. Hesabı olmayan bir ziyaretçi sorgu oluşturabilir, üç ücretsiz sorgu çalıştırabilir ve her sıralamanın ilk üç sonucunu görür; kalan satırlar kilitli gösterilir. Kayıt olmak tam sıralamanın kilidini açar ve kayıtlı ürünleri, fiyat uyarılarını, bildirimleri ve yükseltme sayfasını ekler. Doğrulama ve parola sıfırlama e-postalarını Mailpit yakalar ve http://127.0.0.1:8025 adresinden okunabilir. Yerelde yönetici olmak için API başlamadan önce `.env` içinde `VITADELTA_BOOTSTRAP_ADMIN_EMAIL` ve `VITADELTA_BOOTSTRAP_ADMIN_PASSWORD` değerlerini ayarlayın ve bu bilgilerle giriş yapın; yönetici sayfaları (içe aktarmalar, promosyon kodları, kullanıcılar) hesap menüsünde görünür.
-
-Uygulama yalnızca karşılaştırmalı bilgi sunar ve tıbbi tavsiye değildir. Etiket anlık görüntüsü olarak işaretlenen ürünler, Veri kaynakları ve uyarılar bölümünde anlatılan NIH DSLD anlık görüntüsünden gelir ve fiyatları demo tekliflerdir.
-
-Web testleri `apps/web` içinden çalışır; uçtan uca takım, yığının ayakta ve seed'lenmiş olmasını, `.env` içinde bir bootstrap yöneticisini ve API hız sınırları bellekte tutulduğu için çalıştırmalar arasında `api` servisinin yeniden başlatılmasını gerektirir:
+API doğrudan nginx üzerinden denenebilir. Bir ziyaretçi sorgusu, bir karşılaştırma ve sunulan OpenAPI belgesi (aynı ziyaretçi olarak kalmak için çerez dosyasını koruyun; dördüncü sorgu `quota_exceeded` ile yanıtlanır):
 
 ```bash
-cd apps/web
-npm run lint
-npm test
-npm run build
-npm run e2e:install
-npm run e2e
-
-# or, from the repository root, with the stack up
-RUN_E2E=1 scripts/test-all.sh
-```
-
-## API'yi deneme
-
-`scripts/dev-up.sh` ve `scripts/seed.sh` çalıştırıldıktan sonra API, nginx üzerinden http://localhost:8080 adresinde erişilebilir:
-
-```bash
-curl -s "http://localhost:8080/api/v1/countries"
-curl -s "http://localhost:8080/api/v1/products?country=TR&q=gold"
-curl -s -X POST "http://localhost:8080/api/v1/recommendations/query" \
-  -H "Content-Type: application/json" \
+API=http://localhost:8080/api/v1
+JSON='Content-Type: application/json'
+curl -s "$API/countries"
+curl -s "$API/products?country=TR&q=gold"
+curl -s -c cookies.txt -b cookies.txt -X POST "$API/recommendations/query" -H "$JSON" \
   -d '{"country": "TR"}'
-curl -s -X POST "http://localhost:8080/api/v1/recommendations/compare" \
-  -H "Content-Type: application/json" \
-  -d '{"country": "TR", "baselineProductId": "<id from the product search>", "candidateProductId": "<another id from the product search>"}'
-curl -s "http://localhost:8080/api/v1/openapi.json"
+A=$(curl -s "$API/products?country=TR&q=Gold%20Standard%20Daily%20A" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+B=$(curl -s "$API/products?country=TR&q=Gold%20Standard%20Daily%20B" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+curl -s -X POST "$API/recommendations/compare" -H "$JSON" \
+  -d "{\"country\": \"TR\", \"baselineProductId\": \"$A\", \"candidateProductId\": \"$B\"}"
+curl -s "$API/openapi.json"
 ```
 
-Hesabı olmayan ziyaretçi üç ücretsiz öneri sorgusu yapabilir ve her sorgunun ilk üç sonucunu görür; dördüncü sorgu `quota_exceeded` ile yanıtlanır. Aynı anonim oturumu istekler arasında korumak için sorgu çağrısında `-c cookies.txt -b cookies.txt` kullanın. Çalışan API'nin OpenAPI belgesi `/api/v1/openapi.json` adresinden sunulur. Yöneticiler ürünleri (JSON) ve teklifleri (CSV) `/api/v1/admin/imports/*` üzerinden içe aktarır (ADMIN rolü); biçimler `contracts/schemas/` altında tanımlıdır. Döviz kurları, Frankfurter üzerinden alınan ECB referans kurlarıdır ve altı saatte bir yenilenir; yalnızca bilgi amaçlıdır ve bir para birimi çifti için saklanmış kur yoksa fiyatlar kendi para biriminde kalır ve yanıt bunu belirtir.
-
-Kayıt olma, ürün kaydetme, uyarıya abone olma ve sonuçları okuma şöyle görünür (doğrulama belirteci Mailpit'teki son iletiden okunur; kaydedilen ürün aşağıdaki fiyat düşüşü gösterimi için kullanılan üründür):
+Kayıt olma, Mailpit üzerinden doğrulama, ürün kaydetme ve fiyat düşüşü uyarısına abone olma:
 
 ```bash
 API=http://localhost:8080/api/v1
@@ -142,22 +129,29 @@ curl -s -X POST "$API/me/saved-products" -H "$JSON" -H "Authorization: Bearer $A
 curl -s -X POST "$API/me/alerts" -H "$JSON" -H "Authorization: Bearer $ACCESS" \
   -d "{\"productId\": \"$PRODUCT\", \"countryCode\": \"TR\", \"trigger\": \"PRICE_DROP\", \"thresholdPercent\": 5}"
 curl -s "$API/me/notifications" -H "Authorization: Bearer $ACCESS"
-curl -s "$API/me/notifications/unread-count" -H "Authorization: Bearer $ACCESS"
-curl -s "$API/fx/currencies"
-curl -s "$API/fx/rates?base=TRY"
-curl -s -X POST "$API/recommendations/query" -H "$JSON" \
+curl -s -X POST "$API/recommendations/query" -H "$JSON" -H "Authorization: Bearer $ACCESS" \
   -d '{"country": "TR", "displayCurrency": "USD"}'
 ```
 
-Bir uyarının yerelde tetiklendiğini görmek için başlangıç yöneticisi olarak oturum açın ve `data/fixtures/offers.price-drop.synthetic.csv` dosyasını `POST /api/v1/admin/imports/offers` ile içe aktarın (multipart alanı `file`). Bu, Gold Standard Daily B fiyatını 900,00'dan 846,00'a düşürür; yaklaşık on saniye içinde outbox işleyicisi bildirimi oluşturur, bildirim `GET /api/v1/me/notifications` içinde görünür ve uyarı e-postası Mailpit'te http://127.0.0.1:8025 adresinde görülebilir.
+Fiyat düşüşü içe aktarımı (`POST /api/v1/admin/imports/offers`, multipart alanı `file`, yalnızca yönetici) Gold Standard Daily B'nin fiyatını 900.00 TRY'den 846.00 TRY'ye indirir ve yukarıdaki uyarıyı tetikler. İçe aktarım biçimleri [contracts/schemas](contracts/schemas/) altında tanımlıdır.
 
-## Testleri çalıştırma
+## Ürün ve veri sınırları
+
+VitaDelta yalnızca karşılaştırmalı bilgi sunar. Tıbbi tavsiye değildir ve bir hekim ya da eczacıyla görüşmenin yerini tutmaz; her öneri ve karşılaştırma ekranı bu notu gösterir.
+
+Gerçek ABD ürünleri, [NIH Dietary Supplement Label Database](https://dsld.od.nih.gov/) (DSLD) kaynağından 2026-11-24 tarihinde herkese açık API'si üzerinden alınmış ve depoya işlenmiş bir etiket verisi anlık görüntüsüdür; çalışma zamanında hiçbir zaman çekilmez. Marka ve ürün adları yalnızca tanımlama amacıyla kullanılır; VitaDelta'nın markalarla veya NIH ile bir bağı yoktur ve onlar tarafından desteklenmez. Her ürün etiketinin giriş tarihini gösterir; etiket görseli veya logo kullanılmaz. Depodaki tüm fiyatlar ve satıcılar, gerçek ürünlerin teklifleri dahil, sentetik demo verileridir; altın ve test fikstürleri kurgusal markalar kullanır. Ayrıntılar [ADR-0012](docs/adr/0012-real-label-data-source.md) ve [data/real](data/real/README.md) belgelerindedir.
+
+Döviz kurları Frankfurter üzerinden alınan ve altı saatte bir yenilenen ECB referans kurlarıdır. Yalnızca gösterge niteliğindedir; bir para birimi çifti için kayıtlı kur yoksa fiyatlar kendi para biriminde kalır ve yanıt bunu belirtir. Herhangi bir ödeme sağlayıcısı entegre değildir: PRO bir promosyon koduyla veya bir yönetici tarafından verilir ve yükseltme sayfası fiyatı bilgi amacıyla gösterir. Gizlilik bildirimi iki dilde de tamamlanmış bir taslaktır ve hukuki incelemeden geçmemiştir. Hız limitleri ve önbellekler bellekte tutulduğundan kurulum tam olarak tek bir API örneği varsayar ([ADR-0011](docs/adr/0011-single-instance-and-job-locks.md)).
+
+## Doğrulama
 
 ```bash
-scripts/test-all.sh
+scripts/test-all.sh                  # contracts, data tools, scoring, API, web and the security scan
+RUN_E2E=1 scripts/test-all.sh        # adds the nginx routing check and both end-to-end suites (stack up and seeded)
+scripts/security-scan.sh             # secrets, SQL concatenation, dependency audits, Dependabot configuration
 ```
 
-Betik, mevcut tüm test takımlarını (sözleşme lint'i, puanlama, API, web) çalıştırır, adım adım bir özet yazdırır ve herhangi bir adım başarısız olursa sıfırdan farklı bir kodla çıkar. API test takımı PostgreSQL'i Testcontainers üzerinden başlatır, bu yüzden çalışan bir Docker daemon gerektirir. Test takımları ayrı ayrı da çalıştırılabilir:
+Test paketleri tek tek de çalıştırılabilir:
 
 ```bash
 # scoring (from services/scoring)
@@ -167,7 +161,7 @@ uv run --locked ruff format --check .
 uv run --locked mypy .
 uv run --locked pytest
 
-# api (from services/api, with JAVA_HOME set to JDK 25)
+# api (from services/api, with JAVA_HOME set to JDK 25; needs a Docker daemon for Testcontainers)
 ./gradlew check
 
 # web (from apps/web)
@@ -175,34 +169,38 @@ npm ci
 npm run lint
 npm test
 npm run build
+npm run e2e
+npm run e2e:adversarial
 ```
 
-## Depo yapısı
+| Denetim | Son ölçülen sonuç | Tarih |
+|---|---|---|
+| API (`./gradlew check`) | 1332 test, 0 hata; satır kapsamı %96,4 (eşik %85) | 2026-11-25 |
+| API saldırgan test paketi | 173 test geçer, API çalıştırmasının parçası | 2026-11-25 |
+| Web birim ve bileşen testleri | 64 dosyada 686 test; satır kapsamı %95,35 (eşik %70) | 2026-11-25 |
+| Web derlemesi | ilk paket gzip ile 117,01 kB (bütçe 380 kB) | 2026-11-25 |
+| Puanlama (`pytest`) | 369 test; satır kapsamı %99,30 (eşik %95) | 2026-11-24 |
+| Temiz yığında uçtan uca paketler | 26 normal ve 51 saldırgan test geçer | 2026-11-25 |
+| Güvenlik taraması | 7 denetim geçer; OWASP bağımlılık denetimi NVD API anahtarı olmadan atlanır | 2026-11-25 |
 
-```
-apps/web/            Angular application
-services/api/        Spring Boot API
-services/scoring/    FastAPI scoring service
-contracts/           OpenAPI and JSON Schema contracts
-infra/               Docker Compose stack and nginx configuration
-scripts/             dev-up.sh, dev-down.sh, test-all.sh
-.github/             CI workflow and Dependabot configuration
-data/                Reference data, synthetic fixtures and the real label snapshot (from Phase 1)
-scripts/dsld/        Converter for the real label snapshot (from Phase 1)
-```
+Uçtan uca rakamlar Faz 6 kapısından, puanlama rakamları Faz 2 raporundan alınmıştır. CI her push'ta test paketlerini ve güvenlik taramasını çalıştırır; uçtan uca iş pull request'ler ve varsayılan dal için çalışır ve bilgilendirme amaçlıdır.
 
-Mimari kararlar [docs/adr](docs/adr) altında kayıt altına alınır.
+## Belgeler
 
-## Veri kaynakları ve uyarılar
-
-- **Sentetik fixture'lar.** Test ve gösterim fixture'ları kurgusal markalar kullanır ve sentetik olarak işaretlenir.
-- **Gerçek ABD etiket anlık görüntüsü.** Faz 1'den itibaren depo, [NIH Dietary Supplement Label Database](https://dsld.od.nih.gov/) (DSLD) kaynağından genel API üzerinden alınmış gerçek ABD multivitamin ve mineral etiket verisinin bir anlık görüntüsünü de içerir. API belirtimi verinin CC0 1.0 olduğunu belirtir; sitenin kullanım koşulları sayfaları okunamadığı için lisans yalnızca API belirtiminden doğrulanmıştır. Bkz. [ADR-0012](docs/adr/0012-real-label-data-source.md).
-- **İsimler yalnızca tanımlama içindir.** Marka ve ürün adları yalnızca ürünleri tanımlamak için kullanılır. VitaDelta markalarla ya da NIH ile bağlantılı değildir ve onlar tarafından onaylanmamıştır.
-- **Canlı veri değil, anlık görüntü.** Etiket verisi, giriş tarihi gösterilen bir anlık görüntüdür; etiketler o tarihten sonra değişmiş olabilir.
-- **Fiyatlar demo değerleridir.** Gerçek ürünlerin fiyatları uydurulmuş demo tekliflerdir ve hiçbir gerçek satıcıyı yansıtmaz.
-- **Görsel ve logo yok.** Etiket görselleri ya da marka logoları kullanılmaz.
-- **Tıbbi tavsiye değildir.** Karşılaştırma bilgilendirme amaçlıdır ve bir hekim ya da eczacının tavsiyesinin yerini tutmaz.
-
-## Sürekli entegrasyon
-
-Her push ve pull request, GitHub Actions üzerinde `scripts/test-all.sh` betiğini çalıştırır. Bir pull request yalnızca çalıştırma yeşilse birleştirilebilir.
+- [Mimari](docs/architecture.md) · [İşletim kılavuzu](docs/runbook.md) · [Sözleşmeler](contracts/)
+- Faz raporları: [0](docs/reports/phase-0.md) · [1](docs/reports/phase-1.md) · [2](docs/reports/phase-2.md) · [3](docs/reports/phase-3.md) · [4](docs/reports/phase-4.md) · [5](docs/reports/phase-5.md) · [6](docs/reports/phase-6.md)
+- Servis notları: [puanlama](services/scoring/README.md) · [karar kalibrasyonu](services/scoring/calibration/verdict-calibration.md) · [web uygulaması](apps/web/README.md) · [etiket anlık görüntüsü](data/real/README.md)
+- [Mimari kararlar](docs/adr/):
+  - [0001](docs/adr/0001-monorepo.md) Üç dağıtılabilir birim ve ortak sözleşmelerle monorepo
+  - [0002](docs/adr/0002-scoring-in-python.md) Durumsuz bir servis olarak Python'da puanlama; veritabanının tek sahibi API
+  - [0003](docs/adr/0003-sync-rest-with-resilience.md) Zaman aşımı, yeniden deneme ve devre kesiciyle puanlamaya eşzamanlı REST
+  - [0004](docs/adr/0004-reference-resolution-hierarchy.md) Referans çözümleme, fayda tavanı ve üst sınır uygulaması
+  - [0005](docs/adr/0005-version-pins.md) Sürüm sabitlemeleri
+  - [0006](docs/adr/0006-identity-and-sessions.md) Kimlik: Argon2id, anahtar kimlikli erişim belirteçleri, dönen yenileme belirteçleri, imzalı ziyaretçi çerezi
+  - [0007](docs/adr/0007-entitlements.md) Yetkiler: veriye dayalı planlar, sunucu tarafında uygulama, ziyaretçi için kırpma
+  - [0008](docs/adr/0008-transactional-outbox.md) Teklif değişiklikleri ve e-posta teslimi için işlemsel outbox
+  - [0009](docs/adr/0009-fx-provider.md) Frankfurter (ECB) ile döviz kuru portu ve yalnızca gösterim amaçlı dönüştürme
+  - [0010](docs/adr/0010-billing-port.md) Promosyon kodu ve manuel bağdaştırıcılarla faturalama portu; ödeme sağlayıcısı ertelendi
+  - [0011](docs/adr/0011-single-instance-and-job-locks.md) Zamanlanmış işler için advisory lock ile tek API örneği
+  - [0012](docs/adr/0012-real-label-data-source.md) Sentetik fiyatlarla anlık görüntü olarak NIH DSLD kaynaklı gerçek ABD etiket verisi
+  - [0013](docs/adr/0013-migration-numbering.md) Modül başına ayrılmış migration numaraları

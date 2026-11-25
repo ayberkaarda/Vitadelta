@@ -1,127 +1,114 @@
 # VitaDelta
 
-Türkçe: [README.tr.md](README.tr.md)
+[English](README.md) · [Türkçe](README.tr.md)
 
-VitaDelta is a vitamin and supplement comparison service. It compares supplement products by how well they cover reference nutrient values per country, taking upper limits and price per effective dose into account, and ranks them transparently so that people can see what they actually get for their money. The scoring is deterministic: the same input always produces the same ranking.
+VitaDelta compares multivitamin and mineral products within a country. For each product it shows how much of the country's reference intake values the label covers, where a nutrient reaches a tolerable upper limit, and what an effective daily dose costs. Products are ranked deterministically and every score can be broken down, so a reader can see why one product ranks above another and whether switching to a different product adds anything.
 
-> VitaDelta provides comparative information only. It is not medical advice and does not replace a conversation with a physician or pharmacist.
+The system consists of an Angular web app served by nginx, a Spring Boot API that is the only owner of the PostgreSQL database, and a stateless Python scoring service that only the API can reach. The interface is available in Turkish and English.
 
-**Status: Phase 6, the web application (query builder, ranked results with locked rows for visitors, comparison verdicts, product pages, accounts, saved products, alerts, notifications, upgrade page, admin pages and privacy notice; Turkish and English UI; light and dark themes), on top of the Phase 5 saved products, alert subscriptions, notifications with e-mail delivery through a transactional outbox, exchange rates with display-currency conversion, and admin health and outbox statistics, the Phase 4 catalog and product endpoints, ranked recommendations with the try-before-sign-up limit, pairwise comparison and admin imports, the Phase 3 accounts, plans and promo codes and the Phase 2 scoring engine (`/score` and `/compare`, golden and property tests, verdict calibration).** The repository contains the runnable shells of every service, the contracts, the local stack and the CI workflow, the catalog database schema, the reference data and a loader that seeds them, and the scoring engine behind the internal `/score` and `/compare` endpoints. The scoring formulas, configuration and error model are described in [services/scoring/README.md](services/scoring/README.md); the verdict calibration result is in [services/scoring/calibration/verdict-calibration.md](services/scoring/calibration/verdict-calibration.md). The API now also provides registration, e-mail verification, login with refresh sessions, password reset, plan entitlements and promo codes. The catalog is readable through the API (countries, nutrients, product search and detail), recommendation queries return a ranked list scored by the scoring service, and two products can be compared pairwise. Remaining product features arrive in later phases.
+Development has reached Phase 7: integration and hardening, with end-to-end suites, a security scan, encrypted backup and restore and an operations runbook on top of the complete product features. No payment provider is integrated, and there is no public deployment; the stack runs locally through Docker Compose. See the [architecture](docs/architecture.md), the [phase reports](docs/reports/) and the [runbook](docs/runbook.md).
 
-## Architecture at a glance
+## Screenshots
 
-```
-browser --> nginx (web, :8080, single public origin)
-              |-- /      static Angular app
-              '-- /api   --> api (Spring Boot) --> PostgreSQL
-                                  |
-                                  |--> scoring (FastAPI, internal only)
-                                  '--> Mailpit (SMTP, local development)
-```
+The following screens show synthetic demonstration data from the seeded fixtures; the brands and prices in them are fictional.
 
-| Component | Technology | Notes |
+![VitaDelta query builder with demonstration data](docs/screenshots/overview-en.png)
+*Query builder: country, ranking mode, nutrient weights and filters.*
+
+![Ranked results with the score breakdown open](docs/screenshots/results-breakdown-en.png)
+*Ranked results with the score breakdown of one product: coverage per nutrient, upper-limit handling and the price of an effective dose.*
+
+![Pairwise comparison with its verdict](docs/screenshots/compare-en.png)
+*Comparison of two products: the marginal change per nutrient and the verdict on whether the switch is worth its price.*
+
+## Implemented scope
+
+| Phase | Area | Capabilities |
 |---|---|---|
-| `apps/web` | Angular 22, served by nginx | Single public origin; proxies `/api` to the API |
-| `services/api` | Spring Boot 4, Java 25, Gradle | Public REST API, no published port |
-| `services/scoring` | FastAPI, Python 3.14, uv | Pure scoring engine, reachable only from the API |
-| PostgreSQL 18 | Docker | Persistent named volume |
-| Mailpit | Docker | Catches outgoing e-mail in development |
+| 0 | Foundation | Monorepo, verified version pins, OpenAPI and JSON Schema contracts, Compose stack with nginx as the single public origin, CI workflow |
+| 1 | Catalog data | Cited reference values and upper limits for four countries, synthetic fixtures, NIH DSLD label snapshot of 84 US products, catalog schema and idempotent seed |
+| 2 | Scoring engine | Coverage with diminishing returns, upper-limit handling, value per effective dose, deterministic ranking, pairwise verdicts; golden and property tests, verdict calibration |
+| 3 | Identity and plans | Registration with e-mail verification, rotating refresh sessions, password reset, FREE and PRO plans, promo codes, a single entitlement decision point |
+| 4 | Core API | Catalog and product endpoints, ranked recommendations with the visitor trial quota and a ranking cache, pairwise comparison, admin imports of products and offers |
+| 5 | Alerts and exchange rates | Saved products, price and stock alerts through a transactional outbox, notification inbox and e-mail, ECB rates for display currencies, admin health |
+| 6 | Web application | Query builder, ranked results with breakdown and locked rows, comparison, product pages, account, alerts, inbox, admin pages; light and dark themes |
+| 7 | Hardening | Security scan, header and routing assertions, encrypted backup and restore with a recorded drill, runbook, request-scoped logs and metrics, leakage tests, end-to-end job in CI |
 
-The OpenAPI and JSON Schema files in `contracts/` are authoritative: the web app, the API and the scoring service are implemented against them, and a contract change is made in `contracts/` first.
+Quotas, plan limits, result locking and role checks are decided by the API only; the web app renders the server's decisions. The scoring engine is pure: the same input gives the same ranking, with no randomness, no clock dependency and stable tie-breaks. Read the [architecture](docs/architecture.md) and the [scoring service notes](services/scoring/README.md) for the rules behind these behaviours.
 
-## Prerequisites
+## Technology
 
-- JDK 25 (Temurin recommended), with `JAVA_HOME` pointing to it. A newer JDK on `PATH` is not enough; Gradle uses `JAVA_HOME`.
-- Node.js 22.23 or newer in the 22 line, with npm
-- [uv](https://docs.astral.sh/uv/) with Python 3.14 (`uv python install 3.14`)
-- Docker with Compose v2
-- Git Bash or WSL on Windows, because everything under `scripts/` is POSIX `bash`
+| Layer | Stack |
+|---|---|
+| Web | Angular 22.3, TypeScript 6.0, Transloco 8.4, Vitest 5.1; Node.js 22.23+ and npm |
+| API | Java 25, Spring Boot 4.2.0, Gradle 9.9.2, Flyway, Resilience4j 2.4.0, Bucket4j 8.23.0, springdoc-openapi 3.2.1 |
+| Scoring | Python 3.14, FastAPI 0.165.0, Pydantic 2.14.4, uvicorn 0.54.0, uv 0.13.9; Hypothesis for property tests |
+| Data and edge | PostgreSQL 18.7, nginx 1.30.8, Docker Compose; Mailpit 1.34.0 in development |
+| Contracts and tests | OpenAPI 3.1, openapi-generator 7.27.0, Testcontainers 2.0.5, Playwright 1.65.1, axe-core 4.14.0 |
 
-## Quick start
+## Local setup
+
+Install Docker with Compose v2, JDK 25 (with `JAVA_HOME` pointing to it), Node.js 22.23 or newer in the 22 line, and [uv](https://docs.astral.sh/uv/) with Python 3.14. The scripts under `scripts/` are POSIX `bash`; on Windows run them from Git Bash or WSL. The JDK, Node.js and uv are needed for the test suites; the stack itself builds inside containers.
+
+From the repository root:
 
 ```bash
 scripts/dev-up.sh
-```
-
-On the first run the script creates `.env` from `.env.example`, fills in development values and generates fresh random secrets, then builds the images, starts the stack and waits until every service is healthy. It finishes by checking the endpoints below. An existing `.env` is never overwritten. `.env` is ignored by Git; never commit it.
-
-| What | URL |
-|---|---|
-| Web app | http://localhost:8080 |
-| API health | http://localhost:8080/api/v1/health |
-| Mailpit inbox | http://127.0.0.1:8025 |
-| Mailpit SMTP | 127.0.0.1:1025 |
-| PostgreSQL | 127.0.0.1:54320 (container port 5432; the host port is 54320 so it does not clash with a local PostgreSQL) |
-
-Load the catalog into the running stack with:
-
-```bash
 scripts/seed.sh
 ```
 
-It loads the reference data, the synthetic fixtures and the real US label snapshot (with synthetic demo prices). The seed is idempotent: run it again after changing files under `data/`. A run that changes nothing leaves the catalog version as it is; changed offers trigger price alerts like an admin import.
+On the first run `scripts/dev-up.sh` creates `.env` from `.env.example`, generates fresh random secrets into it, builds the images, starts the stack and waits until every service is healthy. An existing `.env` is never overwritten, and `.env` is ignored by Git. `scripts/seed.sh` loads the reference data, the synthetic fixtures and the label snapshot; it is idempotent. Then open http://localhost:8080.
 
 Stop the stack with:
 
 ```bash
 scripts/dev-down.sh             # keeps the database volume
-scripts/dev-down.sh --volumes   # also deletes the database volume (all local data is lost)
+scripts/dev-down.sh --volumes   # also deletes the database volume
 ```
 
-### Without a POSIX shell
+| Service | Local address |
+|---|---|
+| Web app and API (nginx) | http://localhost:8080 (API under `/api/v1`) |
+| Mailpit inbox | http://127.0.0.1:8025 |
+| Mailpit API | http://127.0.0.1:8025/api/v1 |
+| Mailpit SMTP | 127.0.0.1:1025 |
+| PostgreSQL | 127.0.0.1:54320 |
 
-If neither Git Bash nor WSL is available, create `.env` yourself by copying `.env.example` and giving every variable a value (use long random strings for the secrets), then run Compose directly from the repository root:
+nginx is the only service published on all interfaces. The API and the scoring service have no published ports, and the scoring service sits on an internal network that only the API joins. Mailpit and PostgreSQL listen on the loopback address only.
+
+There are no default credentials. The first administrator is created by the API at start-up from `VITADELTA_BOOTSTRAP_ADMIN_EMAIL` and `VITADELTA_BOOTSTRAP_ADMIN_PASSWORD` in `.env`, and only when no administrator exists yet. To fill both values with a local address and a generated password:
 
 ```bash
-docker compose --env-file .env -f infra/docker-compose.yml up -d --build --wait
-docker compose --env-file .env -f infra/docker-compose.yml down
+scripts/dev-up.sh --bootstrap-admin
+grep '^VITADELTA_BOOTSTRAP_ADMIN_' .env
 ```
 
-Add `--volumes` to the `down` command to delete the database volume as well.
+The password exists only in your local `.env`. Changing the variables later does not change an existing administrator; use the password-reset flow instead.
 
-## Accounts and e-mail in development
+### Trying it
 
-Register through the API (`POST /api/v1/auth/register`); the verification and password-reset e-mails are caught by Mailpit and can be read at http://127.0.0.1:8025. The first administrator is created from `VITADELTA_BOOTSTRAP_ADMIN_EMAIL` and `VITADELTA_BOOTSTRAP_ADMIN_PASSWORD` in `.env`; no default credentials exist, so set both before starting the API or no administrator is created. The first `scripts/dev-up.sh` run generates every secret into `.env`. Actuator health and metrics are served on an internal port inside the api container that is not published or proxied, and logs are structured JSON with credentials and e-mail addresses redacted.
+- **Visitor.** Without an account, build a query and run it. A visitor has three free queries and sees the first three results of each ranking; the remaining rows are shown locked, and their data is never sent to the browser.
+- **Account.** Register, open the verification e-mail in Mailpit and follow its link, then sign in. The same query now returns the full, paged ranking.
+- **Compare.** Open the breakdown of a result, or pick two products and compare them to see the marginal change per nutrient and the verdict.
+- **Alerts.** Save a product and create a price-drop alert. As the administrator, import `data/fixtures/offers.price-drop.synthetic.csv` on the admin imports page; within about ten seconds a notification appears in the inbox and the alert e-mail arrives in Mailpit.
 
-## Using the web app
-
-After `scripts/dev-up.sh` and `scripts/seed.sh`, open http://localhost:8080. The interface is available in Turkish and English, in light and dark themes. Without an account a visitor can build a query, run three free queries and see the first three results of each ranking; the remaining rows are shown locked. Registering unlocks the full ranking and adds saved products, price alerts, notifications and the upgrade page. Verification and password-reset e-mails are caught by Mailpit and can be read at http://127.0.0.1:8025. To become an administrator locally, set `VITADELTA_BOOTSTRAP_ADMIN_EMAIL` and `VITADELTA_BOOTSTRAP_ADMIN_PASSWORD` in `.env` before the API starts and sign in with those credentials; the admin pages (imports, promo codes, users) then appear in the account menu.
-
-The app shows comparative information only and is not medical advice. Products marked as label snapshots come from the NIH DSLD snapshot described under Data sources and disclaimers, and their prices are demo offers.
-
-The web tests run from `apps/web`; the end-to-end suite needs the stack up and seeded, a bootstrap administrator in `.env`, and a restarted `api` service between runs because the API rate limits are held in memory:
+The API can be tried directly through nginx. A visitor query, a comparison and the served OpenAPI document (keep the cookie file to stay the same visitor; the fourth query answers `quota_exceeded`):
 
 ```bash
-cd apps/web
-npm run lint
-npm test
-npm run build
-npm run e2e:install
-npm run e2e
-
-# or, from the repository root, with the stack up
-RUN_E2E=1 scripts/test-all.sh
-```
-
-## Trying the API
-
-After `scripts/dev-up.sh` and `scripts/seed.sh`, the API is reachable through nginx on http://localhost:8080:
-
-```bash
-curl -s "http://localhost:8080/api/v1/countries"
-curl -s "http://localhost:8080/api/v1/products?country=TR&q=gold"
-curl -s -X POST "http://localhost:8080/api/v1/recommendations/query" \
-  -H "Content-Type: application/json" \
+API=http://localhost:8080/api/v1
+JSON='Content-Type: application/json'
+curl -s "$API/countries"
+curl -s "$API/products?country=TR&q=gold"
+curl -s -c cookies.txt -b cookies.txt -X POST "$API/recommendations/query" -H "$JSON" \
   -d '{"country": "TR"}'
-curl -s -X POST "http://localhost:8080/api/v1/recommendations/compare" \
-  -H "Content-Type: application/json" \
-  -d '{"country": "TR", "baselineProductId": "<id from the product search>", "candidateProductId": "<another id from the product search>"}'
-curl -s "http://localhost:8080/api/v1/openapi.json"
+A=$(curl -s "$API/products?country=TR&q=Gold%20Standard%20Daily%20A" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+B=$(curl -s "$API/products?country=TR&q=Gold%20Standard%20Daily%20B" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+curl -s -X POST "$API/recommendations/compare" -H "$JSON" \
+  -d "{\"country\": \"TR\", \"baselineProductId\": \"$A\", \"candidateProductId\": \"$B\"}"
+curl -s "$API/openapi.json"
 ```
 
-Without an account, a visitor gets three free recommendation queries and sees the top three results of each; the fourth query is answered with `quota_exceeded`. Use `-c cookies.txt -b cookies.txt` with the query call to keep the same anonymous session between requests. The OpenAPI document of the running API is served at `/api/v1/openapi.json`. Administrators import products (JSON) and offers (CSV) through `/api/v1/admin/imports/*` (role ADMIN); the formats are defined in `contracts/schemas/`. Exchange rates are ECB reference rates fetched through Frankfurter and refreshed every six hours; they are indicative only, and when no rate is stored for a currency pair the prices stay in their native currency and the response says so.
-
-Registering, saving a product, subscribing to an alert and reading the results looks like this (the verification token is read from the latest message in Mailpit; the saved product is the one used for the price-drop demo below):
+Registering, verifying through Mailpit, saving a product and subscribing to a price-drop alert:
 
 ```bash
 API=http://localhost:8080/api/v1
@@ -142,22 +129,29 @@ curl -s -X POST "$API/me/saved-products" -H "$JSON" -H "Authorization: Bearer $A
 curl -s -X POST "$API/me/alerts" -H "$JSON" -H "Authorization: Bearer $ACCESS" \
   -d "{\"productId\": \"$PRODUCT\", \"countryCode\": \"TR\", \"trigger\": \"PRICE_DROP\", \"thresholdPercent\": 5}"
 curl -s "$API/me/notifications" -H "Authorization: Bearer $ACCESS"
-curl -s "$API/me/notifications/unread-count" -H "Authorization: Bearer $ACCESS"
-curl -s "$API/fx/currencies"
-curl -s "$API/fx/rates?base=TRY"
-curl -s -X POST "$API/recommendations/query" -H "$JSON" \
+curl -s -X POST "$API/recommendations/query" -H "$JSON" -H "Authorization: Bearer $ACCESS" \
   -d '{"country": "TR", "displayCurrency": "USD"}'
 ```
 
-To see an alert fire locally, sign in as the bootstrap administrator and import `data/fixtures/offers.price-drop.synthetic.csv` through `POST /api/v1/admin/imports/offers` (multipart field `file`). It lowers the Gold Standard Daily B price from 900.00 to 846.00; within about ten seconds the outbox processor creates the notification, which then shows up in `GET /api/v1/me/notifications`, and the alert e-mail is visible in Mailpit at http://127.0.0.1:8025.
+The price-drop import (`POST /api/v1/admin/imports/offers`, multipart field `file`, administrator only) lowers the price of Gold Standard Daily B from 900.00 to 846.00 TRY, which fires the alert above. Import formats are defined in [contracts/schemas](contracts/schemas/).
 
-## Running the tests
+## Product and data boundaries
+
+VitaDelta provides comparative information only. It is not medical advice and does not replace a conversation with a physician or pharmacist; every recommendation and comparison screen shows this notice.
+
+The real US products are a committed snapshot of label data from the [NIH Dietary Supplement Label Database](https://dsld.od.nih.gov/) (DSLD), retrieved on 2026-11-24 through its public API, and are never fetched at run time. Brand and product names are used for identification only; VitaDelta is not affiliated with, or endorsed by, the brands or NIH. Each product shows its label entry date, and no label images or logos are used. Every price and retailer in the repository is synthetic demonstration data, including the offers of the real products, and the golden and test fixtures use fictional brands. Details are in [ADR-0012](docs/adr/0012-real-label-data-source.md) and [data/real](data/real/README.md).
+
+Exchange rates are ECB reference rates fetched through Frankfurter and refreshed every six hours. They are indicative only; when no rate is stored for a currency pair, prices stay in their native currency and the response says so. No payment provider is integrated: PRO is granted by a promo code or by an administrator, and the upgrade page shows the price for information. The privacy notice is a complete draft in both languages that has not had a legal review. The deployment assumes exactly one API instance, because rate limits and caches are held in memory ([ADR-0011](docs/adr/0011-single-instance-and-job-locks.md)).
+
+## Validation
 
 ```bash
-scripts/test-all.sh
+scripts/test-all.sh                  # contracts, data tools, scoring, API, web and the security scan
+RUN_E2E=1 scripts/test-all.sh        # adds the nginx routing check and both end-to-end suites (stack up and seeded)
+scripts/security-scan.sh             # secrets, SQL concatenation, dependency audits, Dependabot configuration
 ```
 
-The script runs every suite that exists (contract linting, scoring, API, web), prints a per-step summary and exits non-zero if anything fails. The API suite starts PostgreSQL through Testcontainers and therefore needs a running Docker daemon. The suites can also be run on their own:
+The suites can also be run on their own:
 
 ```bash
 # scoring (from services/scoring)
@@ -167,7 +161,7 @@ uv run --locked ruff format --check .
 uv run --locked mypy .
 uv run --locked pytest
 
-# api (from services/api, with JAVA_HOME set to JDK 25)
+# api (from services/api, with JAVA_HOME set to JDK 25; needs a Docker daemon for Testcontainers)
 ./gradlew check
 
 # web (from apps/web)
@@ -175,34 +169,38 @@ npm ci
 npm run lint
 npm test
 npm run build
+npm run e2e
+npm run e2e:adversarial
 ```
 
-## Repository layout
+| Check | Latest measured result | Date |
+|---|---|---|
+| API (`./gradlew check`) | 1332 tests, 0 failures; line coverage 96.4 % (gate 85 %) | 2026-11-25 |
+| API adversarial suite | 173 tests pass, part of the API run | 2026-11-25 |
+| Web unit and component tests | 686 tests in 64 files; line coverage 95.35 % (gate 70 %) | 2026-11-25 |
+| Web build | initial bundle 117.01 kB gzipped (budget 380 kB) | 2026-11-25 |
+| Scoring (`pytest`) | 369 tests; line coverage 99.30 % (gate 95 %) | 2026-11-24 |
+| End-to-end suites on a fresh stack | 26 regular and 51 adversarial tests pass | 2026-11-25 |
+| Security scan | 7 checks pass; the OWASP dependency check is skipped without an NVD API key | 2026-11-25 |
 
-```
-apps/web/            Angular application
-services/api/        Spring Boot API
-services/scoring/    FastAPI scoring service
-contracts/           OpenAPI and JSON Schema contracts
-infra/               Docker Compose stack and nginx configuration
-scripts/             dev-up.sh, dev-down.sh, test-all.sh
-.github/             CI workflow and Dependabot configuration
-data/                Reference data, synthetic fixtures and the real label snapshot (from Phase 1)
-scripts/dsld/        Converter for the real label snapshot (from Phase 1)
-```
+The end-to-end figures come from the Phase 6 gate; the scoring figures from the Phase 2 report. CI runs the test suites and the security scan on every push; the end-to-end job runs for pull requests and the default branch and is informational.
 
-Architecture decisions are recorded in [docs/adr](docs/adr).
+## Documentation
 
-## Data sources and disclaimers
-
-- **Synthetic fixtures.** The test and demonstration fixtures use fictional brands and are marked as synthetic.
-- **Real US label snapshot.** From Phase 1 the repository also contains a snapshot of real US multivitamin and mineral label data from the [NIH Dietary Supplement Label Database](https://dsld.od.nih.gov/) (DSLD), obtained through its public API. The API specification states the data as CC0 1.0; the website's terms pages could not be read, so the licence is confirmed only from the API specification. See [ADR-0012](docs/adr/0012-real-label-data-source.md).
-- **Names for identification only.** Brand and product names are used only to identify products. VitaDelta is not affiliated with, and not endorsed by, the brands or NIH.
-- **A snapshot, not live data.** Label data is a snapshot with the entry date shown; labels may have changed since.
-- **Prices are demo values.** Prices of real products are invented demo offers and do not reflect any real retailer.
-- **No images or logos.** No label images or brand logos are used.
-- **Not medical advice.** The comparison is informational and does not replace advice from a physician or pharmacist.
-
-## Continuous integration
-
-Every push and pull request runs `scripts/test-all.sh` on GitHub Actions. A pull request is mergeable only with a green run.
+- [Architecture](docs/architecture.md) · [Runbook](docs/runbook.md) · [Contracts](contracts/)
+- Phase reports: [0](docs/reports/phase-0.md) · [1](docs/reports/phase-1.md) · [2](docs/reports/phase-2.md) · [3](docs/reports/phase-3.md) · [4](docs/reports/phase-4.md) · [5](docs/reports/phase-5.md) · [6](docs/reports/phase-6.md)
+- Service notes: [scoring](services/scoring/README.md) · [verdict calibration](services/scoring/calibration/verdict-calibration.md) · [web app](apps/web/README.md) · [label snapshot](data/real/README.md)
+- [Architecture decisions](docs/adr/):
+  - [0001](docs/adr/0001-monorepo.md) Monorepo with three deployables and shared contracts
+  - [0002](docs/adr/0002-scoring-in-python.md) Scoring in Python as a stateless service; the API is the only database owner
+  - [0003](docs/adr/0003-sync-rest-with-resilience.md) Synchronous REST to scoring with timeout, retry and circuit breaker
+  - [0004](docs/adr/0004-reference-resolution-hierarchy.md) Reference resolution, utility ceiling and upper-limit application
+  - [0005](docs/adr/0005-version-pins.md) Version pins
+  - [0006](docs/adr/0006-identity-and-sessions.md) Identity: Argon2id, access tokens with key id, rotating refresh tokens, signed visitor cookie
+  - [0007](docs/adr/0007-entitlements.md) Entitlements: data-driven plans, server-side enforcement, visitor truncation
+  - [0008](docs/adr/0008-transactional-outbox.md) Transactional outbox for offer changes and e-mail delivery
+  - [0009](docs/adr/0009-fx-provider.md) Exchange-rate port with Frankfurter (ECB) and display-only conversion
+  - [0010](docs/adr/0010-billing-port.md) Billing port with promo-code and manual adapters; payment provider deferred
+  - [0011](docs/adr/0011-single-instance-and-job-locks.md) Single API instance with advisory locks for scheduled jobs
+  - [0012](docs/adr/0012-real-label-data-source.md) Real US label data from NIH DSLD as a snapshot with synthetic prices
+  - [0013](docs/adr/0013-migration-numbering.md) Migration numbers reserved per module
