@@ -1,4 +1,4 @@
-// contract-sha256: 55be039714050f83ddef440782444a0adf4ef483c34893c8acf88c881e707f12
+// contract-sha256: 585694765526f451c92893ae428c4e2926c2789f49c438413c9e462fb7146f0c
 // Types of the public API, derived from contracts/public-api.openapi.yaml.
 // Do not edit by hand: run `npm run api:types` in apps/web after changing the contract.
 
@@ -3522,7 +3522,7 @@ export interface components {
                  *       "type": "about:blank",
                  *       "title": "Bad Request",
                  *       "status": 400,
-                 *       "detail": "Bad Request",
+                 *       "detail": "Bad Request.",
                  *       "instance": "/api/v1/billing/webhooks/stripe",
                  *       "requestId": "8c1d2e3f-4a5b-4c6d-9e7f-0a1b2c3d4e5f"
                  *     }
