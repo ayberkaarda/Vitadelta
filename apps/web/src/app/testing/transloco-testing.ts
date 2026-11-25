@@ -1,5 +1,11 @@
 import { ModuleWithProviders } from '@angular/core';
-import { Translation, TranslocoTestingModule } from '@jsverse/transloco';
+import {
+  Translation,
+  TranslocoTestingModule,
+  provideTranslocoTranspiler,
+} from '@jsverse/transloco';
+
+import { LiteralTranspiler } from '../core/i18n/literal-transpiler';
 
 import en from '../../../public/i18n/en.json';
 import tr from '../../../public/i18n/tr.json';
@@ -33,7 +39,7 @@ export function translocoTesting(
     langs[`${scope}/en`] = files.en;
     langs[`${scope}/tr`] = files.tr;
   }
-  return TranslocoTestingModule.forRoot({
+  const module = TranslocoTestingModule.forRoot({
     langs,
     translocoConfig: {
       availableLangs: ['en', 'tr'],
@@ -43,6 +49,11 @@ export function translocoTesting(
     },
     preloadLangs: true,
   });
+  // The application transpiler (see provideI18n) replaces the default one of the testing module.
+  return {
+    ...module,
+    providers: [...(module.providers ?? []), provideTranslocoTranspiler(LiteralTranspiler)],
+  };
 }
 
 /** Root English translations, for assertions on rendered text. */

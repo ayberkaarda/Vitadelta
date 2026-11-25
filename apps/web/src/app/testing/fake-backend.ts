@@ -92,6 +92,8 @@ export const ANONYMOUS_VISIBLE = 3;
 @Injectable()
 export class FakeBackend implements HttpBackend {
   readonly requests: RecordedRequest[] = [];
+  /** The address bar at the moment each request (API and translations) was sent. */
+  readonly sentFrom: string[] = [];
 
   private readonly accounts = new Map<string, Account>();
   /** Access tokens the API accepts. */
@@ -144,6 +146,7 @@ export class FakeBackend implements HttpBackend {
   }
 
   handle(request: HttpRequest<unknown>): Observable<HttpEvent<unknown>> {
+    this.sentFrom.push(`${window.location.href} -> ${request.method} ${request.urlWithParams}`);
     return new Observable<HttpEvent<unknown>>((subscriber) => {
       const timer = setTimeout(() => {
         const url = new URL(request.urlWithParams, 'http://app.test/');

@@ -11,11 +11,11 @@ import {
   withComponentInputBinding,
   withInMemoryScrolling,
 } from '@angular/router';
-import { provideTransloco } from '@jsverse/transloco';
 
 import { routes } from './app.routes';
 import { authInterceptor } from './core/auth/auth.interceptor';
 import { I18nTitleStrategy } from './core/i18n/i18n-title.strategy';
+import { provideI18n } from './core/i18n/provide-i18n';
 import { AVAILABLE_LANGS, FALLBACK_LANG, resolveInitialLang } from './core/i18n/languages';
 import { TranslocoHttpLoader } from './core/i18n/transloco-http-loader';
 
@@ -30,7 +30,7 @@ export const appConfig: ApplicationConfig = {
       withInMemoryScrolling({ scrollPositionRestoration: 'enabled', anchorScrolling: 'enabled' }),
     ),
     { provide: TitleStrategy, useExisting: I18nTitleStrategy },
-    provideTransloco({
+    provideI18n({
       config: {
         availableLangs: [...AVAILABLE_LANGS],
         defaultLang: resolveInitialLang(),
