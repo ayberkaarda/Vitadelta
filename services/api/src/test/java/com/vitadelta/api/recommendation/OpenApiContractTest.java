@@ -26,8 +26,8 @@ import tools.jackson.dataformat.yaml.YAMLMapper;
  * against the authoritative {@code contracts/public-api.openapi.yaml}.
  *
  * <ul>
- *   <li>Operations: the implemented operations (method and path) are exactly the contract's minus
- *       {@link #NOT_YET_IMPLEMENTED}; the list shrinks phase by phase.
+ *   <li>Operations: the implemented operations (method and path) are exactly the contract's (every
+ *       contract operation is implemented since the alerts module landed).
  *   <li>For every implemented operation: query and path parameters (name, location, required), the
  *       success status, and the request and success response bodies compared structurally after
  *       resolving references and {@code allOf}: property names, {@code required} lists,
@@ -42,21 +42,6 @@ import tools.jackson.dataformat.yaml.YAMLMapper;
  * exception handler, validated against the contract by the API tests).
  */
 class OpenApiContractTest extends RecommendationApiTestBase {
-
-  /** Contract operations of the saved-products, alerts and notifications module. */
-  static final Set<String> NOT_YET_IMPLEMENTED =
-      Set.of(
-          "GET /me/saved-products",
-          "POST /me/saved-products",
-          "DELETE /me/saved-products/{productId}",
-          "GET /me/alerts",
-          "POST /me/alerts",
-          "PATCH /me/alerts/{id}",
-          "DELETE /me/alerts/{id}",
-          "GET /me/notifications",
-          "POST /me/notifications/{id}/read",
-          "POST /me/notifications/read-all",
-          "GET /me/notifications/unread-count");
 
   /** Routes that exist only in the test sources (entitlement probes of the Phase 3 tests). */
   private static final String TEST_ONLY_SEGMENT = "/entitlement-probe/";
@@ -183,12 +168,11 @@ class OpenApiContractTest extends RecommendationApiTestBase {
   }
 
   @Test
-  void implementedOperationsAreTheContractsMinusTheNotYetImplementedOnes() {
+  void implementedOperationsAreExactlyTheContractsOperations() {
     Set<String> contractOperations = operations(contract, "");
-    assertThat(contractOperations).containsAll(NOT_YET_IMPLEMENTED);
-    Set<String> expected = new TreeSet<>(contractOperations);
-    expected.removeAll(NOT_YET_IMPLEMENTED);
-    assertThat(operations(generated, "/api/v1")).containsExactlyInAnyOrderElementsOf(expected);
+    assertThat(contractOperations).isNotEmpty();
+    assertThat(operations(generated, "/api/v1"))
+        .containsExactlyInAnyOrderElementsOf(contractOperations);
   }
 
   @Test
