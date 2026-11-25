@@ -1,10 +1,19 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  computed,
+  inject,
+  input,
+  signal,
+} from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { TranslocoPipe } from '@jsverse/transloco';
 
 import { ApiProblem } from '../../../core/api/api-problem';
 import { loginQueryParams } from '../../../core/auth/return-url';
 import { SessionStore } from '../../../core/auth/session.store';
+import { ProviderActionGuard } from '../../../core/billing/action-guard';
 import { BillingNavigator } from '../../../core/billing/billing-navigator';
 import { IconComponent } from '../../../shared/icon/icon.component';
 import { NoticeComponent } from '../../../shared/notice/notice.component';
@@ -23,7 +32,9 @@ import { ManageSubscriptionComponent } from '../../account/components/manage-sub
  * - Everyone else: "Subscribe to PRO", which asks the API for a hosted checkout session and
  *   sends the browser to the provider. `401` leads to the login page, `409 plan_already_active`
  *   reloads `/me` and points to the account, `403 email_not_verified` points to the account
- *   page (where the e-mail can be resent), `429` and `503 billing_unavailable` are retryable.
+ *   page (where the e-mail can be resent), `429` and `503 billing_unavailable` are retryable;
+ *   after `429` the button waits for the `Retry-After` countdown too. Leaving the page cancels
+ *   a pending session request, so a late answer never moves the browser.
  */
 @Component({
   selector: 'vd-checkout-panel',
@@ -62,7 +73,7 @@ import { ManageSubscriptionComponent } from '../../account/components/manage-sub
               class="btn btn-primary btn-block wrap"
               data-action="checkout"
               [attr.aria-busy]="busy()"
-              [attr.aria-disabled]="busy()"
+              [attr.aria-disabled]="busy() || guard.coolingDown()"
               aria-describedby="checkout-note"
               (click)="start()"
             >
@@ -129,6 +140,8 @@ export class CheckoutPanelComponent {
   protected readonly loginParams = { returnUrl: '/upgrade' };
   protected readonly busy = signal(false);
   protected readonly problem = signal<ApiProblem | null>(null);
+  /** Cancels a pending session when the page is left; holds the rate-limit countdown. */
+  protected readonly guard = new ProviderActionGuard(inject(DestroyRef));
 
   protected readonly paidThroughProvider = computed(() => {
     const me = this.session.isAuthenticated() ? this.session.me() : null;
@@ -136,17 +149,21 @@ export class CheckoutPanelComponent {
   });
 
   protected async start(): Promise<void> {
-    if (this.busy()) {
+    if (this.busy() || this.guard.coolingDown()) {
       return;
     }
     this.busy.set(true);
     this.problem.set(null);
     try {
       // On success the browser leaves the app; the button stays busy until then.
-      await this.billing.open('checkout');
+      await this.billing.open('checkout', this.guard.signal);
     } catch (error: unknown) {
+      if (this.guard.signal.aborted) {
+        return;
+      }
       this.busy.set(false);
       const problem = ApiProblem.from(error);
+      this.guard.apply(problem);
       if (problem.status === 401) {
         if (this.router.currentNavigation() === null) {
           void this.router.navigate(['/auth/login'], {

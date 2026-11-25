@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
-import { NEVER, Observable, of, throwError } from 'rxjs';
+import { NEVER, Observable, Subject, of, throwError } from 'rxjs';
 
 import accountEn from '../../../../../public/i18n/account/en.json';
 import accountTr from '../../../../../public/i18n/account/tr.json';
@@ -109,6 +109,37 @@ describe('ManageSubscriptionComponent', () => {
     expect(host().querySelector('[data-code="rate_limited"] button')?.textContent).toContain(
       'Try again in 12 s',
     );
+    // The primary button waits for the same countdown.
+    expect(button().getAttribute('aria-disabled')).toBe('true');
+    button().click();
+    await settle();
+    expect(createBillingPortalSession).toHaveBeenCalledTimes(1);
+  });
+
+  it('enables the button again when the rate-limit countdown ends', async () => {
+    await setup();
+    await fail(
+      new ApiProblem({ kind: 'problem', status: 429, code: 'rate_limited', retryAfterSeconds: 1 }),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 1100));
+    await settle();
+    expect(button().getAttribute('aria-disabled')).toBe('false');
+    button().click();
+    await settle();
+    expect(createBillingPortalSession).toHaveBeenCalledTimes(2);
+  });
+
+  it('never sends the browser to the portal after the page was left', async () => {
+    await setup();
+    const answer = new Subject<BillingRedirect>();
+    createBillingPortalSession.mockReturnValueOnce(answer);
+    button().click();
+    await settle();
+    fixture.destroy();
+    expect(answer.observed).toBe(false);
+    answer.next({ url: PORTAL_URL });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(assign).not.toHaveBeenCalled();
   });
 
   it('sends a signed-out user to the login page (401)', async () => {

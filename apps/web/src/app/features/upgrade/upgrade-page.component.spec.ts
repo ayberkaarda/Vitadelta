@@ -2,7 +2,7 @@ import { computed, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router, Routes, provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
-import { NEVER, Observable, of, throwError } from 'rxjs';
+import { NEVER, Observable, Subject, of, throwError } from 'rxjs';
 
 import accountEn from '../../../../public/i18n/account/en.json';
 import accountTr from '../../../../public/i18n/account/tr.json';
@@ -430,6 +430,45 @@ describe('UpgradePageComponent', () => {
       const retry = notice?.querySelector<HTMLButtonElement>('button');
       expect(retry?.textContent).toContain('Try again in 30 s');
       expect(retry?.disabled).toBe(true);
+      // The primary button waits for the same countdown; it cannot bypass the limit.
+      expect(checkoutButton()?.getAttribute('aria-disabled')).toBe('true');
+      checkoutButton()?.click();
+      await settle();
+      expect(createCheckoutSession).toHaveBeenCalledTimes(1);
+    });
+
+    it('enables the checkout button again when the rate-limit countdown ends', async () => {
+      await setup(true, 'FREE', { checkout: true });
+      await failCheckout(
+        new ApiProblem({
+          kind: 'problem',
+          status: 429,
+          code: 'rate_limited',
+          retryAfterSeconds: 1,
+        }),
+      );
+      expect(checkoutButton()?.getAttribute('aria-disabled')).toBe('true');
+      await new Promise((resolve) => setTimeout(resolve, 1100));
+      await settle();
+      expect(checkoutButton()?.getAttribute('aria-disabled')).toBe('false');
+      checkoutButton()?.click();
+      await settle();
+      expect(createCheckoutSession).toHaveBeenCalledTimes(2);
+      expect(assign).toHaveBeenCalledWith(CHECKOUT_URL);
+    });
+
+    it('never sends the browser to the provider after the page was left', async () => {
+      await setup(true, 'FREE', { checkout: true });
+      const answer = new Subject<BillingRedirect>();
+      createCheckoutSession.mockReturnValueOnce(answer);
+      checkoutButton()?.click();
+      await settle();
+      expect(answer.observed).toBe(true);
+      fixture.destroy();
+      expect(answer.observed).toBe(false);
+      answer.next({ url: CHECKOUT_URL });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(assign).not.toHaveBeenCalled();
     });
 
     it('explains an unavailable payment service and retries (503)', async () => {

@@ -1,9 +1,10 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { TranslocoPipe } from '@jsverse/transloco';
 
 import { ApiProblem } from '../../../core/api/api-problem';
 import { loginQueryParams } from '../../../core/auth/return-url';
+import { ProviderActionGuard } from '../../../core/billing/action-guard';
 import { BillingNavigator } from '../../../core/billing/billing-navigator';
 import { IconComponent } from '../../../shared/icon/icon.component';
 import { NoticeComponent } from '../../../shared/notice/notice.component';
@@ -18,7 +19,9 @@ let nextId = 0;
  * ACTIVE subscription with `source = PROVIDER`; the portal returns the browser to `/account`.
  *
  * `401` leads to the login page, `409 no_billing_account` is an information notice, every other
- * problem (`429` with its countdown, `503 billing_unavailable`) is a retryable notice.
+ * problem (`429` with its countdown, `503 billing_unavailable`) is a retryable notice. After
+ * `429` the button itself also waits for the countdown, and leaving the page cancels a pending
+ * session request, so a late answer never moves the browser.
  */
 @Component({
   selector: 'vd-manage-subscription',
@@ -31,7 +34,7 @@ let nextId = 0;
           class="btn btn-block wrap"
           data-action="manage-subscription"
           [attr.aria-busy]="busy()"
-          [attr.aria-disabled]="busy()"
+          [attr.aria-disabled]="busy() || guard.coolingDown()"
           [attr.aria-describedby]="hintId"
           (click)="open()"
         >
@@ -80,19 +83,25 @@ export class ManageSubscriptionComponent {
   protected readonly hintId = `manage-subscription-hint-${nextId++}`;
   protected readonly busy = signal(false);
   protected readonly problem = signal<ApiProblem | null>(null);
+  /** Cancels a pending session when the page is left; holds the rate-limit countdown. */
+  protected readonly guard = new ProviderActionGuard(inject(DestroyRef));
 
   protected async open(): Promise<void> {
-    if (this.busy()) {
+    if (this.busy() || this.guard.coolingDown()) {
       return;
     }
     this.busy.set(true);
     this.problem.set(null);
     try {
       // On success the browser leaves the app; the button stays busy until then.
-      await this.billing.open('portal');
+      await this.billing.open('portal', this.guard.signal);
     } catch (error: unknown) {
+      if (this.guard.signal.aborted) {
+        return;
+      }
       this.busy.set(false);
       const problem = ApiProblem.from(error);
+      this.guard.apply(problem);
       if (problem.status === 401) {
         if (this.router.currentNavigation() === null) {
           void this.router.navigate(['/auth/login'], {
