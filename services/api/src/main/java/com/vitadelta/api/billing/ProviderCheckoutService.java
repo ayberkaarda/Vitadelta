@@ -11,6 +11,9 @@ import com.vitadelta.api.entitlement.SubscriptionRepository;
 import com.vitadelta.api.identity.UserAccount;
 import com.vitadelta.api.identity.UserRepository;
 import io.micrometer.core.instrument.MeterRegistry;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Set;
 import java.util.UUID;
 import org.slf4j.Logger;
@@ -24,8 +27,13 @@ import org.springframework.stereotype.Service;
  *
  * <p>Checks, in order: a provider is configured ({@code 503 billing_unavailable}), the per-user
  * rate limit ({@code 429}), the account exists ({@code 401}); for checkout also a verified e-mail
- * ({@code 403 email_not_verified}) and an ACTIVE plan other than PRO ({@code 409
- * plan_already_active}); for the portal an existing Stripe customer ({@code 409
+ * ({@code 403 email_not_verified}), an ACTIVE plan other than PRO and no live provider subscription
+ * ({@code 409 plan_already_active}; a past-due subscription is settled in the portal, not by a
+ * second one). One checkout per user at a time: the creation is claimed in {@code
+ * billing_checkout_session} (a second caller during the creation gets {@code 409 conflict_retry})
+ * and the previous session, while still open, is expired at Stripe before a new one is created, so
+ * at most one session of a user accepts payment (one that was just paid answers {@code 409
+ * plan_already_active}). For the portal an existing Stripe customer is required ({@code 409
  * no_billing_account}). A Stripe failure is {@code 503 billing_unavailable}; its reason is logged.
  * Return URLs are built only from {@code VITADELTA_WEB_BASE_URL}.
  *
@@ -44,6 +52,12 @@ public class ProviderCheckoutService {
   /** Where the billing portal returns the browser. */
   static final String PORTAL_RETURN_PATH = "/account";
 
+  /** How long one caller may take to create a checkout before another caller may start one. */
+  static final Duration CLAIM_LEASE = Duration.ofMinutes(1);
+
+  /** Lifetime assumed for a created session when Stripe does not report one (its default). */
+  static final Duration DEFAULT_SESSION_LIFETIME = Duration.ofHours(24);
+
   /** Detail of every {@code billing_unavailable} problem. */
   static final String UNAVAILABLE_DETAIL = "Online payment is not available right now.";
 
@@ -59,6 +73,7 @@ public class ProviderCheckoutService {
   private final RateLimiter rateLimiter;
   private final WebProperties web;
   private final MeterRegistry meters;
+  private final Clock clock;
 
   public ProviderCheckoutService(
       BillingProperties properties,
@@ -68,7 +83,8 @@ public class ProviderCheckoutService {
       SubscriptionRepository subscriptions,
       RateLimiter rateLimiter,
       WebProperties web,
-      MeterRegistry meters) {
+      MeterRegistry meters,
+      Clock clock) {
     this.properties = properties;
     this.stripe = stripe;
     this.accounts = accounts;
@@ -77,6 +93,7 @@ public class ProviderCheckoutService {
     this.rateLimiter = rateLimiter;
     this.web = web;
     this.meters = meters;
+    this.clock = clock;
   }
 
   /** A Checkout Session for the monthly PRO price, bound to {@code userId}. */
@@ -96,17 +113,77 @@ public class ProviderCheckoutService {
     if (pro) {
       throw ProblemException.of(ProblemCode.PLAN_ALREADY_ACTIVE, "The PRO plan is already active.");
     }
-    StripeApi.CheckoutRequest request =
-        new StripeApi.CheckoutRequest(
-            userId,
-            properties.stripe().priceId(),
-            accounts.customerOf(userId).orElse(null),
-            web.link(SUCCESS_PATH),
-            web.link(CANCEL_PATH),
-            CHECKOUT_LOCALES.contains(user.locale()) ? user.locale() : "auto");
-    String url = call("checkout", () -> stripe.createCheckoutSession(request));
+    if (!accounts.liveSubscriptions(userId).isEmpty()) {
+      // A past-due or unpaid subscription is settled in the billing portal, not by a second one.
+      throw ProblemException.of(
+          ProblemCode.PLAN_ALREADY_ACTIVE,
+          "A subscription already exists; manage it in the billing portal.");
+    }
+    Instant now = clock.instant();
+    BillingAccountRepository.CheckoutClaim claim =
+        accounts
+            .claimCheckout(userId, now.plus(CLAIM_LEASE), now)
+            .orElseThrow(() ->
+                ProblemException.of(
+                    ProblemCode.CONFLICT_RETRY,
+                    "A checkout is being prepared. Retry the request."));
+    StripeApi.CheckoutSession session;
+    try {
+      claim.openSession(now).ifPresent(previous -> expirePrevious(userId, previous));
+      StripeApi.CheckoutRequest request =
+          new StripeApi.CheckoutRequest(
+              userId,
+              properties.stripe().priceId(),
+              accounts.customerOf(userId).orElse(null),
+              web.link(SUCCESS_PATH),
+              web.link(CANCEL_PATH),
+              CHECKOUT_LOCALES.contains(user.locale()) ? user.locale() : "auto");
+      session = call("checkout", () -> stripe.createCheckoutSession(request));
+    } catch (RuntimeException e) {
+      accounts.releaseCheckout(userId);
+      throw e;
+    }
+    Instant expiresAt =
+        session.expiresAt() != null ? session.expiresAt() : now.plus(DEFAULT_SESSION_LIFETIME);
+    accounts.openCheckout(userId, session.id(), session.url(), expiresAt);
     LOG.info("Checkout session created for user {}", userId);
-    return new BillingRedirect(url);
+    return new BillingRedirect(session.url());
+  }
+
+  /**
+   * Expires the user's previous, still open Checkout Session at Stripe before a new one is created,
+   * so that at most one session of the user accepts payment. A session Stripe no longer knows
+   * ({@code 404}) is gone already. Any other refusal means the session is no longer open, typically
+   * because it was just paid and its webhook has not arrived: {@code 409 plan_already_active}
+   * instead of a second payable session. A Stripe outage is {@code 503}.
+   */
+  private void expirePrevious(UUID userId, String previous) {
+    try {
+      stripe.expireCheckoutSession(previous);
+      LOG.info("Previous checkout session of user {} expired", userId);
+    } catch (StripeApiException e) {
+      if (e.notFound()) {
+        return;
+      }
+      if (e.reason() == StripeApiException.Reason.HTTP_STATUS && e.status() < 500) {
+        LOG.info(
+            "Previous checkout session of user {} is no longer open: {}", userId, e.getMessage());
+        throw ProblemException.of(
+            ProblemCode.PLAN_ALREADY_ACTIVE,
+            "A checkout was completed; the plan is activated once the payment is confirmed.");
+      }
+      meters
+          .counter(
+              "vitadelta.billing.stripe.failed",
+              "operation",
+              "expire_checkout",
+              "reason",
+              e.reason().tag())
+          .increment();
+      LOG.warn(
+          "Previous checkout session of user {} could not be expired: {}", userId, e.getMessage());
+      throw unavailable();
+    }
   }
 
   /** A Billing Portal session for the user's Stripe customer. */
@@ -129,15 +206,15 @@ public class ProviderCheckoutService {
     return new BillingRedirect(url);
   }
 
-  private interface StripeCall {
-    String run();
+  private interface StripeCall<T> {
+    T run();
   }
 
-  private String call(String kind, StripeCall call) {
+  private <T> T call(String kind, StripeCall<T> call) {
     try {
-      String url = call.run();
+      T result = call.run();
       meters.counter("vitadelta.billing.session.created", "kind", kind).increment();
-      return url;
+      return result;
     } catch (StripeApiException e) {
       meters
           .counter("vitadelta.billing.stripe.failed", "operation", kind, "reason", e.reason().tag())

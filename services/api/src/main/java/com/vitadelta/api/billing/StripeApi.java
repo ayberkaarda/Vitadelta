@@ -51,6 +51,9 @@ public class StripeApi {
   /** Format of a subscription id. */
   public static final Pattern SUBSCRIPTION_ID = Pattern.compile("^sub_[A-Za-z0-9]{1,200}$");
 
+  /** Format of a Checkout Session id. */
+  public static final Pattern CHECKOUT_SESSION_ID = Pattern.compile("^cs_[A-Za-z0-9_]{1,250}$");
+
   /** Format of a customer id. */
   public static final Pattern CUSTOMER_ID = Pattern.compile("^cus_[A-Za-z0-9]{1,200}$");
 
@@ -91,13 +94,22 @@ public class StripeApi {
       String locale) {}
 
   /**
+   * A created Checkout Session.
+   *
+   * @param id {@code cs_...}
+   * @param url the hosted page
+   * @param expiresAt when the session stops accepting payment, {@code null} when Stripe did not say
+   */
+  public record CheckoutSession(String id, String url, Instant expiresAt) {}
+
+  /**
    * {@code POST /v1/checkout/sessions} in subscription mode for one unit of the price. The user id
    * is the session's {@code client_reference_id} and is stored as {@code user_id} in the metadata
    * of the session and of the subscription it creates.
    *
-   * @return the URL of the hosted page
+   * @return the session id and the URL of the hosted page
    */
-  public String createCheckoutSession(CheckoutRequest request) {
+  public CheckoutSession createCheckoutSession(CheckoutRequest request) {
     List<Map.Entry<String, String>> form = new ArrayList<>();
     String user = request.userId().toString();
     form.add(Map.entry("mode", "subscription"));
@@ -114,7 +126,26 @@ public class StripeApi {
     }
     JsonNode session =
         call("create checkout session", HttpMethod.POST, "/v1/checkout/sessions", form);
-    return redirectUrl("create checkout session", session);
+    String url = redirectUrl("create checkout session", session);
+    JsonNode id = session.get("id");
+    if (id == null || !id.isString() || !CHECKOUT_SESSION_ID.matcher(id.stringValue()).matches()) {
+      throw new StripeApiException(
+          "create checkout session", Reason.MALFORMED, 0, "no session id", null);
+    }
+    return new CheckoutSession(id.stringValue(), url, epoch(session.get("expires_at")));
+  }
+
+  /**
+   * {@code POST /v1/checkout/sessions/{id}/expire}: the session stops accepting payment. Stripe
+   * answers an error status for a session that is no longer open (for example completed).
+   */
+  public void expireCheckoutSession(String sessionId) {
+    String id = requireId(sessionId, CHECKOUT_SESSION_ID);
+    call(
+        "expire checkout session",
+        HttpMethod.POST,
+        "/v1/checkout/sessions/" + id + "/expire",
+        List.of());
   }
 
   /**
