@@ -41,13 +41,26 @@ export async function chooseMarket(page: Page, country: string): Promise<void> {
   await useLanguage(page, 'en');
 }
 
+/**
+ * Switches the UI language in the header. Until the visitor chooses one, the language follows
+ * the default locale of the market, which is known only once `/countries` has loaded (a
+ * `/results?country=TR` page starts in the browser language and turns Turkish then). So the
+ * choice is made after the country list is rendered, and repeated if the page still settled
+ * on the other language.
+ */
 export async function useLanguage(page: Page, lang: 'en' | 'tr'): Promise<void> {
   const name = lang === 'en' ? 'EN English' : 'TR Türkçe';
   const button = header(page).getByRole('button', { name, exact: true });
-  if ((await button.getAttribute('aria-pressed')) !== 'true') {
-    await button.click();
-  }
-  await expect(page.locator('html')).toHaveAttribute('lang', lang);
+  const countries = header(page)
+    .getByRole('combobox', { name: /^(Country|Ülke)$/ })
+    .locator('option:not([disabled])');
+  await expect(countries.first()).toBeAttached();
+  await expect(async () => {
+    if ((await button.getAttribute('aria-pressed')) !== 'true') {
+      await button.click();
+    }
+    await expect(page.locator('html')).toHaveAttribute('lang', lang, { timeout: 2_000 });
+  }).toPass({ timeout: 15_000 });
 }
 
 /** Submits the query form as it is and waits for the results heading. */
