@@ -104,11 +104,11 @@ export function nutrientRowId(code: string): string {
                     <span class="ncode">{{ row.code }}</span>
                   </span>
                   @if (row.name) {
-                    <span class="text-xs muted">{{ row.name }}</span>
+                    <span class="nut-name text-xs muted">{{ row.name }}</span>
                   }
                 </span>
               </td>
-              <td>
+              <td class="form">
                 {{ row.form ?? ('common.none' | transloco) }}
                 @if (row.conversionAssumed) {
                   <span class="badge t-info conv">
@@ -206,7 +206,18 @@ export function nutrientRowId(code: string): string {
       display: inline-flex;
       flex-direction: column;
       gap: 1px;
+      min-width: 7.5rem;
       white-space: nowrap;
+    }
+    /* Registry and label text may hold a long token: it breaks inside the column (design
+       hand-off: the page never scrolls sideways) while ordinary names stay on one line. */
+    .nut-name {
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+    td.form {
+      min-width: 8rem;
+      overflow-wrap: anywhere;
     }
     .nut-head {
       display: inline-flex;

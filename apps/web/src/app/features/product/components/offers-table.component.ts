@@ -40,7 +40,7 @@ import { webUrl } from '../../../shared/text/web-url';
             <tr [attr.data-retailer]="offer.retailer">
               <td>
                 <span class="row-2">
-                  <span class="strong">{{ offer.retailer }}</span>
+                  <span class="strong retailer">{{ offer.retailer }}</span>
                   @if (isSelected(offer)) {
                     <span class="badge t-info" data-marker="used-for-cost">{{
                       'product.offers.used_for_cost' | transloco
@@ -119,6 +119,10 @@ import { webUrl } from '../../../shared/text/web-url';
   styles: `
     :host {
       display: block;
+    }
+    /* A long retailer name breaks inside the cell instead of widening the table. */
+    .retailer {
+      max-width: 16rem;
     }
     .offer-url {
       display: inline-block;
