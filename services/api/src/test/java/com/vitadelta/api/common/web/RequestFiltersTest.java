@@ -57,7 +57,11 @@ class RequestFiltersTest {
 
   private static final HttpLimitsProperties LIMITS =
       new HttpLimitsProperties(
-          DataSize.ofBytes(10), DataSize.ofBytes(100), List.of("/api/v1/admin/imports/"));
+          DataSize.ofBytes(10),
+          DataSize.ofBytes(100),
+          List.of("/api/v1/admin/imports/"),
+          DataSize.ofBytes(50),
+          List.of("/api/v1/billing/webhooks/"));
 
   @Test
   void declaredLengthOverTheLimitIsRejectedWithAProblem() throws Exception {
