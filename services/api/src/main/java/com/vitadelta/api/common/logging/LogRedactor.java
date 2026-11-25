@@ -15,7 +15,11 @@ import java.util.regex.Pattern;
  *   <li>values of password and token fields ({@code password}, {@code newPassword}, {@code
  *       currentPassword}, {@code token}, {@code accessToken}, {@code refreshToken}) in JSON, form
  *       or {@code key=value} notation, including {@code #token=} URL fragments;
- *   <li>e-mail addresses, masked as {@code a***@domain}.
+ *   <li>request-body text quoted by JSON parser and binding messages ({@code Unrecognized token
+ *       '...'}, {@code from String "..."}); the JSON converter already drops these excerpts, this
+ *       is the second line of defence;
+ *   <li>e-mail addresses, also URL-encoded ({@code %40}, {@code %2540}) in paths and query strings,
+ *       masked as {@code a***@domain}.
  * </ul>
  */
 public final class LogRedactor {
@@ -37,8 +41,22 @@ public final class LogRedactor {
           "(?i)([\"']?\\b(?:password|newPassword|currentPassword|oldPassword|token|accessToken"
               + "|refreshToken|access_token|refresh_token)\\b[\"']?\\s*[:=]\\s*)"
               + "(\"(?:[^\"\\\\]|\\\\.)*\"|'[^']*'|[^\\s,;&\"'\\]}]+)");
+
+  /**
+   * An e-mail address with its {@code @} plain, URL-encoded ({@code %40}), double-encoded ({@code
+   * %2540}) or as a JSON escape ({@code \u005Cu0040}); the local part may itself be encoded.
+   */
   private static final Pattern EMAIL =
-      Pattern.compile("([A-Za-z0-9._%+-])[A-Za-z0-9._%+-]*@([A-Za-z0-9.-]+\\.[A-Za-z]{2,})");
+      Pattern.compile(
+          "([A-Za-z0-9._%+-])[A-Za-z0-9._%+-]*(?:@|%40|%2540|\\\\u0040)"
+              + "([A-Za-z0-9.-]+\\.[A-Za-z]{2,})");
+
+  /** Input text quoted by JSON parser messages ({@code Unrecognized token 'value'}). */
+  private static final Pattern PARSER_TOKEN = Pattern.compile("(Unrecognized token ')[^']*(')");
+
+  /** String input quoted by JSON binding messages ({@code from String "value"}). */
+  private static final Pattern PARSER_STRING =
+      Pattern.compile("(from String |String value \\()\"(?:[^\"\\\\]|\\\\.)*\"");
 
   private LogRedactor() {}
 
@@ -52,6 +70,8 @@ public final class LogRedactor {
     result = JWT.matcher(result).replaceAll(REDACTED);
     result = COOKIES.matcher(result).replaceAll("$1$2" + REDACTED);
     result = replaceSecretFields(result);
+    result = PARSER_TOKEN.matcher(result).replaceAll("$1" + REDACTED + "$2");
+    result = PARSER_STRING.matcher(result).replaceAll("$1\"" + REDACTED + "\"");
     result = EMAIL.matcher(result).replaceAll("$1***@$2");
     return result;
   }
