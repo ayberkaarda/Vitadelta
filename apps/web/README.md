@@ -11,19 +11,20 @@ detection, Transloco, plain SCSS). It is served by nginx on the same origin as t
 
 ## Commands
 
-| Command               | Purpose                                                                    |
-| --------------------- | -------------------------------------------------------------------------- |
-| `npm ci`              | Install the locked dependencies                                            |
-| `npm start`           | Development server on `http://localhost:4200`                              |
-| `npm run lint`        | ESLint, Prettier check, e2e type check and the i18n template check         |
-| `npm run format`      | Apply Prettier formatting                                                  |
-| `npm test`            | Unit tests with Vitest (jsdom, single run) and the 70 % line coverage gate |
-| `npm run build`       | Production build into `dist/web/browser` (no source maps)                  |
-| `npm run i18n:check`  | Fails when a template contains literal user-facing text outside i18n       |
-| `npm run api:types`   | Regenerates `src/app/core/api/schema.d.ts` from the public contract        |
-| `npm run api:check`   | Fails when `schema.d.ts` differs from a fresh generation                   |
-| `npm run e2e`         | Playwright end-to-end suite against the running stack (see below)          |
-| `npm run e2e:install` | Downloads the headless Chromium the suite runs in                          |
+| Command                | Purpose                                                                        |
+| ---------------------- | ------------------------------------------------------------------------------ |
+| `npm ci`               | Install the locked dependencies                                                |
+| `npm start`            | Development server on `http://localhost:4200`                                  |
+| `npm run lint`         | ESLint, Prettier check, e2e type check and the i18n template check             |
+| `npm run format`       | Apply Prettier formatting                                                      |
+| `npm test`             | Unit tests with Vitest (jsdom, single run) and the 70 % line coverage gate     |
+| `npm run build`        | Production build into `dist/web/browser` (no source maps), then the size check |
+| `npm run bundle:check` | Self-test, then fails when the initial files exceed 380 kB gzipped             |
+| `npm run i18n:check`   | Fails when a template contains literal user-facing text outside i18n           |
+| `npm run api:types`    | Regenerates `src/app/core/api/schema.d.ts` from the public contract            |
+| `npm run api:check`    | Fails when `schema.d.ts` differs from a fresh generation                       |
+| `npm run e2e`          | Playwright end-to-end suite against the running stack (see below)              |
+| `npm run e2e:install`  | Downloads the headless Chromium the suite runs in                              |
 
 ## Structure
 
