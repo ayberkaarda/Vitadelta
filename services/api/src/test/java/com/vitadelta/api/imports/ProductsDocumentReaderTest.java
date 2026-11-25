@@ -6,9 +6,11 @@ import com.vitadelta.api.catalog.AvailabilityStatus;
 import com.vitadelta.api.catalog.DosageForm;
 import com.vitadelta.api.catalog.ProductImport;
 import com.vitadelta.api.catalog.unit.Unit;
+import com.vitadelta.api.config.properties.ImportLimitsProperties;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -111,6 +113,73 @@ class ProductsDocumentReaderTest {
   void syntheticDefaultsToFalse() {
     rejected(
         document(product("DSLD-3", "").replace("\"synthetic\": true, ", "")), "missing_provenance");
+  }
+
+  @Test
+  void parserFailuresHaveAFixedMessageWithLineAndColumnOnly() {
+    for (String json :
+        List.of(
+            "{\"schema_version\": 1,\n \"products\": [SECRET-FRAGMENT",
+            "{\"schema_version\": 1, \"schema_version\": 1, \"SECRET-FRAGMENT\": []}")) {
+      assertThat(read(json).problems())
+          .singleElement()
+          .satisfies(p -> {
+            assertThat(p.code()).isEqualTo("invalid_json");
+            assertThat(p.location()).isEqualTo("$");
+            assertThat(p.message())
+                .matches("the document is not valid JSON \\(line [0-9]+, column [0-9]+\\)")
+                .doesNotContain("SECRET");
+          });
+    }
+    assertThat(read("{\"products\": [" + "[".repeat(100) + "]".repeat(100) + "]}").problems())
+        .singleElement()
+        .satisfies(p ->
+            assertThat(p.message())
+                .startsWith(
+                    "the document exceeds a parser limit (nesting depth or string length)"));
+  }
+
+  @Test
+  void aStringLongerThanTheFieldLimitFailsTheDocumentWithoutEchoingIt() {
+    String huge = "SECRET".repeat(1000);
+    assertThat(read(document(product("GOLD-A", "").replace("Daily", huge))).problems())
+        .singleElement()
+        .satisfies(p -> {
+          assertThat(p.code()).isEqualTo("invalid_json");
+          assertThat(p.message()).doesNotContain("SECRET");
+        });
+  }
+
+  @Test
+  void moreProductsThanTheLimitFailTheDocumentBeforeValidation() {
+    ImportLimitsProperties limits = new ImportLimitsProperties(10, 2, 2048, 100);
+    String two = document(product("GOLD-A", ""), product("GOLD-B", ""));
+    assertThat(ProductsDocumentReader.read(two, registry, NOW, limits).valid()).isTrue();
+    ProductsDocumentReader.Result three =
+        ProductsDocumentReader.read(
+            document(product("GOLD-A", ""), product("GOLD-B", ""), "{\"bad\": 1}"),
+            registry,
+            NOW,
+            limits);
+    assertThat(three.problems())
+        .extracting(ImportProblem::code)
+        .containsExactly("too_many_records");
+    assertThat(three.entries()).isEqualTo(3);
+  }
+
+  @Test
+  void validationStopsAfterTheErrorBoundWithOneSummaryError() {
+    ImportLimitsProperties limits = new ImportLimitsProperties(10, 50_000, 2048, 3);
+    List<String> products = new java.util.ArrayList<>();
+    for (int i = 0; i < 10_000; i++) {
+      products.add("{\"bad\": " + i + "}");
+    }
+    ProductsDocumentReader.Result result =
+        ProductsDocumentReader.read(
+            document(products.toArray(String[]::new)), registry, NOW, limits);
+    assertThat(result.problems()).hasSize(4);
+    assertThat(result.problems().get(3).code()).isEqualTo("too_many_errors");
+    assertThat(result.entries()).isEqualTo(10_000);
   }
 
   @Test

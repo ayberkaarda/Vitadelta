@@ -66,6 +66,9 @@ class OpenApiContractTest extends RecommendationApiTestBase {
   /** Routes that exist only in the test sources (entitlement probes of the Phase 3 tests). */
   private static final String TEST_ONLY_SEGMENT = "/entitlement-probe/";
 
+  /** Schemas of the test-only probe routes (they share this application context). */
+  private static final Set<String> TEST_ONLY_SCHEMAS = Set.of();
+
   /**
    * Accepted differences between the generated description and the contract, by operation, with the
    * reason. Each needs a change in code that the recommendation module does not own (requested in
@@ -84,24 +87,24 @@ class OpenApiContractTest extends RecommendationApiTestBase {
         "response.items[].alerts[]: kind contract=object code=scalar",
         "response.meta.fx.status: enum contract=[OK, UNAVAILABLE] code=[]");
     // catalog: catalog controllers validate country themselves (required = false for the 422
-    // body); ProductPresenter.Flag.code and unit Strings without allowableValues; weights defaults
+    // body); unit Strings without allowableValues; weights defaults
     // as Map; forms always serialized; alerts arrive with Phase 5; Fx.status as above.
     gap("GET /countries", "response.items[].defaultLocale: enum contract=[en, tr] code=[]");
     gap(
         "GET /nutrients",
         "response.items[].canonicalUnit: enum contract=[mcg, mg] code=[]",
         "response.items[]: required contract=[canonicalUnit, category, code, nameEn, presenceFloorPerDay, referenceSetCodes, sortOrder] code=[canonicalUnit, category, code, forms, nameEn, presenceFloorPerDay, referenceSetCodes, sortOrder]");
+    // The served document has one ProductFlag schema (the recommendation flag with the code
+    // enumeration), so the catalog flags no longer differ.
     gap(
         "GET /products",
         "parameter query:country required contract=true code=false",
-        "response.items[].flags[].code: enum contract=[BELOW_PRESENCE_FLOOR, CONVERSION_ASSUMED, EXCEEDS_UL, FX_STALE, FX_UNAVAILABLE, MARKET_MEDIAN_REFERENCE_USED, OUT_OF_STOCK, PRESENCE_ONLY_NUTRIENTS, PRICE_STALE, UL_FORM_DEPENDENT, UNAVAILABLE_IN_COUNTRY] code=[]",
         "response.meta.fx.status: enum contract=[OK, UNAVAILABLE] code=[]");
     gap(
         "GET /products/{id}",
         "parameter query:country required contract=true code=false",
         "response.meta.fx.status: enum contract=[OK, UNAVAILABLE] code=[]",
         "response.product.alerts[]: kind contract=object code=scalar",
-        "response.product.flags[].code: enum contract=[BELOW_PRESENCE_FLOOR, CONVERSION_ASSUMED, EXCEEDS_UL, FX_STALE, FX_UNAVAILABLE, MARKET_MEDIAN_REFERENCE_USED, OUT_OF_STOCK, PRESENCE_ONLY_NUTRIENTS, PRICE_STALE, UL_FORM_DEPENDENT, UNAVAILABLE_IN_COUNTRY] code=[]",
         "response.product.nutrients[].unit: enum contract=[mcg, mg] code=[]");
     gap(
         "GET /weights/defaults",
@@ -212,6 +215,20 @@ class OpenApiContractTest extends RecommendationApiTestBase {
     assertThat(generated.get("openapi").asString()).startsWith("3.1");
     assertThat(generated.get("info").get("title").asString()).isEqualTo("Vitadelta Public API");
     assertThat(generated.toString()).doesNotContain("localhost");
+  }
+
+  @Test
+  void schemasCarryTheContractsNamesAndNoInternalTypeNames() {
+    Set<String> contractNames = new TreeSet<>();
+    contract.get("components").get("schemas").propertyNames().forEach(contractNames::add);
+    Set<String> generatedNames = new TreeSet<>();
+    generated.get("components").get("schemas").propertyNames().forEach(generatedNames::add);
+    generatedNames.removeIf(name -> TEST_ONLY_SCHEMAS.contains(name));
+    assertThat(generatedNames).as("schema names outside the contract").isSubsetOf(contractNames);
+    String document = generated.toString();
+    for (String marker : List.of("com.vitadelta", "java.", "jakarta.", "springframework")) {
+      assertThat(document).as("the description reveals %s", marker).doesNotContain(marker);
+    }
   }
 
   @Test

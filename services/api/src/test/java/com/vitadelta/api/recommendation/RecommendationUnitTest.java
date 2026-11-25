@@ -197,7 +197,7 @@ class RecommendationUnitTest {
     assertThat(
             RecommendationService.translate(
                 new ScoringException.Rejected(
-                    List.of(new ScoringException.FieldError("weights", "Not A Code", "x")), null)))
+                    List.of(new ScoringException.FieldError("weights", "Not A Code")), null)))
         .isInstanceOf(IllegalStateException.class);
     RuntimeException other = new IllegalArgumentException("x");
     assertThat(RecommendationService.translate(other)).isSameAs(other);
@@ -207,23 +207,34 @@ class RecommendationUnitTest {
   void settingsAreValidated() {
     ScoringProperties scoring =
         new ScoringProperties(
-            " http://scoring:8000/ ", Duration.ofMillis(500), Duration.ofSeconds(2));
+            " http://scoring:8000/ ", Duration.ofMillis(500), Duration.ofSeconds(2), 16);
     assertThat(scoring.apiUrl()).isEqualTo("http://scoring:8000/internal/v1");
     for (String invalid :
         List.of("", "scoring:8000", "ftp://scoring", "http://scoring?x=1", "http://[bad")) {
-      assertThatThrownBy(
-              () -> new ScoringProperties(invalid, Duration.ofMillis(500), Duration.ofSeconds(2)))
+      assertThatThrownBy(() ->
+              new ScoringProperties(invalid, Duration.ofMillis(500), Duration.ofSeconds(2), 16))
           .isInstanceOf(IllegalArgumentException.class);
     }
     assertThatThrownBy(
-            () -> new ScoringProperties(null, Duration.ofMillis(500), Duration.ofSeconds(2)))
+            () -> new ScoringProperties(null, Duration.ofMillis(500), Duration.ofSeconds(2), 16))
         .hasMessageContaining("VITADELTA_SCORING_BASE_URL");
     assertThatThrownBy(
-            () -> new ScoringProperties("http://s", Duration.ZERO, Duration.ofSeconds(2)))
+            () -> new ScoringProperties("http://s", Duration.ZERO, Duration.ofSeconds(2), 16))
         .isInstanceOf(IllegalArgumentException.class);
-    assertThatThrownBy(() -> new RecommendationProperties(Duration.ofMinutes(10), 0))
+    assertThatThrownBy(() ->
+            new ScoringProperties("http://s", Duration.ofMillis(500), Duration.ofSeconds(2), 0))
+        .hasMessageContaining("max-concurrent-calls");
+    assertThatThrownBy(() -> new RecommendationProperties(Duration.ofMinutes(10), 0, 100, 10))
         .isInstanceOf(IllegalArgumentException.class);
-    assertThatThrownBy(() -> new RecommendationProperties(Duration.ZERO, 500))
+    assertThatThrownBy(() -> new RecommendationProperties(Duration.ZERO, 500, 100_000, 10))
         .isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> new RecommendationProperties(Duration.ofMinutes(10), 500, 499, 10))
+        .hasMessageContaining("cache-max-ranked-items");
+    assertThatThrownBy(() -> new RecommendationProperties(Duration.ofMinutes(10), 500, 500, 0))
+        .hasMessageContaining("max-products-per-country");
+    assertThat(
+            new RecommendationProperties(Duration.ofMinutes(10), 500, 100_000, 10)
+                .minimumRankingWeight())
+        .isEqualTo(200);
   }
 }

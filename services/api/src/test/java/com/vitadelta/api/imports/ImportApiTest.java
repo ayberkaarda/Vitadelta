@@ -619,4 +619,88 @@ class ImportApiTest extends CatalogApiTest {
     assertThat(recovery.recover()).isZero();
     jdbc.sql("DELETE FROM import_job WHERE id = ?").param(id).update();
   }
+
+  @Test
+  void aFileWithMoreErrorsThanTheBoundStoresTheFirstOnesAndOneSummaryError() {
+    String token = admin();
+    long start = catalogVersion();
+    StringBuilder csv = new StringBuilder(HEADER);
+    for (int i = 0; i < 1500; i++) {
+      csv.append("GOLD-A,TR,Shop ").append(i).append(",not-a-price,TRY,true,x,y\n");
+    }
+    JsonNode job = await(postOffers(csv.toString().getBytes(StandardCharsets.UTF_8), token), token);
+    assertThat(job.get("status").asString()).isEqualTo("FAILED");
+    JsonNode errors = job.get("errors");
+    assertThat(errors.size()).isEqualTo(1001);
+    JsonNode last = errors.get(1000);
+    assertThat(last.get("code").asString()).isEqualTo("too_many_errors");
+    assertThat(last.get("rowNumber").asInt())
+        .isGreaterThanOrEqualTo(errors.get(999).get("rowNumber").asInt());
+    assertThat(
+            jdbc.sql("SELECT count(*) FROM import_job_error WHERE job_id = ?")
+                .param(UUID.fromString(job.get("id").asString()))
+                .query(Long.class)
+                .single())
+        .isEqualTo(1001L);
+    assertThat(catalogVersion()).isEqualTo(start);
+  }
+
+  @Test
+  void reImportingNanosecondTimestampsChangesNothingTheSecondTime() {
+    String token = admin();
+    String code = PREFIX + "NANO";
+    String offer =
+        offerJson("TR", "Nano Shop", "10.00", "TRY")
+            .replace("2026-11-20T09:00:00Z", "2026-11-20T09:00:00.123456789Z");
+    String document = productJson(code, "Nano", offer);
+    JsonNode first = await(postProducts(document, token), token);
+    assertThat(first.get("status").asString()).as(first.toString()).isEqualTo("SUCCEEDED");
+    long version = catalogVersion();
+    JsonNode second = await(postProducts(document, token), token);
+    assertThat(second.get("status").asString()).isEqualTo("SUCCEEDED");
+    assertThat(summary(second)).containsEntry("updated", 0L).containsEntry("inserted", 0L);
+    assertThat(catalogVersion()).as("an unchanged re-import does not bump").isEqualTo(version);
+
+    String csv =
+        HEADER
+            + code
+            + ",TR,Nano Shop,10.00,TRY,true,"
+            + "https://shop.example.com/nano-shop,2026-11-20T09:00:00.123456789Z\n";
+    JsonNode offers = await(postOffers(csv.getBytes(StandardCharsets.UTF_8), token), token);
+    assertThat(offers.get("status").asString()).isEqualTo("SUCCEEDED");
+    assertThat(summary(offers)).containsEntry("updated", 0L).containsEntry("unchanged", 1L);
+    assertThat(catalogVersion()).isEqualTo(version);
+    assertThat(
+            jdbc.sql(
+                    "SELECT o.checked_at FROM offer o JOIN product p ON p.id = o.product_id"
+                        + " WHERE p.code = ?")
+                .param(code)
+                .query(java.sql.Timestamp.class)
+                .single()
+                .toInstant())
+        .isEqualTo(Instant.parse("2026-11-20T09:00:00.123456Z"));
+  }
+
+  @Test
+  void parserFailuresAreReportedWithFixedTextAndLocationOnly() {
+    String token = admin();
+    JsonNode json =
+        await(
+            postProducts("{\"schema_version\":1,\n \"products\": [SECRET-FRAGMENT", token), token);
+    assertThat(json.get("errors").size()).isEqualTo(1);
+    assertThat(json.get("errors").get(0).get("message").asString())
+        .startsWith("invalid_json: the document is not valid JSON (line 2, column ")
+        .doesNotContain("SECRET")
+        .doesNotContain("Unrecognized")
+        .doesNotContain("Source");
+    JsonNode csv =
+        await(
+            postOffers(
+                (HEADER + "GOLD-A,TR,\"SECRET-FRAGMENT,1,TRY,true,u,c\n")
+                    .getBytes(StandardCharsets.UTF_8),
+                token),
+            token);
+    assertThat(csv.get("errors").get(0).get("message").asString())
+        .isEqualTo("invalid_csv: the file is not valid CSV (line 2) (row 1)");
+  }
 }

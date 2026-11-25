@@ -468,7 +468,7 @@ class QueryApiTest extends RecommendationApiTestBase {
     EntityExchangeResult<String> result =
         query(
             "{\"country\":\"TR\",\"requiredNutrients\":[{\"code\":\"ZINC\","
-                + "\"minAmountPerDay\":1e300,\"unit\":\"mg\"}]}",
+                + "\"minAmountPerDay\":999999999999,\"unit\":\"mg\"}]}",
             null,
             cookie);
     assertProblem(result, 422, "validation_failed");
@@ -476,6 +476,9 @@ class QueryApiTest extends RecommendationApiTestBase {
     assertThat(errors.get(0).get("field").asString())
         .isEqualTo("requiredNutrients[0].minAmountPerDay");
     assertThat(errors.get(0).get("code").asString()).isEqualTo("value_out_of_range");
+    assertThat(errors.get(0).get("message").asString())
+        .isEqualTo("requiredNutrients[0].minAmountPerDay is outside the accepted range.");
+    assertThat(result.getResponseBody()).doesNotContain("too large").doesNotContain("bad");
     assertThat(errors.get(1).get("field").asString()).isEqualTo("weights.categories.VITAMIN");
     assertThat(queriesUsed(cookie)).isZero();
   }

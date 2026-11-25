@@ -87,6 +87,33 @@ class CatalogReadServiceTest extends PostgresIntegrationTest {
   }
 
   @Test
+  void aCountryAboveTheProductCeilingIsNotLoaded() {
+    int inMarket = available("US").size();
+    assertThat(catalog.loadCountry("US", inMarket).orElseThrow().products()).hasSize(inMarket);
+    org.assertj.core.api.Assertions.assertThatThrownBy(
+            () -> catalog.loadCountry("US", inMarket - 1))
+        .isInstanceOfSatisfying(
+            CatalogTooLargeException.class,
+            e -> {
+              assertThat(e.country()).isEqualTo("US");
+              assertThat(e.products()).isEqualTo(inMarket);
+              assertThat(e.limit()).isEqualTo(inMarket - 1);
+            });
+    assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+    assertThat(catalog.loadCountry("QQ", 1)).isEmpty();
+  }
+
+  @Test
+  void idListsAreBoundInBatchesBelowTheDriverParameterLimit() {
+    List<UUID> ids =
+        java.util.stream.IntStream.range(0, 2500).mapToObj(i -> UUID.randomUUID()).toList();
+    List<List<UUID>> batches = CatalogReadService.batches(ids);
+    assertThat(batches).extracting(List::size).containsExactly(1000, 1000, 500);
+    assertThat(batches.stream().flatMap(List::stream).toList()).isEqualTo(ids);
+    assertThat(CatalogReadService.batches(List.of())).isEmpty();
+  }
+
+  @Test
   void upperLimitsOfTheCountrySetIncludeExemptRowsWithoutAmountUnitAndBasis() {
     List<UpperLimitView> efsa = catalog.loadCountry("TR").orElseThrow().upperLimits();
     UpperLimitView betaCarotene =

@@ -45,6 +45,32 @@ class EffectivePriceResolverTest {
   }
 
   @Test
+  void theRetailerTieBreakIsBinaryUtf8OrderLikeCollateC() {
+    // U+E000 sorts before U+10000 in UTF-8 bytes (EE 80 80 < F0 90 80 80) and in code points,
+    // but after it in UTF-16 code units (E000 > D800).
+    String privateUse = " Shop";
+    String supplementary = new String(Character.toChars(0x10000)) + " Shop";
+    Instant at = daysAgo(1);
+    for (List<OfferSnapshot> offers :
+        List.of(
+            List.of(offer(supplementary, "10.00", true, at), offer(privateUse, "10.00", true, at)),
+            List.of(
+                offer(privateUse, "10.00", true, at), offer(supplementary, "10.00", true, at)))) {
+      assertThat(
+              resolver.resolve(offers, StockFilter.IN_STOCK_ONLY).price().orElseThrow().selected())
+          .extracting(OfferSnapshot::retailer)
+          .isEqualTo(privateUse);
+      assertThat(EffectivePriceResolver.displayOrder(offers))
+          .extracting(OfferSnapshot::retailer)
+          .containsExactly(privateUse, supplementary);
+    }
+    assertThat(EffectivePriceResolver.compareBinary("a", "ab")).isNegative();
+    assertThat(EffectivePriceResolver.compareBinary("ab", "a")).isPositive();
+    assertThat(EffectivePriceResolver.compareBinary("Shop", "Shop")).isZero();
+    assertThat(EffectivePriceResolver.compareBinary("B", "a")).isNegative();
+  }
+
+  @Test
   void theCheapestInStockOfferWinsUnderBothFilters() {
     List<OfferSnapshot> offers =
         List.of(
