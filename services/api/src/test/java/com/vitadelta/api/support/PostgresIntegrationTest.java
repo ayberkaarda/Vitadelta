@@ -33,6 +33,11 @@ public abstract class PostgresIntegrationTest {
     registry.add("VITADELTA_DB_URL", POSTGRES::getJdbcUrl);
     registry.add("VITADELTA_DB_USERNAME", POSTGRES::getUsername);
     registry.add("VITADELTA_DB_PASSWORD", POSTGRES::getPassword);
+    // Cached contexts stay alive for the whole test JVM and share this one database: a scheduled
+    // run of an idle context must not claim, lease or delete rows another test is working with.
+    // Tests call the jobs directly. Applications built with SpringApplicationBuilder are not
+    // affected and keep the production default.
+    registry.add("vitadelta.operations.jobs-enabled", () -> "false");
     for (Map.Entry<String, String> entry : TestEnvironment.required().entrySet()) {
       registry.add(entry.getKey(), entry::getValue);
     }
