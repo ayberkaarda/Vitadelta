@@ -29,6 +29,9 @@ info:
       (bearer access token). Operations with `security: []` need no credentials.
       Operations that list an empty security requirement next to `bearerAuth`
       and `anonCookie` accept every principal and adapt the response to it.
+    - A request URL the server rejects before routing (encoded slashes or
+      backslashes, dot segments, path parameters, empty segments) is answered
+      400 with an `about:blank` problem.
 servers:
   - url: /api/v1
     description: Same-origin deployment; the web server proxies `/api/` to the API.
@@ -291,6 +294,13 @@ paths:
         is 500 `internal_error`. Scoring timeouts, connection errors, `5xx`
         and an open circuit are 503 `scoring_unavailable`.
 
+        Every number of the request (weights, overrides, `ranking.lambda`,
+        `requiredNutrients[].minAmountPerDay`) may have at most 12 integer
+        digits and at most 9 decimal places once trailing zeros are removed;
+        a number beyond that (for example `1e-1073741824`) is 422
+        `validation_failed` with `errors[].code = out_of_range`, before any
+        quota is reserved.
+
         Problem codes: `validation_failed` (422; `errors[].code` includes
         `weights_all_zero`, `unit_requires_form`, `unknown_nutrient_code`,
         `lambda_requires_custom`, `duplicate_nutrient`, `out_of_range`,
@@ -457,6 +467,11 @@ paths:
         `UNAVAILABLE` and both products carry the `FX_UNAVAILABLE` flag; a
         stale rate adds `FX_STALE`. Scoring-service rejections are mapped as
         for `POST /recommendations/query`.
+
+        Every weight and override may have at most 12 integer digits and at
+        most 9 decimal places once trailing zeros are removed; a number beyond
+        that (for example `1e-1073741824`) is 422 `validation_failed` with
+        `errors[].code = out_of_range`.
 
         Problem codes: `validation_failed` (422; `errors[].code` includes
         `weights_all_zero`, `same_product`, `no_offer`, `no_stock`,
@@ -1701,9 +1716,14 @@ paths:
         (`schema_violation`) and the semantic rules of the schema (for example
         `unknown_nutrient`, `invalid_form_code`, `form_nutrient_mismatch`,
         `unsupported_iu_form`, `currency_mismatch`, `invalid_offer_url`,
-        `checked_at_in_future`) are reported as job errors. Any error fails
-        the whole job: nothing is written, `catalog_version` is not bumped and
-        no outbox event is written. Form codes are validated against the form
+        `checked_at_in_future`) are reported as job errors. A document with
+        more than 50 000 products fails with the single error
+        `too_many_records`; a string value longer than 4096 characters or a
+        nesting deeper than 64 levels is `invalid_json`. Parser failures carry
+        a fixed message with line and column only. Validation stops after
+        1000 errors: the job then lists those errors and one `too_many_errors`
+        error. Any error fails the whole job: nothing is written,
+        `catalog_version` is not bumped and no outbox event is written. Form codes are validated against the form
         registry table. A successful import bumps `catalog_version` exactly
         once; re-importing the same document changes no row.
 
@@ -1756,17 +1776,22 @@ paths:
 
         File-level failures (`invalid_encoding`, `invalid_csv` for an
         unparseable file such as an unterminated quoted field,
-        `invalid_header`) and row errors (for example `wrong_column_count`,
+        `invalid_header`, `too_many_records` for more than 200 000 data rows)
+        and row errors (for example `wrong_column_count`, `field_too_long`,
         `currency_mismatch`, `invalid_offer_url`, `checked_at_in_future`) are
-        reported on the job. Any error fails the whole job: nothing is
+        reported on the job; validation stops after 1000 errors and adds one
+        `too_many_errors` error. Any error fails the whole job: nothing is
         written, `catalog_version` is not bumped and no `OFFERS_CHANGED` event
         is written. A successful import bumps `catalog_version` exactly once;
         re-importing the same file changes no row.
 
         Problem codes: `unauthorized` (401), `forbidden` (403), file larger than
         20 MB (413), request not `multipart/form-data` (415),
-        `validation_failed` (422, missing `file` part only; content errors are
-        job errors), `internal_error` (500).
+        `validation_failed` (422: missing `file` part, or a multipart body the
+        server cannot parse, for example a part whose file name contains
+        control characters - field `file`, code `invalid_format`; the file
+        name is never used; content errors are job errors),
+        `internal_error` (500).
       x-required-role: ADMIN
       security:
         - bearerAuth: []
@@ -2455,7 +2480,7 @@ components:
             instance: /api/v1/auth/login
             requestId: 8c1d2e3f-4a5b-4c6d-9e7f-0a1b2c3d4e5f
     ScoringUnavailable:
-      description: The scoring service is unavailable or the circuit is open. Code `scoring_unavailable`. Anonymous quota is not consumed.
+      description: The scoring service is unavailable, the circuit is open, the API instance has reached its limit of concurrent scoring calls, or the country's catalog exceeds the supported size (an operator error, logged). Code `scoring_unavailable`. Anonymous quota is not consumed.
       headers:
         X-Request-Id: { $ref: '#/components/headers/XRequestId' }
       content:
@@ -4060,7 +4085,7 @@ components:
         code:
           type: string
           pattern: '^[a-z][a-z0-9_]*$'
-          description: Machine-readable error code, the prefix of `message` (for example `invalid_csv`, `wrong_column_count`, `currency_mismatch`, `invalid_offer_url`, `unsupported_iu_form`, `schema_violation`).
+          description: Machine-readable error code, the prefix of `message` (for example `invalid_csv`, `wrong_column_count`, `currency_mismatch`, `invalid_offer_url`, `unsupported_iu_form`, `schema_violation`, `too_many_records`, `field_too_long`, `too_many_errors`).
         message:
           type: string
           maxLength: 2000
