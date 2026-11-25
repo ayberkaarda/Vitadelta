@@ -12,7 +12,7 @@
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "test": "ng test --watch=false",
-    "lint": "eslint . && prettier --check . && tsc -p e2e/tsconfig.json && npm run i18n:check",
+    "lint": "eslint . && prettier --check . && tsc -p e2e/tsconfig.json && tsc -p e2e/adversarial/tsconfig.json && npm run i18n:check",
     "format": "prettier --write .",
     "i18n:check": "node scripts/check-i18n.mjs",
     "api:types": "npm ci --prefix tools/openapi --no-audit --no-fund && node tools/openapi/generate.mjs",
