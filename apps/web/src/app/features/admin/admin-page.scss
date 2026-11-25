@@ -1,0 +1,133 @@
+// Shared look of the admin pages (design hand-off §4.10).
+
+:host {
+  display: block;
+}
+
+.drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--vd-space-2);
+  min-height: 8rem;
+  padding: var(--vd-space-5);
+  border: 1.5px dashed var(--vd-color-border-strong);
+  border-radius: var(--vd-radius-md);
+  background: var(--vd-color-surface-subtle);
+  text-align: center;
+  cursor: pointer;
+
+  > .i {
+    color: var(--vd-color-accent);
+  }
+
+  &.is-active {
+    border-color: var(--vd-color-accent);
+    background: var(--vd-color-accent-bg);
+  }
+
+  &:has(input:focus-visible) {
+    outline: var(--vd-focus-ring-width) solid var(--vd-color-focus);
+    outline-offset: var(--vd-focus-ring-offset);
+  }
+}
+
+.block {
+  display: block;
+}
+
+.tbl-wrap.flat {
+  border: 0;
+  border-radius: 0;
+}
+
+.message {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.poll-problem {
+  margin-top: var(--vd-space-2);
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr)) auto;
+  gap: var(--vd-space-3);
+  align-items: start;
+
+  .submit {
+    padding-top: 1.625rem;
+  }
+}
+
+.created-code {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--vd-space-2) var(--vd-space-3);
+
+  .code-value {
+    font-family: var(--vd-font-mono);
+    font-size: var(--vd-font-size-lg);
+    font-weight: var(--vd-font-weight-bold);
+    letter-spacing: 0.02em;
+    user-select: all;
+    overflow-wrap: anywhere;
+  }
+}
+
+.confirm-row td {
+  background: var(--vd-color-danger-bg);
+}
+
+.inline-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--vd-space-2);
+
+  .inp {
+    width: 5rem;
+    min-height: 2rem;
+    text-align: right;
+  }
+}
+
+.search {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--vd-space-3);
+
+  .inp {
+    max-width: 22rem;
+  }
+}
+
+@media (max-width: 64rem) {
+  .form-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+
+    .submit {
+      padding-top: 0;
+    }
+  }
+}
+
+@media (max-width: 48rem) {
+  .form-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.err-slot:empty {
+  display: none;
+}
+
+.actions {
+  justify-content: flex-end;
+  flex-wrap: nowrap;
+}

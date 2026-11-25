@@ -1,0 +1,153 @@
+{
+  "eyebrow": "Admin · role ADMIN",
+  "title": "Operations",
+  "fx": {
+    "refresh": "Refresh exchange rates",
+    "done": "Exchange rates refreshed: {{ count }} rows updated.",
+    "partial": "{{ count }} rows updated, but the provider call failed for {{ bases }}. Their stored rates stay in use."
+  },
+  "nav": {
+    "label": "Admin sections",
+    "imports": "Imports",
+    "promo_codes": "Promo codes",
+    "users": "Users"
+  },
+  "imports": {
+    "page_title": "Imports",
+    "title": "Imports",
+    "PRODUCTS_JSON": {
+      "title": "Products JSON",
+      "text": "Products, nutrients, availability and offers. Validated against the import schema before anything is written.",
+      "choose": "Choose a .json file"
+    },
+    "OFFERS_CSV": {
+      "title": "Offers CSV",
+      "text": "One row per offer with a product_code column.",
+      "choose": "Choose a .csv file"
+    },
+    "or_drop": "or drop it here",
+    "uploading": "Uploading…",
+    "choose_another": "Choose or drop another file to start a new import.",
+    "size_hint": "At most 20 MB per file.",
+    "size_mb": "{{ size }} MB",
+    "size_kb": "{{ size }} KB",
+    "too_large": "This file is larger than 20 MB. The server rejects files above that size.",
+    "jobs_title": "Recent jobs",
+    "no_jobs": "No imports in this session",
+    "no_jobs_text": "Jobs you start here appear in this list with their status.",
+    "col": {
+      "kind": "Kind",
+      "status": "Status",
+      "started": "Started",
+      "finished": "Finished",
+      "summary": "Summary",
+      "details": "Details",
+      "row": "Row",
+      "code": "Code",
+      "message": "Message"
+    },
+    "status": {
+      "RUNNING": "Running",
+      "SUCCEEDED": "Succeeded",
+      "FAILED": "Failed"
+    },
+    "summary": {
+      "products": "{{ count }} products",
+      "rows": "{{ count }} rows read",
+      "inserted": "{{ count }} inserted",
+      "updated": "{{ count }} updated",
+      "unchanged": "{{ count }} unchanged",
+      "deleted": "{{ count }} deleted",
+      "changedPairs": "{{ count }} changed pairs",
+      "nothing_written": "nothing was written"
+    },
+    "details": "Details",
+    "errors_title": "Job errors · {{ kind }} {{ date }}",
+    "error_count": "{{ count }} errors",
+    "error_count_one": "1 error",
+    "still_running": "The job is still running. Its result appears here when it is done.",
+    "no_errors": "No row errors.",
+    "errors_caption": "Row errors of the selected job",
+    "rows_note_csv": "Row numbers count the header as row 1. Messages are shown as plain text.",
+    "rows_note_json": "Row numbers are positions in the products list; 1 is also used for document-level errors. Messages are shown as plain text."
+  },
+  "promo": {
+    "page_title": "Promo codes",
+    "title": "Promo codes",
+    "create_title": "Create a code",
+    "prefix": "Prefix (optional)",
+    "plan": "Plan",
+    "duration": "Duration (days)",
+    "max": "Max redemptions",
+    "expires": "Expires",
+    "expires_hint": "Leave empty for a code that never expires.",
+    "create": "Create code",
+    "prefix_error": "Use up to 16 letters and digits.",
+    "whole_number": "Enter a whole number of at least 1.",
+    "created_title": "Code created",
+    "created_text": "Copy the code now and hand it out; it is shown here only until you dismiss this message.",
+    "copy": "Copy code",
+    "copied": "Copied to the clipboard.",
+    "copy_failed": "Copying is not available here; select the code and copy it.",
+    "dismiss": "Done",
+    "loading": "Loading promo codes…",
+    "empty": "No promo codes yet",
+    "caption": "Promo codes",
+    "col": {
+      "code": "Code",
+      "plan": "Plan",
+      "days": "Days",
+      "redeemed": "Redeemed",
+      "expires": "Expires",
+      "actions": "Actions"
+    },
+    "copy_aria": "Copy {{ code }}",
+    "used_up": "used up",
+    "never": "never",
+    "delete_aria": "Delete {{ code }}",
+    "confirm_delete": "Delete {{ code }}? Nobody can redeem it afterwards; PRO periods already granted stay.",
+    "delete": "Delete code"
+  },
+  "users": {
+    "page_title": "Users",
+    "title": "Users",
+    "search_label": "Search users by e-mail",
+    "search_placeholder": "Search by e-mail",
+    "count": "{{ count }} users",
+    "count_one": "1 user",
+    "loading": "Loading users…",
+    "empty": "No users match this search",
+    "caption": "Users",
+    "col": {
+      "email": "E-mail",
+      "role": "Role",
+      "plan": "Plan",
+      "verified": "Verified",
+      "status": "Status",
+      "created": "Created",
+      "actions": "Actions"
+    },
+    "role": {
+      "USER": "USER",
+      "ADMIN": "ADMIN"
+    },
+    "verified_yes": "Yes",
+    "verified_no": "No",
+    "status": {
+      "ACTIVE": "Active",
+      "DISABLED": "Disabled"
+    },
+    "self": "your account",
+    "grant_days_label": "PRO duration in days for {{ email }}",
+    "days": "days",
+    "grant": "Grant PRO",
+    "grant_open": "Grant PRO…",
+    "disable": "Disable",
+    "enable": "Enable",
+    "confirm_disable": "Disable {{ email }}? Their sessions end and they cannot log in until enabled again.",
+    "disable_confirm": "Disable account",
+    "granted": "PRO granted to {{ email }} until {{ date }}.",
+    "disabled_done": "{{ email }} is disabled.",
+    "enabled_done": "{{ email }} is active again."
+  }
+}
