@@ -1,0 +1,116 @@
+# Isolated restore stack used by scripts/restore.sh (project specification section 15.6).
+#
+# It is a separate compose project with its own database volume and its own network and never
+# touches the live database. The single network is internal: nothing is published, nothing can
+# leave it, so the FX provider is unreachable by construction and every e-mail goes to the sink
+# Mailpit inside the network. All schedulers are disabled (VITADELTA_JOBS_ENABLED=false).
+#
+# scripts/restore.sh exports the RESTORE_* variables (fresh random secrets per run, held in the
+# environment of the compose command only, never written to a file) and runs:
+#   docker compose -f infra/docker-compose.restore.yml up -d --wait ...
+# Remove it with: scripts/restore.sh --down
+
+name: vitadelta-restore
+
+services:
+  postgres:
+    image: postgres:18.7-alpine
+    environment:
+      POSTGRES_DB: vitadelta
+      POSTGRES_USER: ${RESTORE_DB_USERNAME:?run this stack through scripts/restore.sh}
+      POSTGRES_PASSWORD: ${RESTORE_DB_PASSWORD:?run this stack through scripts/restore.sh}
+    volumes:
+      - restore-postgres-data:/var/lib/postgresql
+    networks:
+      - restore
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\" -h 127.0.0.1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  mailpit:
+    # Sink for any e-mail the restored API might try to send; no published port.
+    image: axllent/mailpit:v1.34.0
+    networks:
+      - restore
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+
+  scoring:
+    build:
+      context: ../services/scoring
+      dockerfile: Dockerfile
+    image: vitadelta/scoring:dev
+    networks:
+      - restore
+    healthcheck:
+      test:
+        - "CMD"
+        - "python"
+        - "-c"
+        - "import sys, urllib.request; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/internal/v1/health', timeout=3).status == 200 else 1)"
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+
+  api:
+    build:
+      context: ../services/api
+      dockerfile: Dockerfile
+      additional_contexts:
+        contracts: ../contracts
+    image: vitadelta/api:dev
+    environment:
+      VITADELTA_DB_URL: jdbc:postgresql://postgres:5432/vitadelta
+      VITADELTA_DB_USERNAME: ${RESTORE_DB_USERNAME:?run this stack through scripts/restore.sh}
+      VITADELTA_DB_PASSWORD: ${RESTORE_DB_PASSWORD:?run this stack through scripts/restore.sh}
+      VITADELTA_JWT_SECRET: ${RESTORE_JWT_SECRET:?run this stack through scripts/restore.sh}
+      VITADELTA_COOKIE_SECRET: ${RESTORE_COOKIE_SECRET:?run this stack through scripts/restore.sh}
+      # Production profile (no dev profile): https base URL and Secure cookies, as in production.
+      VITADELTA_WEB_ORIGINS: https://restore.vitadelta.invalid
+      VITADELTA_WEB_BASE_URL: https://restore.vitadelta.invalid
+      VITADELTA_PRIVACY_CONTACT: privacy@restore.vitadelta.invalid
+      VITADELTA_TRUST_PROXY: "false"
+      VITADELTA_JOBS_ENABLED: "false"
+      VITADELTA_SCORING_BASE_URL: http://scoring:8000
+      VITADELTA_SMTP_HOST: mailpit
+      VITADELTA_SMTP_PORT: "1025"
+      VITADELTA_SMTP_STARTTLS: "false"
+      VITADELTA_MAIL_FROM: no-reply@restore.vitadelta.invalid
+      # The network has no route out; this address is unreachable on purpose.
+      VITADELTA_FX_BASE_URL: https://fx.restore.vitadelta.invalid/v2
+      # No administrator is created in a restored database.
+      VITADELTA_BOOTSTRAP_ADMIN_EMAIL: ""
+      VITADELTA_BOOTSTRAP_ADMIN_PASSWORD: ""
+    volumes:
+      # The API reads reference/weak_passwords.txt from the data directory at every start.
+      - ../data:/data:ro
+    networks:
+      - restore
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mailpit:
+        condition: service_healthy
+      scoring:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:8080/api/v1/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+
+networks:
+  restore:
+    internal: true
+
+volumes:
+  restore-postgres-data: {}
