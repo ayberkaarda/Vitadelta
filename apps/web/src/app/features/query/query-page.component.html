@@ -1,0 +1,373 @@
+@let d = defaults();
+<div class="page">
+  <div class="stack-2">
+    <h1 class="h1">{{ 'query.title' | transloco }}</h1>
+    <p class="lead">{{ 'query.lead' | transloco }}</p>
+  </div>
+
+  <vd-error-summary [errors]="summaryErrors()" />
+
+  <form class="layout" novalidate (submit)="submit($event)">
+    <div class="main">
+      <!-- Market -->
+      <section class="card" aria-labelledby="q-market-title">
+        <div class="card-head">
+          <h2 class="h3" id="q-market-title">{{ 'query.market.title' | transloco }}</h2>
+          @if (countryInfo(); as c) {
+            <p class="text-xs muted">
+              {{
+                'query.market.caption'
+                  | transloco
+                    : {
+                        reference: setLabel(c.referenceSetCode),
+                        ul: setLabel(c.ulSetCode),
+                        currency: c.currency,
+                      }
+              }}
+            </p>
+          }
+        </div>
+        <div class="grid-2">
+          <div class="fld">
+            <label class="lbl" [for]="control.country">{{
+              'query.market.country' | transloco
+            }}</label>
+            <select
+              class="sel"
+              [id]="control.country"
+              aria-describedby="q-country-hint q-country-error"
+              [attr.aria-invalid]="errors().has(control.country) ? 'true' : null"
+              (change)="selectCountry($any($event.target).value)"
+            >
+              @for (c of region.countries(); track c.code) {
+                <option [value]="c.code" [selected]="c.code === countryCode()">
+                  {{ c.nameEn }}
+                </option>
+              }
+            </select>
+            <span class="hint" id="q-country-hint">{{
+              'query.market.country_hint' | transloco
+            }}</span>
+            <span id="q-country-error" aria-live="polite">
+              @if (errors().get(control.country); as key) {
+                <span class="err"><vd-icon name="warn" />{{ key | transloco }}</span>
+              }
+            </span>
+          </div>
+          <fieldset class="fieldset">
+            <legend>{{ 'query.stock.label' | transloco }}</legend>
+            <div class="seg">
+              @for (filter of stockFilters; track filter) {
+                <label>
+                  <input
+                    type="radio"
+                    name="q-stock"
+                    [id]="'q-stock-' + filter"
+                    [value]="filter"
+                    [checked]="stockFilter() === filter"
+                    (change)="stockFilter.set(filter)"
+                  />
+                  {{ 'query.stock.' + filter | transloco }}
+                </label>
+              }
+            </div>
+          </fieldset>
+        </div>
+      </section>
+
+      <!-- Ranking -->
+      <section class="card">
+        <fieldset class="fieldset">
+          <legend class="legend">
+            <span class="h3">{{ 'query.ranking.title' | transloco }}</span>
+            <span class="text-xs muted">{{ 'query.ranking.caption' | transloco }}</span>
+          </legend>
+          <div class="mode-cards">
+            @for (m of modes; track m) {
+              <label class="mode" [class.is-checked]="mode() === m">
+                <input
+                  type="radio"
+                  name="q-mode"
+                  [id]="control.mode(m)"
+                  [value]="m"
+                  [checked]="mode() === m"
+                  [attr.aria-describedby]="'q-mode-desc-' + m"
+                  (change)="mode.set(m)"
+                />
+                <span class="t"
+                  ><span class="radio" aria-hidden="true"></span
+                  >{{ 'query.mode.' + m + '.title' | transloco }}</span
+                >
+                <span class="d" [id]="'q-mode-desc-' + m">{{
+                  'query.mode.' + m + '.desc' | transloco
+                }}</span>
+              </label>
+            }
+          </div>
+        </fieldset>
+        @if (mode() === 'CUSTOM') {
+          <div class="well stack-2 lambda">
+            <p class="lbl" id="q-lambda-label">{{ 'query.lambda.label' | transloco }}</p>
+            @if (d && lambdaValue() !== null) {
+              <vd-value-slider
+                [controlId]="control.lambda"
+                labelledBy="q-lambda-label"
+                describedBy="q-lambda-hint q-lambda-error"
+                [value]="lambdaValue()!"
+                [min]="d.lambdaRange.min"
+                [max]="d.lambdaRange.max"
+                [step]="0.05"
+                [valueText]="format.amount(lambdaValue()!, 2)"
+                [startLabel]="'query.lambda.price_only' | transloco"
+                [endLabel]="'query.lambda.content_only' | transloco"
+                [showOutput]="true"
+                [ticks]="true"
+                [invalid]="errors().has(control.lambda)"
+                (valueChange)="lambda.set($event)"
+              />
+              <p class="hint" id="q-lambda-hint">
+                {{ 'query.lambda.hint' | transloco: { value: format.amount(d.lambdaDefault, 2) } }}
+              </p>
+            } @else {
+              <p class="hint">{{ 'query.weights.unavailable' | transloco }}</p>
+            }
+            <span id="q-lambda-error" aria-live="polite">
+              @if (errors().get(control.lambda); as key) {
+                <span class="err"><vd-icon name="warn" />{{ key | transloco }}</span>
+              }
+            </span>
+          </div>
+        }
+      </section>
+
+      <!-- What matters to you -->
+      <details class="card weights" [open]="weightsOpen">
+        <summary>
+          <h2 class="h3">{{ 'query.weights.title' | transloco }}</h2>
+          <span class="text-xs muted">
+            @if (weightsSummary().changed.length === 0 && weightsSummary().overrides === 0) {
+              {{ 'query.weights.defaults' | transloco }}
+            } @else {
+              {{ 'query.weights.customised' | transloco }}
+            }
+          </span>
+        </summary>
+        <div class="stack-4 weights-body">
+          <div class="row-between">
+            <p class="text-sm muted">{{ 'query.weights.intro' | transloco }}</p>
+            <button
+              type="button"
+              class="btn btn-ghost btn-sm"
+              [id]="control.weightsReset"
+              aria-describedby="q-weights-error"
+              (click)="resetWeights()"
+            >
+              <vd-icon name="refresh" />{{ 'query.weights.reset' | transloco }}
+            </button>
+          </div>
+          <div class="grid-2">
+            <div class="stack-3">
+              <p class="lbl">
+                {{ 'query.weights.categories' | transloco }}
+                @if (d) {
+                  <span class="muted text-xs">
+                    {{
+                      'query.weights.range'
+                        | transloco
+                          : {
+                              min: format.amount(d.categoryRange.min, 0),
+                              max: format.amount(d.categoryRange.max, 0),
+                            }
+                    }}
+                  </span>
+                }
+              </p>
+              @if (d) {
+                @for (category of categoryList; track category) {
+                  <div class="wrow">
+                    <span class="text-sm" [id]="'q-w-' + category + '-label'">{{
+                      'query.weights.category.' + category | transloco
+                    }}</span>
+                    <vd-value-slider
+                      [controlId]="control.category(category)"
+                      [labelledBy]="'q-w-' + category + '-label'"
+                      [value]="categoryValue(category)"
+                      [min]="d.categoryRange.min"
+                      [max]="d.categoryRange.max"
+                      [step]="0.1"
+                      [valueText]="format.amount(categoryValue(category), 1)"
+                      [showOutput]="true"
+                      [invalid]="errors().has(control.category(category))"
+                      (valueChange)="setCategory(category, $event)"
+                    />
+                  </div>
+                }
+              } @else {
+                <p class="hint">{{ 'query.weights.unavailable' | transloco }}</p>
+              }
+            </div>
+            <div class="stack-3">
+              <p class="lbl" id="q-overrides-label">
+                {{ 'query.overrides.title' | transloco }}
+                @if (d) {
+                  <span class="muted text-xs">
+                    {{
+                      'query.overrides.range'
+                        | transloco
+                          : {
+                              min: format.amount(d.overrideRange.min, 0),
+                              max: format.amount(d.overrideRange.max, 0),
+                              value: format.amount(d.overrideDefault, 0),
+                            }
+                    }}
+                  </span>
+                }
+              </p>
+              <vd-override-chips
+                [overrides]="overrides()"
+                [nutrients]="reference.nutrients()"
+                [min]="d?.overrideRange?.min ?? 0"
+                [max]="d?.overrideRange?.max ?? 3"
+                [defaultValue]="d?.overrideDefault ?? 1"
+                describedBy="q-overrides-hint"
+                (changed)="setOverrides($event)"
+              />
+              <p class="hint" id="q-overrides-hint">{{ 'query.overrides.hint' | transloco }}</p>
+            </div>
+          </div>
+          <p id="q-weights-error" aria-live="polite">
+            @if (errors().get(control.weightsReset); as key) {
+              <span class="err"><vd-icon name="warn" />{{ key | transloco }}</span>
+            }
+          </p>
+        </div>
+      </details>
+
+      <!-- Required nutrients -->
+      <section class="card" id="required" aria-labelledby="q-required-title">
+        <div class="card-head">
+          <h2 class="h3" id="q-required-title">{{ 'query.required.title' | transloco }}</h2>
+          <p class="text-xs muted">{{ 'query.required.caption' | transloco }}</p>
+        </div>
+        <vd-required-nutrients-editor
+          [rows]="rows()"
+          [nutrients]="reference.nutrients()"
+          [errors]="errors()"
+          (rowsChange)="setRows($event)"
+        />
+      </section>
+
+      <!-- Safety -->
+      <section class="card" aria-labelledby="q-safety-title">
+        <div class="card-head">
+          <h2 class="h3" id="q-safety-title">{{ 'query.safety.title' | transloco }}</h2>
+        </div>
+        <div class="safety">
+          <button
+            type="button"
+            role="switch"
+            class="switch"
+            [id]="control.ul"
+            [attr.aria-checked]="excludeUl()"
+            aria-labelledby="q-ul-label"
+            aria-describedby="q-ul-hint"
+            (click)="excludeUl.set(!excludeUl())"
+          >
+            <span class="track" aria-hidden="true"></span>
+            <span class="sw-state" aria-hidden="true">{{
+              (excludeUl() ? 'common.on' : 'common.off') | transloco
+            }}</span>
+          </button>
+          <div class="stack-1">
+            <span class="text-sm strong" id="q-ul-label">{{
+              'query.safety.label' | transloco
+            }}</span>
+            <span class="hint" id="q-ul-hint">{{
+              (excludeUl() ? 'query.safety.hint_on' : 'query.safety.hint_off')
+                | transloco: { ul: countryInfo() ? setLabel(countryInfo()!.ulSetCode) : '' }
+            }}</span>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <aside class="aside" [attr.aria-label]="'query.summary.title' | transloco">
+      <div class="card raised stack-3 summary-card">
+        <h2 class="h4 summary-title">{{ 'query.summary.title' | transloco }}</h2>
+        <dl class="kv summary">
+          <dt>{{ 'query.summary.country' | transloco }}</dt>
+          <dd>{{ countryInfo()?.nameEn ?? ('common.none' | transloco) }}</dd>
+          <dt>{{ 'query.summary.stock' | transloco }}</dt>
+          <dd>{{ 'query.stock.' + stockFilter() | transloco }}</dd>
+          <dt>{{ 'query.summary.mode' | transloco }}</dt>
+          <dd>
+            {{ 'query.mode.' + mode() + '.title' | transloco }}
+            @if (mode() === 'CUSTOM' && lambdaValue() !== null) {
+              ·
+              {{ 'query.summary.lambda' | transloco: { value: format.amount(lambdaValue()!, 2) } }}
+            }
+          </dd>
+          <dt>{{ 'query.summary.weights' | transloco }}</dt>
+          <dd>
+            @if (weightsSummary().changed.length === 0 && weightsSummary().overrides === 0) {
+              {{ 'query.weights.defaults' | transloco }}
+            } @else {
+              @for (c of weightsSummary().changed; track c.category) {
+                <span class="nowrap">{{ 'category.' + c.category | transloco }} {{ c.value }}</span>
+                @if (!$last || weightsSummary().overrides > 0) {
+                  <span>, </span>
+                }
+              }
+              @if (weightsSummary().overrides > 0) {
+                {{
+                  (weightsSummary().overrides === 1
+                    ? 'query.summary.overrides_one'
+                    : 'query.summary.overrides'
+                  ) | transloco: { count: weightsSummary().overrides }
+                }}
+              }
+            }
+          </dd>
+          <dt>{{ 'query.summary.required' | transloco }}</dt>
+          <dd>
+            @if (rows().length === 0) {
+              {{ 'query.summary.required_none' | transloco }}
+            } @else {
+              {{
+                (rows().length === 1
+                  ? 'query.summary.required_one'
+                  : 'query.summary.required_count'
+                ) | transloco: { count: rows().length }
+              }}
+            }
+          </dd>
+          <dt>{{ 'query.summary.ul' | transloco }}</dt>
+          <dd>
+            {{ (excludeUl() ? 'query.summary.ul_exclude' : 'query.summary.ul_keep') | transloco }}
+          </dd>
+        </dl>
+        <div class="submit-zone">
+          <button type="submit" class="btn btn-primary btn-block submit" [id]="control.submit">
+            {{ 'query.submit' | transloco }}<vd-icon name="arrow" />
+          </button>
+          @if (quota(); as q) {
+            <p class="text-xs muted" data-quota>
+              @if (q.left > 0) {
+                {{
+                  (q.left === 1 ? 'query.quota.note_one' : 'query.quota.note')
+                    | transloco: { left: q.left }
+                }}
+                @if (q.visibleResults > 0) {
+                  {{ 'query.quota.visible' | transloco: { visible: q.visibleResults } }}
+                }
+              } @else {
+                {{ 'query.quota.exhausted' | transloco }}
+                <a routerLink="/auth/register">{{ 'query.quota.register' | transloco }}</a>
+              }
+            </p>
+          }
+        </div>
+      </div>
+    </aside>
+  </form>
+</div>

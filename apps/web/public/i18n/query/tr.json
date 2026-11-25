@@ -1,0 +1,125 @@
+{
+  "page_title": "Multivitamin bul",
+  "title": "Size uygun multivitamini bulun",
+  "lead": "Her ürün günlük maliyete ve günlük besin miktarına çevrilir, ardından ülkenizin referans değerlerine göre puanlanır.",
+  "market": {
+    "title": "Pazar",
+    "caption": "Referans seti {{ reference }} · üst sınırlar {{ ul }} · fiyatlar {{ currency }}",
+    "country": "Ülke",
+    "country_hint": "Yalnızca bu ülkede satılan ürünler sıralanır."
+  },
+  "stock": {
+    "label": "Stok",
+    "IN_STOCK_ONLY": "Yalnızca stokta",
+    "INCLUDE_OUT_OF_STOCK": "Stokta olmayanlar dahil"
+  },
+  "ranking": {
+    "title": "Sıralama",
+    "caption": "Ürünlerin nasıl sıralanacağı"
+  },
+  "mode": {
+    "PRICE": {
+      "title": "Fiyat",
+      "desc": "Önce en düşük günlük maliyet"
+    },
+    "RICHNESS": {
+      "title": "İçerik zenginliği",
+      "desc": "Önce en yüksek içerik puanı"
+    },
+    "VALUE": {
+      "title": "Değer",
+      "desc": "Maliyet birimi başına içerik (varsayılan)"
+    },
+    "CUSTOM": {
+      "title": "Özel",
+      "desc": "İçerik ile fiyatı harmanla"
+    }
+  },
+  "lambda": {
+    "label": "İçerik ve fiyat dengesi (λ)",
+    "price_only": "Yalnızca fiyat",
+    "content_only": "Yalnızca içerik",
+    "hint": "0 yalnızca fiyata, 1 yalnızca içeriğe göre sıralar. Varsayılan {{ value }}."
+  },
+  "weights": {
+    "title": "Sizin için önemli olanlar",
+    "defaults": "Varsayılanlar",
+    "customised": "Özelleştirildi",
+    "intro": "Ağırlıklar, her besin öğesinin içerik puanına ne kadar katkı yaptığını belirler.",
+    "reset": "Varsayılanlara dön",
+    "categories": "Kategori ağırlıkları",
+    "range": "({{ min }}–{{ max }})",
+    "unavailable": "Ağırlık ayarları yüklenemedi. Sunucunun varsayılanları geçerli.",
+    "category": {
+      "VITAMIN": "Vitaminler",
+      "MINERAL": "Mineraller",
+      "COENZYME": "Koenzimler",
+      "OTHER": "Diğer"
+    }
+  },
+  "overrides": {
+    "title": "Besin öğesi ağırlıkları",
+    "range": "(×{{ min }}–{{ max }}, varsayılan ×{{ value }})",
+    "hint": "×0 bir besin öğesini puandan çıkarır; dökümde görünmeye devam eder. Tüm besin öğeleri 0 olursa sıralama hesaplanamaz.",
+    "chip_label": "{{ name }} ağırlığı: {{ value }}. Düzenle",
+    "edit_label": "{{ name }} ağırlığı, {{ min }} ile {{ max }} arası",
+    "remove": "{{ name }} için ağırlık ayarını kaldır",
+    "not_scored": "puanlanmıyor",
+    "add": "Besin öğesi ekle",
+    "search_label": "Ağırlık verilecek besin öğesini bul",
+    "search_placeholder": "Kod veya ad",
+    "options_label": "Besin öğeleri",
+    "no_match": "Eşleşen besin öğesi yok."
+  },
+  "required": {
+    "title": "Zorunlu besin öğeleri",
+    "caption": "Bunları içermeyen ürünler dışarıda kalır",
+    "nutrient": "Besin öğesi",
+    "min": "Günlük en az miktar (isteğe bağlı)",
+    "unit": "Birim",
+    "nutrient_label": "Zorunlu besin öğesi {{ index }}",
+    "min_label": "{{ name }} için günlük en az miktar",
+    "min_placeholder": "Bulunması yeterli",
+    "unit_label": "{{ name }} en az miktarının birimi",
+    "unit_placeholder": "Birim",
+    "remove": "{{ name }} öğesini zorunlu besin öğelerinden çıkar",
+    "add": "Zorunlu besin öğesi ekle",
+    "hint": "IU yalnızca D vitamini için kabul edilir. En az miktar bir birim gerektirir; birim yoksa besin öğesinin bulunması yeterlidir."
+  },
+  "safety": {
+    "title": "Güvenlik",
+    "label": "Üst sınırı aşan ürünleri dışarıda bırak",
+    "hint_off": "Kapalı: bu ürünler listede uyarı rozetiyle kalır. Üst sınırlar {{ ul }} kaynaklıdır.",
+    "hint_on": "Açık: üst sınırı aşan ürünler dışarıda bırakılır. Üst sınırlar {{ ul }} kaynaklıdır."
+  },
+  "summary": {
+    "title": "Sorgunuz",
+    "country": "Ülke",
+    "stock": "Stok",
+    "mode": "Mod",
+    "lambda": "λ {{ value }}",
+    "weights": "Ağırlıklar",
+    "overrides": "{{ count }} besin öğesi ayarı",
+    "overrides_one": "1 besin öğesi ayarı",
+    "required": "Zorunlu",
+    "required_none": "Yok",
+    "required_count": "{{ count }} besin öğesi",
+    "required_one": "1 besin öğesi",
+    "ul": "Üst sınır",
+    "ul_keep": "Uyarıyla tut",
+    "ul_exclude": "Dışarıda bırak"
+  },
+  "submit": "Ürünleri sırala",
+  "quota": {
+    "note": "Bu sorgu, kalan {{ left }} ücretsiz sorgu hakkınızdan birini kullanır.",
+    "note_one": "Bu sorgu son ücretsiz sorgu hakkınızı kullanır.",
+    "visible": "Hesap olmadan her sorguda ilk {{ visible }} sonucu görürsünüz.",
+    "exhausted": "Ücretsiz sorgu hakkınız kalmadı.",
+    "register": "Sıralamaya devam etmek için ücretsiz hesap oluşturun."
+  },
+  "errors": {
+    "min_positive": "0'dan büyük olmalı.",
+    "unit_required": "Bir birim seçin.",
+    "iu_only_vit_d": "IU yalnızca D vitamini için kabul edilir."
+  }
+}

@@ -1,0 +1,102 @@
+@if (rows().length > 0) {
+  <div class="req head" aria-hidden="true">
+    <span class="lbl">{{ 'query.required.nutrient' | transloco }}</span>
+    <span class="lbl">{{ 'query.required.min' | transloco }}</span>
+    <span class="lbl">{{ 'query.required.unit' | transloco }}</span>
+    <span></span>
+  </div>
+  <ul role="list" class="rows">
+    @for (row of rows(); track row.key; let i = $index) {
+      @let codeId = 'q-req-' + i + '-code';
+      @let minId = 'q-req-' + i + '-min';
+      @let unitId = 'q-req-' + i + '-unit';
+      <li class="req">
+        <div class="cell">
+          <select
+            class="sel"
+            [id]="codeId"
+            [attr.aria-label]="'query.required.nutrient_label' | transloco: { index: i + 1 }"
+            [attr.aria-invalid]="errors().has(codeId) ? 'true' : null"
+            [attr.aria-describedby]="describedBy(codeId)"
+            (change)="update(i, { code: $any($event.target).value })"
+          >
+            @for (n of choices(row); track n.code) {
+              <option [value]="n.code" [selected]="n.code === row.code">
+                {{ n.code }} · {{ n.nameEn }}
+              </option>
+            }
+          </select>
+          @if (errors().get(codeId); as key) {
+            <span class="err" [id]="codeId + '-error'"
+              ><vd-icon name="warn" />{{ key | transloco }}</span
+            >
+          }
+        </div>
+        <div class="cell">
+          <input
+            class="inp"
+            type="number"
+            inputmode="decimal"
+            step="any"
+            min="0"
+            [id]="minId"
+            [value]="row.min"
+            [attr.placeholder]="'query.required.min_placeholder' | transloco"
+            [attr.aria-label]="'query.required.min_label' | transloco: { name: nameOf(row.code) }"
+            [attr.aria-invalid]="errors().has(minId) ? 'true' : null"
+            [attr.aria-describedby]="describedBy(minId)"
+            (input)="update(i, { min: $any($event.target).value })"
+          />
+          @if (errors().get(minId); as key) {
+            <span class="err" [id]="minId + '-error'"
+              ><vd-icon name="warn" />{{ key | transloco }}</span
+            >
+          }
+        </div>
+        <div class="cell">
+          <select
+            class="sel"
+            [id]="unitId"
+            [disabled]="row.min.trim() === ''"
+            [attr.aria-label]="'query.required.unit_label' | transloco: { name: nameOf(row.code) }"
+            [attr.aria-invalid]="errors().has(unitId) ? 'true' : null"
+            [attr.aria-describedby]="describedBy(unitId)"
+            (change)="update(i, { unit: $any($event.target).value })"
+          >
+            <option value="" [selected]="row.unit === ''">
+              {{ 'query.required.unit_placeholder' | transloco }}
+            </option>
+            @for (unit of unitsFor(row.code); track unit) {
+              <option [value]="unit" [selected]="unit === row.unit">{{ unit }}</option>
+            }
+          </select>
+          @if (errors().get(unitId); as key) {
+            <span class="err" [id]="unitId + '-error'"
+              ><vd-icon name="warn" />{{ key | transloco }}</span
+            >
+          }
+        </div>
+        <button
+          type="button"
+          class="btn btn-icon"
+          [attr.aria-label]="'query.required.remove' | transloco: { name: nameOf(row.code) }"
+          (click)="remove(i)"
+        >
+          <vd-icon name="trash" />
+        </button>
+      </li>
+    }
+  </ul>
+}
+<div class="row">
+  <button
+    type="button"
+    id="q-req-add"
+    class="btn"
+    [disabled]="rows().length >= nutrients().length"
+    (click)="add()"
+  >
+    <vd-icon name="plus" />{{ 'query.required.add' | transloco }}
+  </button>
+  <span class="hint grow">{{ 'query.required.hint' | transloco }}</span>
+</div>
