@@ -48,9 +48,33 @@ server {
         include /etc/nginx/snippets/security-headers.conf;
         add_header Referrer-Policy "strict-origin-when-cross-origin" always;
         add_header Cache-Control $vitadelta_cache_control always;
-        # Unknown paths fall back to the single-page app; index.html is served
-        # from this location (not via an internal redirect) so the headers above apply.
+        # Unknown application routes fall back to the single-page app; index.html is
+        # served from this location (not via an internal redirect) so the headers above apply.
         try_files $uri /index.html =404;
+    }
+
+    # Static files of the build (hashed bundles and chunks, styles, source maps, media,
+    # icons) and the translation files: a missing file is a 404, never the app document,
+    # so a stale chunk or an unknown translation fails visibly instead of as HTML.
+    location ^~ /i18n/ {
+        include /etc/nginx/snippets/security-headers.conf;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header Cache-Control $vitadelta_cache_control always;
+        try_files $uri =404;
+    }
+
+    location ^~ /media/ {
+        include /etc/nginx/snippets/security-headers.conf;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header Cache-Control $vitadelta_cache_control always;
+        try_files $uri =404;
+    }
+
+    location ~* \.(?:js|mjs|css|map|json|ico|png|jpe?g|gif|svg|webp|avif|woff2?|ttf|otf|txt|xml|webmanifest)$ {
+        include /etc/nginx/snippets/security-headers.conf;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header Cache-Control $vitadelta_cache_control always;
+        try_files $uri =404;
     }
 
     # E-mail verification and password reset pages: tokens live in the URL fragment,
@@ -69,7 +93,9 @@ server {
         return 404;
     }
 
-    location /api/ {
+    # ^~ keeps API paths away from the static-file pattern above (an API path is
+    # always proxied, whatever it ends with).
+    location ^~ /api/ {
         include /etc/nginx/snippets/security-headers.conf;
         add_header Referrer-Policy $vitadelta_api_referrer_policy always;
 
