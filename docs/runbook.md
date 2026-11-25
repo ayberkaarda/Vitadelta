@@ -789,10 +789,19 @@ Degradation modes:
   full rule set.
 - **No `NVD_API_KEY`:** `dependency-check` reports `SKIPPED(no NVD_API_KEY)`. Without an NVD API key
   the initial NVD download is rate limited to the point of taking well over 25 minutes, so the
-  check does not run. To enable it, request a key at https://nvd.nist.gov/developers/request-an-api-key,
-  export it as `NVD_API_KEY` (and `NVD_DATA_DIR` to keep the feed between runs), and make sure the
-  `org.owasp.dependencycheck` plugin is applied in `services/api/build.gradle.kts`; with a key but
-  without the plugin the check fails instead of skipping.
+  check does not run. To enable it locally, request a key at
+  https://nvd.nist.gov/developers/request-an-api-key, export it as `NVD_API_KEY` (and `NVD_DATA_DIR`
+  to keep the feed between runs); the `org.owasp.dependencycheck` plugin is applied in
+  `services/api/build.gradle.kts` and fails the build at CVSS >= 7. Documented false positives go
+  into `services/api/config/dependency-check-suppressions.xml` (dependency, CVE, reason, review
+  date); a real finding is fixed by upgrading the dependency. With a key but without the plugin the
+  check fails instead of skipping.
+- **In CI** the `security` job runs the check: the repository secret `NVD_API_KEY` is passed to the
+  `Security scan` step only (never to other steps, never printed) and only for pushes and for pull
+  requests from this repository. Pull requests from forks have no access to the secret, so there the
+  check is reported `SKIPPED(no NVD_API_KEY)`. The NVD feed in `NVD_DATA_DIR` is restored from and
+  saved to the Actions cache (key prefix `nvd-data-`); the first run, or a run after the cache
+  expired, downloads the full feed and takes several minutes.
 - **No network:** `npm-audit` and `pip-audit` need their advisory services and fail when they
   cannot reach them; an audit that did not run is never reported as passed.
 
