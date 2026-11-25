@@ -1,4 +1,4 @@
-// contract-sha256: 0fafb9cc0ffe54102806ed0e380692b0c0d3012f32a3847569adc24d5d1d9851
+// contract-sha256: 9ca88d35f5231e726b46140b7b91bf374b10f9e4059e42dc201d849002767ab3
 // Types of the public API, derived from contracts/public-api.openapi.yaml.
 // Do not edit by hand: run `npm run api:types` in apps/web after changing the contract.
 
@@ -205,7 +205,10 @@ export interface paths {
          *     `quota_exceeded` (403, anonymous only, with `upgradeHint`),
          *     `unauthorized` (401, invalid bearer token), `rate_limited` (429 with
          *     `Retry-After`: anonymous callers 30 queries per day per client IP, or
-         *     anonymous identity creation), `scoring_unavailable` (503), request
+         *     anonymous identity creation; signed-in callers 30 cache-missing
+         *     queries and comparisons together per minute per user and at most 2 in
+         *     flight, rankings served from the cache are not counted),
+         *     `scoring_unavailable` (503), request
          *     body larger than 64 kB (413), body not `application/json` (415),
          *     `internal_error` (500).
          */
@@ -263,7 +266,9 @@ export interface paths {
          *     status `NOT_SOLD` or `DISCONTINUED` or no availability row),
          *     `unauthorized` (401, invalid bearer token), `rate_limited` (429 with
          *     `Retry-After`, anonymous callers 120 per minute per client IP, shared
-         *     with `/products/**`), `scoring_unavailable` (503), request body larger
+         *     with `/products/**`; signed-in callers 30 comparisons and
+         *     cache-missing queries together per minute per user and at most 2 in
+         *     flight), `scoring_unavailable` (503), request body larger
          *     than 64 kB (413), body not `application/json` (415), `internal_error`
          *     (500).
          */
@@ -1301,8 +1306,10 @@ export interface paths {
         /**
          * Enable or disable a user
          * @description Requires role ADMIN. Setting `DISABLED` revokes all refresh-token
-         *     families of the user in the same transaction; issued access tokens
-         *     expire within 15 minutes.
+         *     families of the user in the same transaction. Every `/admin/**`
+         *     request re-reads the caller's role and status, so a disabled or
+         *     demoted administrator is rejected immediately (`forbidden`, 403). An
+         *     administrator cannot change their own status (`forbidden`, 403).
          *
          *     Problem codes: `unauthorized` (401), `forbidden` (403), 404
          *     (`about:blank`), `validation_failed` (422).
