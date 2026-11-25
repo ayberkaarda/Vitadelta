@@ -37,8 +37,6 @@ public final class LogRedactor {
           "(?i)([\"']?\\b(?:password|newPassword|currentPassword|oldPassword|token|accessToken"
               + "|refreshToken|access_token|refresh_token)\\b[\"']?\\s*[:=]\\s*)"
               + "(\"(?:[^\"\\\\]|\\\\.)*\"|'[^']*'|[^\\s,;&\"'\\]}]+)");
-  private static final Pattern EMAIL =
-      Pattern.compile("([A-Za-z0-9._%+-])[A-Za-z0-9._%+-]*@([A-Za-z0-9.-]+\\.[A-Za-z]{2,})");
 
   private LogRedactor() {}
 
@@ -52,8 +50,89 @@ public final class LogRedactor {
     result = JWT.matcher(result).replaceAll(REDACTED);
     result = COOKIES.matcher(result).replaceAll("$1$2" + REDACTED);
     result = replaceSecretFields(result);
-    result = EMAIL.matcher(result).replaceAll("$1***@$2");
-    return result;
+    return maskEmails(result);
+  }
+
+  private static boolean isLocal(char c) {
+    return (c >= 'a' && c <= 'z')
+        || (c >= 'A' && c <= 'Z')
+        || (c >= '0' && c <= '9')
+        || c == '.'
+        || c == '_'
+        || c == '%'
+        || c == '+'
+        || c == '-';
+  }
+
+  private static boolean isLetter(char c) {
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+  }
+
+  private static boolean isDomain(char c) {
+    return (c >= 'a' && c <= 'z')
+        || (c >= 'A' && c <= 'Z')
+        || (c >= '0' && c <= '9')
+        || c == '.'
+        || c == '-';
+  }
+
+  /**
+   * Masks {@code local@domain} addresses to {@code l***@domain}. A single left-to-right scan
+   * anchored on each {@code @}: the work is linear in the text length (a regular expression over
+   * the open-ended local part would rescan the text from every start position).
+   */
+  private static String maskEmails(String text) {
+    int length = text.length();
+    StringBuilder out = null;
+    int copied = 0;
+    int at = text.indexOf('@');
+    while (at >= 0) {
+      int start = at;
+      while (start > copied && isLocal(text.charAt(start - 1))) {
+        start--;
+      }
+      int domainEnd = at + 1;
+      while (domainEnd < length && isDomain(text.charAt(domainEnd))) {
+        domainEnd++;
+      }
+      int end = matchEnd(text, at + 1, domainEnd);
+      if (start < at && end > 0) {
+        if (out == null) {
+          out = new StringBuilder(length);
+        }
+        out.append(text, copied, start).append(text.charAt(start)).append("***@");
+        out.append(text, at + 1, end);
+        copied = end;
+        at = text.indexOf('@', end);
+      } else {
+        at = text.indexOf('@', at + 1);
+      }
+    }
+    if (out == null) {
+      return text;
+    }
+    return out.append(text, copied, length).toString();
+  }
+
+  /**
+   * End of the domain {@code [A-Za-z0-9.-]+\.[A-Za-z]{2,}} that starts at {@code from} inside the
+   * run {@code [from, runEnd)}, preferring the longest one; {@code -1} when there is none.
+   */
+  private static int matchEnd(String text, int from, int runEnd) {
+    int dot = runEnd - 1;
+    while (dot > from) {
+      if (text.charAt(dot) == '.') {
+        int letters = dot + 1;
+        while (letters < runEnd && isLetter(text.charAt(letters))) {
+          letters++;
+        }
+        if (letters - (dot + 1) >= 2) {
+          return letters;
+        }
+      }
+      dot--;
+    }
+    return -1;
   }
 
   private static String replaceSecretFields(String text) {

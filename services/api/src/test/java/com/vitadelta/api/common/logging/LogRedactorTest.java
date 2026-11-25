@@ -38,6 +38,39 @@ class LogRedactorTest {
   }
 
   @Test
+  void longInputsWithoutAnAddressAreRedactedInLinearTime() {
+    String[] inputs = {
+      "a".repeat(200_000),
+      "a.".repeat(100_000),
+      "a@".repeat(100_000),
+      "a@" + "b".repeat(200_000),
+      "a@" + "b.".repeat(100_000),
+      "/api/v1/" + "x".repeat(200_000) + "@"
+    };
+    for (String input : inputs) {
+      long started = System.nanoTime();
+      LogRedactor.redact(input);
+      assertThat(java.time.Duration.ofNanos(System.nanoTime() - started))
+          .as("input of %d chars", input.length())
+          .isLessThan(java.time.Duration.ofSeconds(2));
+    }
+  }
+
+  @ParameterizedTest(name = "{0}")
+  @CsvSource(
+      delimiter = '|',
+      value = {
+        "a@b.c@d.com|a@b***@d.com",
+        "a@b.com@x.org|a***@b.com@x.org",
+        "x@y.com-z|x***@y.com-z",
+        "p@q.r.st u@v.io|p***@q.r.st u***@v.io",
+        "@a.com bob@|@a.com bob@"
+      })
+  void emailMaskingKeepsItsShape(String input, String expected) {
+    assertThat(LogRedactor.redact(input)).isEqualTo(expected);
+  }
+
+  @Test
   void keepsNullAndEmpty() {
     assertThat(LogRedactor.redact(null)).isNull();
     assertThat(LogRedactor.redact("")).isEmpty();
