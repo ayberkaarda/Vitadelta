@@ -21,7 +21,8 @@ import org.springframework.stereotype.Component;
  *       cheapest out-of-stock offer with {@code outOfStock} and {@code priceStale} set; without any
  *       offer the product is excluded ({@code NO_OFFER}).
  *   <li>Equal prices: the most recent {@code checked_at} wins, then the lowest retailer in binary
- *       (UTF-16 code unit) order; retailers are unique per pair, so the order is total.
+ *       order (unsigned UTF-8 bytes, as {@code COLLATE "C"}, see {@link #compareBinary}); retailers
+ *       are unique per pair, so the order is total.
  *   <li>{@code priceStale} is also set when the selected offer was checked more than {@code
  *       vitadelta.catalog.price-stale-after-days} (default 30) days before now.
  * </ul>
@@ -33,7 +34,27 @@ public class EffectivePriceResolver {
   public static final Comparator<OfferSnapshot> SELECTION_ORDER =
       Comparator.comparing(OfferSnapshot::price)
           .thenComparing(OfferSnapshot::checkedAt, Comparator.reverseOrder())
-          .thenComparing(OfferSnapshot::retailer);
+          .thenComparing(OfferSnapshot::retailer, EffectivePriceResolver::compareBinary);
+
+  /**
+   * Binary order of two strings as PostgreSQL {@code COLLATE "C"} sorts them in a UTF-8 database:
+   * unsigned UTF-8 bytes, which is the order of the Unicode code points. It differs from {@link
+   * String#compareTo} (UTF-16 code units) for characters above U+FFFF against U+E000 to U+FFFF.
+   */
+  public static int compareBinary(String a, String b) {
+    int i = 0;
+    int j = 0;
+    while (i < a.length() && j < b.length()) {
+      int ca = a.codePointAt(i);
+      int cb = b.codePointAt(j);
+      if (ca != cb) {
+        return Integer.compare(ca, cb);
+      }
+      i += Character.charCount(ca);
+      j += Character.charCount(cb);
+    }
+    return Integer.compare(a.length() - i, b.length() - j);
+  }
 
   private final Clock clock;
   private final Duration staleAfter;
