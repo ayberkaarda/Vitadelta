@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  OWASP Dependency-Check suppressions for services/api (CVSS >= 7 fails the build).
+
+  Add an entry only for a documented false positive: name the dependency, the CVE, why it does not
+  apply here (for example "the vulnerable class is never loaded") and a review date. A real
+  vulnerability is fixed by upgrading the dependency, not suppressed.
+-->
+<suppressions xmlns="https://jeremylong.github.io/DependencyCheck/dependency-suppression.1.3.xsd">
+</suppressions>

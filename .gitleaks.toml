@@ -1,0 +1,54 @@
+# Secret scanning configuration (scripts/security-scan.sh).
+# The default gitleaks rule set applies in full. The allowlist below names individual values that
+# are synthetic test data, each reviewed by hand: fixed test passwords of the e2e and adversarial
+# suites, base64-encoded descriptive strings used as e-mail tokens in unit tests, and example JWTs
+# whose signature segment is the literal text "signature" (contract example, generated web types,
+# log-redaction tests). They are matched by their exact value, so any other value in the same
+# files is still reported. Add a value only after confirming it grants access to nothing.
+
+title = "vitadelta"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Reviewed synthetic test values (exact matches)"
+regexTarget = "secret"
+regexes = [
+  # BEGIN synthetic values (also read by the git grep fallback of scripts/security-scan.sh)
+  '''^Copper-Meadow-Lantern-77$''',
+  '''^Saffron-Lantern-Harbor-42$''',
+  '''^saffron-glacier-meadow-42$''',
+  '''^Zk3sQ9vL_2mXr7Tq-8bNw4YcHp1uEaDfGjKoRiSyVtU$''',
+  '''^Zmxvdy1zeW50aGV0aWMtdmVyaWZpY2F0aW9uLXRva2Vu$''',
+  '''^c3RhcnQtdXAtc3ludGhldGljLXRlc3QtdG9rZW4tMDE$''',
+  '''^cmVzZXQtc3ludGhldGljLXRlc3QtdG9rZW4tMDAwMDAx$''',
+  '''^dGhpcy1pcy1hLXN5bnRoZXRpYy10ZXN0LXRva2VuLTAx$''',
+  '''^dmVyaWZ5LXN5bnRoZXRpYy1mbG93LXRva2Vu$''',
+  '''^q1W2e3R4t5Y6u7I8o9P0a_S-d1F2g3H4j5K6l7Z8x9C$''',
+  '''^eyJraWQiOiI0ZjFhMmIzYzRkNWU2ZjcwIiwiYWxnIjoiSFMyNTYifQ\.eyJzdWIiOiI5ZjFjMmQzZSJ9\.c2lnbmF0dXJl$''',
+  '''^eyJraWQiOiJhYmMiLCJhbGciOiJIUzI1NiJ9\.eyJzdWIiOiIxMjMiLCJyb2xlIjoiVVNFUiJ9\.c2lnbmF0dXJlLXZhbHVl$''',
+  '''^eyJraWQiOiJrMSIsImFsZyI6IkhTMjU2In0\.eyJzdWIiOiJ1c2VyLTEiLCJyb2xlIjoiVVNFUiJ9\.$''',
+  # Unsigned token ({"alg":"none"}, {"sub":"x"}, empty signature) sent as a refresh cookie by the
+  # adversarial suite to check that it is rejected; it is accepted by nothing.
+  '''^eyJhbGciOiJub25lIn0\.eyJzdWIiOiJ4In0\.$''',
+  # Fixed passwords and placeholder strings of the unit, integration and browser test suites and of
+  # the README example, used against throwaway test databases only. gitleaks' own rules do not
+  # report them; the pattern fallback of scripts/security-scan.sh does, and suppresses exactly these.
+  '''^correct-horse-battery$''',
+  '''^correct-horse-battery-staple$''',
+  '''^another-correct-horse-battery$''',
+  '''^plum-orbit-lantern-quartz$''',
+  '''^violet-harbor-compass-7$''',
+  '''^attacker-chosen-passphrase-9$''',
+  '''^Juniper-Compass-Meadow-58$''',
+  '''^copper-meadow-violin-$''',
+  '''^another-password$''',
+  '''^a-new-long-password$''',
+  '''^register-password$''',
+  '''^token-of-account-b$''',
+  '''^rotated-elsewhere$''',
+  '''^sEcReTvalue1234567890$''',
+  '''^Longunbrokentoken$''',
+  # END synthetic values
+]

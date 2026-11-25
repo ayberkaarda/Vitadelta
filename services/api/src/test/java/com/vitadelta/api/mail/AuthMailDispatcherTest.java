@@ -6,6 +6,7 @@ import static com.vitadelta.api.mail.MailTestSupport.dropped;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 
+import com.vitadelta.api.common.web.RequestIds;
 import com.vitadelta.api.config.properties.MailSettingsProperties;
 import com.vitadelta.api.support.TestEnvironment;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -22,6 +23,7 @@ import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.slf4j.MDC;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.mail.javamail.JavaMailSenderImpl;
@@ -76,6 +78,22 @@ class AuthMailDispatcherTest {
     assertThat(recording.messages.getFirst().textBody())
         .contains(TestEnvironment.WEB_BASE_URL + "/auth/verify#token=" + TOKEN);
     assertThat(count(registry, AuthMailDispatcher.SENT, VerifyEmailMail.TEMPLATE)).isEqualTo(1);
+  }
+
+  @Test
+  void theSenderThreadCarriesTheRequestIdOfTheQueueingRequest() {
+    dispatcher = dispatcher(recording, 1, 10, Duration.ofSeconds(5));
+    MDC.put(RequestIds.KEY, "mail-request-1");
+    try {
+      assertThat(dispatcher.dispatch(OutgoingMail.verifyEmail(ADDRESS, Locale.ENGLISH, TOKEN)))
+          .isTrue();
+    } finally {
+      MDC.remove(RequestIds.KEY);
+    }
+    assertThat(dispatcher.dispatch(OutgoingMail.verifyEmail(ADDRESS, Locale.ENGLISH, TOKEN)))
+        .isTrue();
+    dispatcher.destroy();
+    assertThat(recording.requestIds).containsExactly("mail-request-1", "none");
   }
 
   @Test
@@ -273,6 +291,7 @@ class AuthMailDispatcherTest {
 
     final List<EmailMessage> messages = new CopyOnWriteArrayList<>();
     final List<String> threads = new CopyOnWriteArrayList<>();
+    final List<String> requestIds = new CopyOnWriteArrayList<>();
     final CountDownLatch entered = new CountDownLatch(1);
     final CountDownLatch release = new CountDownLatch(1);
     volatile boolean block;
@@ -280,6 +299,8 @@ class AuthMailDispatcherTest {
     @Override
     public void send(EmailMessage message) {
       threads.add(Thread.currentThread().getName());
+      String requestId = MDC.get(RequestIds.KEY);
+      requestIds.add(requestId == null ? "none" : requestId);
       entered.countDown();
       if (block) {
         try {

@@ -1,4 +1,4 @@
-// contract-sha256: 9ca88d35f5231e726b46140b7b91bf374b10f9e4059e42dc201d849002767ab3
+// contract-sha256: c4db0bd3e0b9e04676554f13189b0840993db057e696234b1b1eebaaecc8257f
 // Types of the public API, derived from contracts/public-api.openapi.yaml.
 // Do not edit by hand: run `npm run api:types` in apps/web after changing the contract.
 
@@ -342,6 +342,14 @@ export interface paths {
          *     `FX_UNAVAILABLE`. Until a rate exists for the requested display
          *     currency, money stays native and `meta.fx.status` is `UNAVAILABLE`.
          *
+         *     Each nutrient row carries the catalog facts of the requested country:
+         *     `reference` (the country's reference set value and the percentage of
+         *     it covered per day) and `upperLimit` (the country's UL set row that
+         *     applies to the row's form, with `exceeded`). Both are read from the
+         *     catalog, never from the scoring service, and are `null` when the set
+         *     defines no applicable value. `upperLimit.exceeded` does not add a flag
+         *     to `flags`.
+         *
          *     Problem codes: `product_not_found` (404, unknown id or an id that is
          *     not a UUID),
          *     `product_not_available_in_country` (404, status `NOT_SOLD` or
@@ -574,7 +582,25 @@ export interface paths {
          *     `X-Requested-With: vitadelta`, `Content-Type: application/json` and, when
          *     an `Origin` header is present, an allowed origin.
          *
-         *     Problem codes: `unauthorized` (401, missing, unknown or expired refresh
+         *     Order of checks: the CSRF header, content type and origin checks (403
+         *     `forbidden`) and the rate limit (429, every request counts, including
+         *     requests without a cookie) are applied first, exactly as before.
+         *
+         *     No session (204): when the request carries no `vd_refresh` cookie at
+         *     all (no cookie of that name, or only one with an empty value), the
+         *     answer is `204 No Content` with no body and no `Set-Cookie` header: the
+         *     cookie state is left unchanged, no token or account is read, and the
+         *     request is not recorded as a failed refresh attempt (no problem
+         *     response, no reuse or security event). Clients treat 204 as "signed
+         *     out" and do not retry.
+         *
+         *     A present, non-empty `vd_refresh` cookie keeps its existing behaviour:
+         *     an unknown, expired or revoked token (outside the grace window) answers
+         *     401, a reused token revokes the family and answers 401
+         *     `refresh_reuse_detected`, and these 401 responses clear the cookie as
+         *     before.
+         *
+         *     Problem codes: `unauthorized` (401, unknown, expired or revoked refresh
          *     token), `refresh_reuse_detected` (401), `account_disabled` (403),
          *     `forbidden` (403, CSRF header, content type or origin rejected),
          *     `rate_limited` (429, 60 per minute per IP).
@@ -1098,7 +1124,9 @@ export interface paths {
          *     - `fx`: `newestAsOf` = newest `as_of` over all stored rates (`null`
          *       when none), `rateAgeDays` = current UTC date minus `newestAsOf` in
          *       days, `stale = rateAgeDays > 5`; `status` is `UP` when not stale,
-         *       `DEGRADED` when stale or no rate is stored, never `DOWN`.
+         *       `DEGRADED` when stale or no rate is stored, never `DOWN`;
+         *       `unsupportedBases` = the unsupported bases of the last FX refresh
+         *       run (empty before the first run).
          *     - `outbox`: the counts of `GET /admin/outbox/stats`; `status` is
          *       `DEGRADED` when `failed > 0` or the oldest pending event is older
          *       than 5 minutes (`oldestPendingAt`), else `UP`. Dead letters are
@@ -1396,6 +1424,13 @@ export interface paths {
          *     the other bases; the response is still 200 and lists the base in
          *     `failedBases`. With four supported currencies a complete run upserts
          *     12 rows.
+         *
+         *     A base is unsupported only when the provider answers 422 with the
+         *     message `invalid currency: <base>` naming exactly the requested base:
+         *     it is listed in `unsupportedBases` (not in `failedBases`), logged as
+         *     an operator warning and counted, and gets no rate. Any other
+         *     rejection (another text, another currency named, 5xx, timeout, empty
+         *     answer) is a failure of that base.
          *
          *     Problem codes: `unauthorized` (401), `forbidden` (403),
          *     `conflict_retry` (409, the refresh job is running at this moment and
@@ -2091,6 +2126,68 @@ export interface components {
             formLabel: string | null;
             /** @description `true` when an IU conversion assumed a form. */
             conversionAssumed: boolean;
+            /**
+             * @description Regulatory reference of the requested country's reference set for
+             *     this nutrient; `null` when the set defines no value for it. Catalog
+             *     fact, independent of weights and of the market (no market-median or
+             *     presence-only fallback here). Always written by the API; optional in
+             *     the schema only for compatibility.
+             */
+            reference?: components["schemas"]["NutrientReference"] | null;
+            /**
+             * @description Upper limit of the requested country's UL set that applies to this
+             *     nutrient and form under the UL matching rule; `null` when no row
+             *     applies, the matched row is exempt, or the limit depends on a form
+             *     the label does not state (`UL_FORM_DEPENDENT`). Always written by
+             *     the API; optional in the schema only for compatibility.
+             */
+            upperLimit?: components["schemas"]["NutrientUpperLimit"] | null;
+        };
+        /**
+         * @description `TOTAL`: the limit covers intake from all sources; `SUPPLEMENTAL`: supplemental intake only. Both are compared with the product's UL-relevant daily amount alone (dietary intake ignored).
+         * @enum {string}
+         */
+        UlBasis: "TOTAL" | "SUPPLEMENTAL";
+        /** @description Reference amount per day of the country's reference set, in the nutrient's canonical unit. */
+        NutrientReference: {
+            /** @description Stored reference value per day, rounded once to 4 decimals. */
+            amount: number;
+            unit: components["schemas"]["CanonicalUnit"];
+            /**
+             * @description Reference set code; equals the country's `referenceSetCode`.
+             * @example EU_NRV
+             */
+            setCode: string;
+            /**
+             * @description Always `REGULATORY` (same vocabulary as `BreakdownRow.referenceSource`).
+             * @constant
+             */
+            source: "REGULATORY";
+            /** @description 100 x `amountPerDay` / `amount`, from the unrounded values, rounded once to 4 decimals (round-half-even). Not capped at the upper limit or the utility ceiling. */
+            percentOfReference: number;
+        };
+        /** @description Tolerable upper intake level per day of the country's UL set, in the nutrient's canonical unit. */
+        NutrientUpperLimit: {
+            /** @description Stored upper limit per day, rounded once to 4 decimals. */
+            amount: number;
+            unit: components["schemas"]["CanonicalUnit"];
+            basis: components["schemas"]["UlBasis"];
+            /**
+             * @description UL set code; equals the country's `ulSetCode`.
+             * @example EFSA
+             */
+            setCode: string;
+            /**
+             * @description Form code of the matched row, a registry form code or `ANY`.
+             * @example ANY
+             */
+            formCode: string;
+            /** @description Citation note stored with the matched row, verbatim; `null` when the row has none. */
+            note: string | null;
+            /** @description UL-relevant amount per day compared with `amount` (`ulAmountPerServing` x `servingsPerDay` when `ulAmountPerServing` is set, else `amountPerDay`), rounded once to 4 decimals. */
+            ulAmountPerDay: number;
+            /** @description `true` when the unrounded `ulAmountPerDay` is strictly greater than the stored `amount`; the same comparison as the scoring service's `EXCEEDS_UL` flag, which product detail does not emit. */
+            exceeded: boolean;
         };
         ProductAvailability: {
             status: components["schemas"]["AvailabilityStatus"];
@@ -2207,8 +2304,10 @@ export interface components {
         FxRefreshResult: {
             /** @description `fx_rate` rows inserted or updated by this run (a repeated refresh of the same ECB date rewrites the rows and counts them again). */
             upsertedRows: number;
-            /** @description Base currencies whose provider call failed in this run, ordered ascending; their stored rates stay in use. Empty when every call succeeded. */
+            /** @description Base currencies whose provider call failed in this run, ordered ascending; their stored rates stay in use. Empty when every call succeeded. Unsupported bases are not listed here. */
             failedBases: components["schemas"]["CurrencyCode"][];
+            /** @description Base currencies the provider rejected in this run with a 422 whose message names exactly that base as an invalid currency (`invalid currency: <base>`), ordered ascending; they get no rate and do not fail the run on their own. Empty when there is none. */
+            unsupportedBases: components["schemas"]["CurrencyCode"][];
         };
         UsageMeter: {
             used: number;
@@ -2608,6 +2707,8 @@ export interface components {
         };
         FxHealth: {
             status: components["schemas"]["HealthStatus"];
+            /** @description `FxRefreshResult.unsupportedBases` of the last FX refresh run that obtained the lock since the API started (the run reported in `jobs`), ordered ascending; empty before the first run. It does not change `status`. */
+            unsupportedBases: components["schemas"]["CurrencyCode"][];
             /**
              * Format: date
              * @description Newest `as_of` over all stored rates; `null` when no rate is stored.
@@ -2634,7 +2735,7 @@ export interface components {
              */
             lastRunAt: string | null;
             /**
-             * @description `FAILED` when the run ended with an exception (an FX run with at least one failed base also counts as `FAILED`); `null` before the first run.
+             * @description `FAILED` when the run ended with an exception; an FX run is `FAILED` when at least one base failed (`FxRefreshResult.failedBases` not empty) or when no base could be refreshed at all, while unsupported bases alone (`FxRefreshResult.unsupportedBases`) do not fail it; `null` before the first run.
              * @enum {string|null}
              */
             lastOutcome: "SUCCEEDED" | "FAILED" | null;
@@ -3952,6 +4053,117 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "meta": {
+                     *         "country": "TR",
+                     *         "nativeCurrency": "TRY",
+                     *         "currency": "TRY",
+                     *         "fx": {
+                     *           "base": "TRY",
+                     *           "quote": "TRY",
+                     *           "rate": 1,
+                     *           "asOf": null,
+                     *           "source": null,
+                     *           "stale": false,
+                     *           "status": "OK"
+                     *         }
+                     *       },
+                     *       "product": {
+                     *         "id": "6a1f0c2e-3b4d-4e5f-8a9b-0c1d2e3f4a5b",
+                     *         "code": "ZN40",
+                     *         "brand": "Fixture Labs",
+                     *         "name": "Zinc 40 High Strength",
+                     *         "dosageForm": "TABLET",
+                     *         "unitsPerContainer": 60,
+                     *         "unitsPerServing": 1,
+                     *         "servingsPerDay": 1,
+                     *         "gtin": null,
+                     *         "synthetic": true,
+                     *         "provenance": {
+                     *           "synthetic": true,
+                     *           "source": null,
+                     *           "sourceRef": null,
+                     *           "sourceEntryDate": null
+                     *         },
+                     *         "availability": {
+                     *           "status": "AVAILABLE",
+                     *           "note": null
+                     *         },
+                     *         "nutrients": [
+                     *           {
+                     *             "code": "ZINC",
+                     *             "category": "MINERAL",
+                     *             "amountPerServing": 40,
+                     *             "amountPerDay": 40,
+                     *             "unit": "mg",
+                     *             "ulAmountPerServing": null,
+                     *             "formCode": "ZINC_PICOLINATE",
+                     *             "formLabel": "zinc picolinate",
+                     *             "conversionAssumed": false,
+                     *             "reference": {
+                     *               "amount": 10,
+                     *               "unit": "mg",
+                     *               "setCode": "EU_NRV",
+                     *               "source": "REGULATORY",
+                     *               "percentOfReference": 400
+                     *             },
+                     *             "upperLimit": {
+                     *               "amount": 25,
+                     *               "unit": "mg",
+                     *               "basis": "TOTAL",
+                     *               "setCode": "EFSA",
+                     *               "formCode": "ANY",
+                     *               "note": "EFSA UL Overview v11 (2025); EFSA 2006 SCF/NDA UL compendium (SCF 2002 zinc)",
+                     *               "ulAmountPerDay": 40,
+                     *               "exceeded": true
+                     *             }
+                     *           }
+                     *         ],
+                     *         "offers": [
+                     *           {
+                     *             "retailer": "Fixture Pharmacy",
+                     *             "price": 240,
+                     *             "priceNative": 240,
+                     *             "currency": "TRY",
+                     *             "inStock": true,
+                     *             "url": "https://fixture-pharmacy.example/tr/p/zn40",
+                     *             "checkedAt": "2026-11-21T09:00:00Z",
+                     *             "priceStale": false
+                     *           },
+                     *           {
+                     *             "retailer": "Anatolia Wellness Depot",
+                     *             "price": 259.9,
+                     *             "priceNative": 259.9,
+                     *             "currency": "TRY",
+                     *             "inStock": true,
+                     *             "url": "https://anatolia-wellness.example/tr/p/zn40",
+                     *             "checkedAt": "2026-11-23T08:15:00Z",
+                     *             "priceStale": false
+                     *           }
+                     *         ],
+                     *         "cost": {
+                     *           "effectivePrice": 240,
+                     *           "effectivePriceNative": 240,
+                     *           "currency": "TRY",
+                     *           "servingsPerContainer": 60,
+                     *           "daysSupply": 60,
+                     *           "costPerDay": 4,
+                     *           "costPerDayNative": 4,
+                     *           "priceStale": false,
+                     *           "outOfStock": false
+                     *         },
+                     *         "selectedOffer": {
+                     *           "retailer": "Fixture Pharmacy",
+                     *           "url": "https://fixture-pharmacy.example/tr/p/zn40",
+                     *           "checkedAt": "2026-11-21T09:00:00Z"
+                     *         },
+                     *         "flags": [],
+                     *         "saved": false,
+                     *         "alerts": []
+                     *       }
+                     *     }
+                     */
                     "application/json": components["schemas"]["ProductDetailResponse"];
                 };
             };
@@ -4283,6 +4495,14 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["AuthTokenResponse"];
                 };
+            };
+            /** @description No session; the request carried no `vd_refresh` cookie (or only an empty one). No body, no `Set-Cookie`. */
+            204: {
+                headers: {
+                    "X-Request-Id": components["headers"]["XRequestId"];
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
@@ -5401,7 +5621,8 @@ export interface operations {
                      *           "status": "UP",
                      *           "newestAsOf": "2026-11-23",
                      *           "rateAgeDays": 1,
-                     *           "stale": false
+                     *           "stale": false,
+                     *           "unsupportedBases": []
                      *         },
                      *         "outbox": {
                      *           "status": "UP",

@@ -2,6 +2,7 @@ package com.vitadelta.api.catalog.read;
 
 import com.vitadelta.api.catalog.AvailabilityStatus;
 import com.vitadelta.api.catalog.DosageForm;
+import com.vitadelta.api.catalog.FormCodes;
 import com.vitadelta.api.catalog.NutrientCategory;
 import com.vitadelta.api.catalog.UlBasis;
 import com.vitadelta.api.catalog.price.OfferSnapshot;
@@ -9,6 +10,7 @@ import com.vitadelta.api.catalog.unit.Unit;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -148,12 +150,69 @@ public final class CatalogViews {
   }
 
   /**
+   * The regulatory facts of one country for a set of nutrients: the values of the country's
+   * reference set and the rows of its UL set (exempt rows included), read in the same snapshot as
+   * the product they describe.
+   *
+   * @param referenceSetCode the country's reference set
+   * @param ulSetCode the country's UL set
+   * @param referenceValues reference values of {@code referenceSetCode}, by nutrient code
+   * @param upperLimits rows of {@code ulSetCode}, by nutrient code then form code
+   */
+  public record NutrientFacts(
+      String referenceSetCode,
+      String ulSetCode,
+      List<ReferenceAmount> referenceValues,
+      List<UpperLimitView> upperLimits) {
+
+    public NutrientFacts {
+      referenceValues = List.copyOf(referenceValues);
+      upperLimits = List.copyOf(upperLimits);
+    }
+
+    /** The reference value of {@code nutrientCode}; empty when the set defines none. */
+    public Optional<ReferenceAmount> reference(String nutrientCode) {
+      return referenceValues.stream()
+          .filter(r -> r.nutrientCode().equals(nutrientCode))
+          .findFirst();
+    }
+
+    /**
+     * The upper limit that applies to {@code nutrientCode} in {@code formCode} under the UL
+     * matching rule (section 5.7, the same rule as the scoring service): the row of the form itself
+     * unless the form is {@code UNKNOWN}, otherwise or when there is none the {@code ANY} row.
+     * Empty when no row matches (no UL, or a form-dependent UL for an unstated form) or the matched
+     * row is exempt.
+     */
+    public Optional<UpperLimitView> upperLimit(String nutrientCode, String formCode) {
+      Optional<UpperLimitView> match = Optional.empty();
+      if (!FormCodes.UNKNOWN.equals(formCode)) {
+        match = row(nutrientCode, formCode);
+      }
+      if (match.isEmpty()) {
+        match = row(nutrientCode, FormCodes.ANY);
+      }
+      return match.filter(row -> !row.exempt());
+    }
+
+    private Optional<UpperLimitView> row(String nutrientCode, String formCode) {
+      return upperLimits.stream()
+          .filter(u -> u.nutrientCode().equals(nutrientCode) && u.formCode().equals(formCode))
+          .findFirst();
+    }
+  }
+
+  /**
    * A product in one country for the detail page.
    *
    * @param availabilityStatus the availability row of the country, {@code null} when it has none
+   * @param facts the country's reference values and upper limits of the product's nutrients
    */
   public record ProductInCountry(
-      CatalogProduct product, AvailabilityStatus availabilityStatus, String availabilityNote) {
+      CatalogProduct product,
+      AvailabilityStatus availabilityStatus,
+      String availabilityNote,
+      NutrientFacts facts) {
 
     /** In market (section 7.2): only {@code AVAILABLE} counts. */
     public boolean inMarket() {

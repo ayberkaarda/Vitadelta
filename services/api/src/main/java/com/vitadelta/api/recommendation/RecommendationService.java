@@ -13,6 +13,7 @@ import com.vitadelta.api.catalog.read.CountryCatalog;
 import com.vitadelta.api.catalog.read.MarketProfile;
 import com.vitadelta.api.catalog.unit.UnitConversionService;
 import com.vitadelta.api.catalog.web.DisplayCurrencyResolver;
+import com.vitadelta.api.common.logging.LogContext;
 import com.vitadelta.api.common.logging.LogText;
 import com.vitadelta.api.common.problem.FieldViolation;
 import com.vitadelta.api.common.problem.ProblemCode;
@@ -182,6 +183,7 @@ public class RecommendationService {
     ParsedQuery parsed = RequestValidation.parseQuery(body);
     CountryView country = requireCountry(parsed.country());
     long version = catalog.catalogVersion();
+    LogContext.catalogVersion(version);
     RankingQuery query = RequestValidation.resolveQuery(parsed, reference(version));
     PriceConversion conversion =
         currencies.resolve(country.currency(), parsed.displayCurrency(), authentication);
@@ -378,6 +380,7 @@ public class RecommendationService {
     ParsedCompare parsed = RequestValidation.parseCompare(body);
     CountryView country = requireCountry(parsed.country());
     long version = catalog.catalogVersion();
+    LogContext.catalogVersion(version);
     List<FieldViolation> errors = new ArrayList<>();
     RankingQuery.Weights weights =
         RequestValidation.resolveWeights(parsed.weights(), reference(version), errors);
@@ -552,10 +555,14 @@ public class RecommendationService {
   }
 
   private CountryView requireCountry(String code) {
-    return catalog
-        .country(code)
-        .orElseThrow(() ->
-            ProblemException.of(ProblemCode.COUNTRY_NOT_FOUND, "The country is not supported."));
+    CountryView country =
+        catalog
+            .country(code)
+            .orElseThrow(() ->
+                ProblemException.of(
+                    ProblemCode.COUNTRY_NOT_FOUND, "The country is not supported."));
+    LogContext.country(country.code());
+    return country;
   }
 
   /**
@@ -566,10 +573,14 @@ public class RecommendationService {
    */
   private CountryCatalog loadCountry(String code) {
     try {
-      return catalog
-          .loadCountry(code, maxProductsPerCountry)
-          .orElseThrow(() ->
-              ProblemException.of(ProblemCode.COUNTRY_NOT_FOUND, "The country is not supported."));
+      CountryCatalog snapshot =
+          catalog
+              .loadCountry(code, maxProductsPerCountry)
+              .orElseThrow(() ->
+                  ProblemException.of(
+                      ProblemCode.COUNTRY_NOT_FOUND, "The country is not supported."));
+      LogContext.catalogVersion(snapshot.catalogVersion());
+      return snapshot;
     } catch (CatalogTooLargeException e) {
       LOG.error(
           "Catalog of {} has {} in-market products, more than"

@@ -11,6 +11,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.time.Duration;
 import java.time.LocalDate;
+import java.util.List;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -139,7 +140,7 @@ class FxEndpointsIntegrationTest extends FxApiTestBase {
         .isEqualTo(
             "{\"upsertedRows\":0,\"failedBases\":[\""
                 + String.join("\",\"", currencies.all())
-                + "\"]}");
+                + "\"],\"unsupportedBases\":[]}");
     assertThat(job.lastRun().orElseThrow().succeeded()).isFalse();
     assertThat(jobRuns.lastRun(JobLockKeys.FX_REFRESH).orElseThrow().lastOutcome())
         .as("a refresh with failed bases is a failed job run")
@@ -167,15 +168,21 @@ class FxEndpointsIntegrationTest extends FxApiTestBase {
 
   @Test
   void freshnessReportsAgeAndStaleness() {
+    // The application context is shared: an earlier test may have run the job.
+    List<String> unsupported =
+        job.lastRun().map(FxRefreshJob.LastRun::unsupportedBases).orElse(List.of());
     assertThat(freshness.current())
-        .isEqualTo(new FxFreshness.Snapshot(FxFreshness.DEGRADED, null, null, false));
+        .isEqualTo(new FxFreshness.Snapshot(FxFreshness.DEGRADED, null, null, false, unsupported));
     storeRate("TRY", "USD", today().minusDays(2), TRY_USD);
     assertThat(freshness.current())
-        .isEqualTo(new FxFreshness.Snapshot(FxFreshness.UP, today().minusDays(2), 2, false));
+        .isEqualTo(
+            new FxFreshness.Snapshot(FxFreshness.UP, today().minusDays(2), 2, false, unsupported));
     storeRate("TRY", "EUR", today().minusDays(9), TRY_EUR);
     jdbc.sql("DELETE FROM fx_rate WHERE quote_currency = 'USD'").update();
     assertThat(freshness.current())
-        .isEqualTo(new FxFreshness.Snapshot(FxFreshness.DEGRADED, today().minusDays(9), 9, true));
+        .isEqualTo(
+            new FxFreshness.Snapshot(
+                FxFreshness.DEGRADED, today().minusDays(9), 9, true, unsupported));
   }
 
   @Test

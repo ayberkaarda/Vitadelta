@@ -22,6 +22,10 @@ body {
   min-height: 100vh;
   background: var(--vd-color-bg);
   font-size: var(--vd-font-size-md);
+  // Catalog, account and server text (product, brand, retailer and nutrient names, e-mail
+  // addresses, file names) can hold a token longer than its line: it breaks instead of widening
+  // the page. Flex items and table cells that hold such text use `.wrap-any` as well.
+  overflow-wrap: break-word;
 }
 
 :where(h1, h2, h3, h4, p, ul, ol, dl, dd, figure, blockquote) {
@@ -33,8 +37,11 @@ body {
   list-style: none;
 }
 
-:where(h1, h2, h3, h4) {
+// Headings often carry catalog text (a product name): they may break inside a long token at any
+// point, so a heading in a flex row or a narrow column never forces the page wider.
+:where(h1, h2, h3, h4, .h1, .h2, .h3, .h4) {
   text-wrap: balance;
+  overflow-wrap: anywhere;
 }
 
 :where(a) {

@@ -30,14 +30,21 @@ import org.springframework.transaction.support.TransactionTemplate;
  * per base. A failed base (provider error, rejected answer, database error) is logged with a
  * bounded summary and counted, and the run continues with the next base; the stored rates stay in
  * use. A quote the provider does not publish (for example a mistyped extra currency) is dropped
- * from the request of a base instead of failing it ({@link #fetchPublished}). A run never throws to
- * its caller. After every run the lookup cache is cleared.
+ * from the request of a base instead of failing it ({@link #fetchPublished}). A base is unsupported
+ * only when the provider answers with the verified 422 {@code invalid currency: <base>} for exactly
+ * that base ({@link FxProviderException#baseRejected()}): it is left out of the run (operator
+ * warning, counted in {@code vitadelta.fx.refresh.unsupported}), listed among the unsupported bases
+ * of the result and not among the failed ones, and does not fail the run on its own. Any other
+ * rejection fails the base. A run fails when a base failed, when no base at all could be refreshed,
+ * or when it was aborted. A run never throws to its caller. After every run the lookup cache is
+ * cleared.
  *
  * <p>Scheduling ({@link FxRefreshSchedule}): at start-up only when {@link #isRefreshDue()}, then
  * every {@code vitadelta.fx.refresh-interval}. {@code POST /admin/fx/refresh} calls {@link #run()}.
  *
  * <p>Metrics: {@code vitadelta.fx.refresh.success} (one per refreshed base), {@code
- * vitadelta.fx.refresh.failure} with tag {@code reason} (one per failed base or failed run), and
+ * vitadelta.fx.refresh.failure} with tag {@code reason} (one per failed base or failed run), {@code
+ * vitadelta.fx.refresh.unsupported} with tag {@code currency} (one per dropped quote or base), and
  * the gauge {@code vitadelta.fx.rate.age} (days between today in UTC and the newest stored rate
  * date; NaN without rates).
  */
@@ -96,33 +103,58 @@ public class FxRefreshJob {
    *
    * @param ran false when the run was skipped because another session holds the lock
    * @param upsertedRows rows inserted or updated
-   * @param failedBases bases whose rates were not refreshed, sorted
+   * @param failedBases bases whose rates were not refreshed because the provider call or the write
+   *     failed, sorted; the unsupported bases are not among them
+   * @param unsupportedBases bases the provider rejected with the verified 422 {@code invalid
+   *     currency: <base>} answer, sorted; they get no rate and do not fail the run on their own
+   *     (they cannot be refreshed until the configuration changes)
+   * @param refreshedBases bases whose rates were fetched and stored
    * @param aborted true when an error ended the run before every base was tried (for example the
    *     country registry could not be read)
    */
-  public record Result(boolean ran, int upsertedRows, List<String> failedBases, boolean aborted) {
+  public record Result(
+      boolean ran,
+      int upsertedRows,
+      List<String> failedBases,
+      List<String> unsupportedBases,
+      int refreshedBases,
+      boolean aborted) {
 
     public Result {
       failedBases = List.copyOf(failedBases);
+      unsupportedBases = List.copyOf(unsupportedBases);
     }
 
     static Result skipped() {
-      return new Result(false, 0, List.of(), false);
+      return new Result(false, 0, List.of(), List.of(), 0, false);
     }
 
-    /** Whether the run obtained the lock and refreshed every base. */
+    static Result abortedRun() {
+      return new Result(true, 0, List.of(), List.of(), 0, true);
+    }
+
+    /**
+     * Whether the run obtained the lock, was not aborted, no base failed and at least one base was
+     * refreshed (contract {@code JobRun.lastOutcome}). Unsupported bases alone do not fail a run.
+     */
     public boolean succeeded() {
-      return ran && !aborted && failedBases.isEmpty();
+      return ran && !aborted && failedBases.isEmpty() && refreshedBases > 0;
     }
   }
 
   /**
-   * End time and outcome of the last run that obtained the lock (input of {@code GET
-   * /admin/health}).
+   * End time, outcome and unsupported bases of the last run that obtained the lock (input of {@code
+   * GET /admin/health}).
    *
-   * @param succeeded false when a base failed or an error ended the run
+   * @param succeeded false when a base failed, nothing was refreshed or an error ended the run
+   * @param unsupportedBases {@link Result#unsupportedBases()} of that run
    */
-  public record LastRun(Instant endedAt, boolean succeeded) {}
+  public record LastRun(Instant endedAt, boolean succeeded, List<String> unsupportedBases) {
+
+    public LastRun {
+      unsupportedBases = List.copyOf(unsupportedBases);
+    }
+  }
 
   /** The last run that obtained the lock since start; empty before the first one. */
   public Optional<LastRun> lastRun() {
@@ -170,7 +202,7 @@ public class FxRefreshJob {
       meters.counter("vitadelta.fx.refresh.failure", "reason", RUN_FAILURE).increment();
       LOG.warn("{}: run failed ({})", NAME, e.getClass().getSimpleName());
       Result done = result.get();
-      return done != null ? done : new Result(true, 0, List.of(), true);
+      return done != null ? done : Result.abortedRun();
     } finally {
       lookup.invalidate();
     }
@@ -187,13 +219,13 @@ public class FxRefreshJob {
     } catch (RuntimeException e) {
       meters.counter("vitadelta.fx.refresh.failure", "reason", RUN_FAILURE).increment();
       LOG.warn("{}: run aborted ({})", NAME, e.getClass().getSimpleName());
-      result = new Result(true, 0, List.of(), true);
+      result = Result.abortedRun();
     }
     if (!result.succeeded()) {
       // The run handled its failures itself: the job-run registry must still record it as FAILED.
       JobLock.reportFailure();
     }
-    lastRun.set(new LastRun(clock.instant(), result.succeeded()));
+    lastRun.set(new LastRun(clock.instant(), result.succeeded(), result.unsupportedBases()));
     return result;
   }
 
@@ -201,7 +233,9 @@ public class FxRefreshJob {
     SortedSet<String> supported = currencies.all();
     Instant fetchedAt = clock.instant();
     int rows = 0;
+    int refreshed = 0;
     List<String> failed = new ArrayList<>();
+    List<String> unsupportedBases = new ArrayList<>();
     for (String base : supported) {
       SortedSet<String> quotes = new TreeSet<>(supported);
       quotes.remove(base);
@@ -219,8 +253,14 @@ public class FxRefreshJob {
               return upserted;
             });
         rows += written == null ? 0 : written;
+        refreshed++;
         meters.counter("vitadelta.fx.refresh.success").increment();
       } catch (FxProviderException e) {
+        if (e.baseRejected()) {
+          unsupportedBases.add(base);
+          unsupportedBase(base, e);
+          continue;
+        }
         failed.add(base);
         meters.counter("vitadelta.fx.refresh.failure", "reason", e.reason().name()).increment();
         LOG.warn(
@@ -232,12 +272,13 @@ public class FxRefreshJob {
       }
     }
     LOG.info(
-        "{}: {} rows upserted for {} bases, failed bases {}",
+        "{}: {} rows upserted for {} bases, failed bases {}, unsupported bases {}",
         NAME,
         rows,
-        supported.size() - failed.size(),
-        failed);
-    return new Result(true, rows, failed, false);
+        refreshed,
+        failed,
+        unsupportedBases);
+    return new Result(true, rows, failed, unsupportedBases, refreshed, false);
   }
 
   /**
@@ -313,6 +354,21 @@ public class FxRefreshJob {
           quote,
           base);
     }
+  }
+
+  /**
+   * A base the provider names as an invalid currency: left out of this run (it cannot be refreshed
+   * until the configuration changes), logged as an operator warning and counted as unsupported.
+   */
+  private void unsupportedBase(String base, FxProviderException e) {
+    meters.counter("vitadelta.fx.refresh.unsupported", "currency", base).increment();
+    LOG.warn(
+        "{}: the provider does not publish base {} ({}); {} is left out of this run and"
+            + " conversions from it stay unavailable (check VITADELTA_FX_EXTRA_CURRENCIES)",
+        NAME,
+        base,
+        e.getMessage(),
+        base);
   }
 
   private static double rateAgeDays(FxRateRepository repository, FxRateLookup lookup) {

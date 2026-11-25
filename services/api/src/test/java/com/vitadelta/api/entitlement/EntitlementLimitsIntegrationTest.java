@@ -7,6 +7,7 @@ import com.vitadelta.api.common.problem.ProblemException;
 import com.vitadelta.api.entitlement.SubscriptionService.Activation;
 import com.vitadelta.api.identity.AccountUsageProvider;
 import com.vitadelta.api.identity.Role;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -28,6 +29,17 @@ class EntitlementLimitsIntegrationTest extends EntitlementIntegrationTest {
 
   @Autowired EntitlementService entitlements;
   @Autowired AccountUsageProvider usageProvider;
+  @Autowired MeterRegistry meters;
+
+  private double rejections(String action, String reason) {
+    var counter =
+        meters
+            .find(EntitlementService.REJECTED_METRIC)
+            .tag("action", action)
+            .tag("reason", reason)
+            .counter();
+    return counter == null ? 0 : counter.count();
+  }
 
   private EntityExchangeResult<String> save(TestUser user, UUID productId) {
     return post(
@@ -52,6 +64,7 @@ class EntitlementLimitsIntegrationTest extends EntitlementIntegrationTest {
   void freeUsersSaveUpToTheLimitAndDuplicatesStayIdempotent() {
     TestUser user = user();
     country();
+    double rejectedBefore = rejections("SAVE_PRODUCT", "limit_reached");
     List<UUID> products = new ArrayList<>();
     for (int i = 0; i < 5; i++) {
       UUID product = product();
@@ -60,6 +73,7 @@ class EntitlementLimitsIntegrationTest extends EntitlementIntegrationTest {
     }
     EntityExchangeResult<String> sixth = save(user, product());
     assertProblem(sixth, 403, "entitlement_exceeded", "EntitlementExceededProblem");
+    assertThat(rejections("SAVE_PRODUCT", "limit_reached")).isEqualTo(rejectedBefore + 1);
     JsonNode problem = json(sixth);
     assertThat(problem.get("limit").asInt()).isEqualTo(5);
     assertThat(problem.get("used").asInt()).isEqualTo(5);
@@ -94,8 +108,11 @@ class EntitlementLimitsIntegrationTest extends EntitlementIntegrationTest {
   void alertsRequireAVerifiedEmail() {
     TestUser unverified = user(false, Role.USER);
     UUID alert = alert(unverified.id(), false, clock.instant());
+    double rejectedBefore = rejections("ALERT_SUBSCRIPTION", "email_not_verified");
     EntityExchangeResult<String> result = activateAlert(unverified, alert);
     assertProblem(result, 403, "email_not_verified");
+    assertThat(rejections("ALERT_SUBSCRIPTION", "email_not_verified"))
+        .isEqualTo(rejectedBefore + 1);
     assertThat(activeAlerts(unverified.id())).isZero();
   }
 
@@ -109,8 +126,10 @@ class EntitlementLimitsIntegrationTest extends EntitlementIntegrationTest {
     for (int i = 0; i < 3; i++) {
       assertStatus(activateAlert(user, alerts.get(i)), 200);
     }
+    double rejectedBefore = rejections("ALERT_SUBSCRIPTION", "limit_reached");
     EntityExchangeResult<String> fourth = activateAlert(user, alerts.get(3));
     assertProblem(fourth, 403, "entitlement_exceeded", "EntitlementExceededProblem");
+    assertThat(rejections("ALERT_SUBSCRIPTION", "limit_reached")).isEqualTo(rejectedBefore + 1);
     assertThat(json(fourth).get("limit").asInt()).isEqualTo(3);
     assertThat(json(fourth).get("used").asInt()).isEqualTo(3);
     assertThat(json(fourth).get("upgradeHint").get("messageKey").asString())

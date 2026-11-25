@@ -404,6 +404,25 @@ describe('ApiClient', () => {
     await expect(result).resolves.toEqual({ id: 'j2' });
   });
 
+  it('resolves null when the refresh answers 204 without a session cookie', async () => {
+    const result = firstValueFrom(api.refreshSession());
+    http.expectOne('/api/v1/auth/refresh').flush(null, { status: 204, statusText: 'No Content' });
+    await expect(result).resolves.toBeNull();
+  });
+
+  it('keeps a refused refresh (401) an ApiProblem', async () => {
+    const result = firstValueFrom(api.refreshSession());
+    http
+      .expectOne('/api/v1/auth/refresh')
+      .flush(
+        { type: 'https://vitadelta.dev/problems/unauthorized', status: 401 },
+        { status: 401, statusText: 'Unauthorized' },
+      );
+    const error = await result.catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ApiProblem);
+    expect((error as ApiProblem).status).toBe(401);
+  });
+
   it('fails with a typed ApiProblem carrying the problem code', async () => {
     const result = firstValueFrom(api.getMe());
     http.expectOne('/api/v1/me').flush(

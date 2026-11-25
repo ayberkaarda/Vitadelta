@@ -72,8 +72,11 @@ export type SessionMessage =
   | { readonly type: 'session'; readonly response: AuthTokenResponse; readonly at: number }
   | { readonly type: 'signed-out'; readonly at: number };
 
-/** How a refresh ended: a session, a refusal of the refresh cookie, or no answer. */
-type RefreshOutcome = 'ok' | 'rejected' | 'error';
+/**
+ * How a refresh ended: a session, no session because the request carried no refresh cookie
+ * (`204`), a refusal of the refresh cookie (`401`/`403`), or no answer.
+ */
+type RefreshOutcome = 'ok' | 'none' | 'rejected' | 'error';
 
 /** Report of a tab that held the refresh lock, posted before it releases the lock. */
 interface RefreshReport {
@@ -119,7 +122,10 @@ function isRefreshReport(value: unknown): value is RefreshReport {
   return (
     report.type === 'refresh-done' &&
     typeof report.completedAt === 'number' &&
-    (report.outcome === 'ok' || report.outcome === 'rejected' || report.outcome === 'error') &&
+    (report.outcome === 'ok' ||
+      report.outcome === 'none' ||
+      report.outcome === 'rejected' ||
+      report.outcome === 'error') &&
     (report.outcome === 'ok' ? isTokenResponse(report.response) : report.response === null)
   );
 }
@@ -135,6 +141,9 @@ function isRefreshReport(value: unknown): value is RefreshReport {
  *   it started waiting (bounded by {@link REFRESH_HANDSHAKE_TIMEOUT_MS}) and reuses that session,
  *   or returns no session when the refresh cookie was refused, instead of calling the API again.
  *   Without a report it refreshes itself.
+ * - `204 No Content` (no refresh cookie) resolves `null` like a refusal, but is not an error:
+ *   no session message is broadcast and the call is not repeated; the lock holder only reports
+ *   the outcome `none` to the tabs waiting for it.
  * - Without Web Locks the call goes straight to the API; the server's 20-second grace window
  *   returns the same successor token to concurrent tabs.
  * - {@link invalidate} (a session change in this tab) and a sign-out in another tab end the
@@ -267,8 +276,8 @@ export class RefreshCoordinator {
     if (report?.outcome === 'ok' && report.response) {
       return { outcome: 'ok', response: report.response };
     }
-    if (report?.outcome === 'rejected') {
-      return { outcome: 'rejected', response: null };
+    if (report?.outcome === 'none' || report?.outcome === 'rejected') {
+      return { outcome: report.outcome, response: null };
     }
     return this.reuseOrCall(startedAt, epoch);
   }
@@ -299,6 +308,10 @@ export class RefreshCoordinator {
     const at = Date.now();
     try {
       const response = await firstValueFrom(this.api.refreshSession());
+      if (response === null) {
+        // 204: no refresh cookie, so no session. Not an error: nothing is announced or retried.
+        return { outcome: 'none', response: null };
+      }
       if (epoch !== this.epoch) {
         // The session changed while the call ran: the answer is not applied, nor announced.
         return { outcome: 'error', response: null };

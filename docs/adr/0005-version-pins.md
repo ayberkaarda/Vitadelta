@@ -60,7 +60,7 @@ Every version is pinned exactly in the manifest named in the tables below; range
 | Mailpit | `axllent/mailpit:v1.34.0` | `infra/docker-compose.yml` |
 | @redocly/cli | 2.83.0 | `scripts/test-all.sh` |
 | ajv-cli / ajv-formats | 5.0.0 / 3.0.1 | `scripts/test-all.sh` |
-| GitHub Actions | `actions/checkout@v7`, `actions/setup-java@v6` (Temurin, Java 25), `actions/setup-node@v7` (Node 22), `astral-sh/setup-uv@v10` (uv 0.13.9, Python 3.14) | `.github/workflows/ci.yml` |
+| GitHub Actions | pinned by full commit SHA with the version in a comment (Phase 7, see "Added in Phase 7"): `actions/checkout` v7.0.1, `actions/setup-java` v6.3.0 (Temurin, Java 25), `actions/setup-node` v7.1.0 (Node 22), `astral-sh/setup-uv` v10.4.0 (uv 0.13.9, Python 3.14), `actions/upload-artifact` v7.0.2 | `.github/workflows/ci.yml` |
 
 ### Verified for later phases
 
@@ -98,10 +98,10 @@ These versions were checked on 2026-11-24 and are the pins to use when the corre
 ### Unverified
 
 - **Resilience4j against Boot 4.2.** Resolved in Phase 4: `resilience4j-spring-boot4` 2.4.0 (2026-03-14) is compiled against Spring Boot 4.0.0, and it works with Spring Boot 4.2.0, verified by a context-load test and behaviour tests (configuration binding, retry, circuit breaker, state gauge). The fallback to the core modules was not needed.
-- **OWASP Dependency-Check without an NVD API key.** The plugin uses the NVD API; without a key the initial download is rate limited (5 requests per 30 seconds, about 216 pages for the current CVE count) and takes at least about 25 minutes, realistically longer. A full run without a key was not executed. Until an NVD API key secret and a cached data directory are provided, `scripts/security-scan.sh` reports this check as `SKIPPED(no NVD_API_KEY)`. The Sonatype OSS Index analyzer is disabled without credentials.
+- **OWASP Dependency-Check without an NVD API key.** The plugin uses the NVD API; without a key the initial download is rate limited (5 requests per 30 seconds, about 216 pages for the current CVE count) and takes at least about 25 minutes, realistically longer. A full run without a key was not executed. Until an NVD API key secret and a cached data directory are provided, `scripts/security-scan.sh` reports this check as `SKIPPED(no NVD_API_KEY)`. The Sonatype OSS Index analyzer is disabled without credentials. Since Phase 7 the plugin is applied in `services/api/build.gradle.kts`; `scripts/security-scan.sh` reports `SKIPPED(no NVD_API_KEY)` without a key and `FAIL` when a key is set but the plugin is missing.
 - **WireMock Spring Boot integration** `wiremock-spring-boot` 4.4.3 with Boot 4.2: not tested. The decision in Deviations item 5 is applied: Phase 4 uses only the standalone server in test scope.
 - **Dependabot with uv 0.13.9 lock files:** not tested (see Deviations).
-- **Image digests:** images are pinned by exact tag, not by digest. The index digests of the exact tags were recorded during verification; floating tags can show a different index digest for identical content.
+- **Image digests:** resolved in Phase 7. External images are pinned by exact tag and index digest (`<image>:<tag>@sha256:<digest>`) in `infra/` and in the two service Dockerfiles (see "Added in Phase 7"). Docker resolves the digest, so a re-pushed tag can no longer change what is pulled.
 - **Runtime image packages:** the API runtime image installs `curl` from the Ubuntu noble package archive without a pinned package version.
 
 ### Added in Phase 1
@@ -174,6 +174,35 @@ These versions were checked on 2026-11-24 and are the pins to use when the corre
 | `openapi-typescript` | 7.13.0 | `apps/web/tools/openapi/package.json` | isolated package with its own `package-lock.json`; generates `schema.d.ts` from `contracts/public-api.openapi.yaml` (`npm run api:types`, checked by `npm run api:check`) |
 | `typescript` (generator package only) | 5.9.3 | `apps/web/tools/openapi/package.json` | `openapi-typescript` 7.13.0 declares the peer `typescript: ^5.x`, while the application stays on TypeScript 6.0.3 (Deviations, item 2); the two installs never share a `node_modules` |
 | Application toolchain | unchanged | `apps/web/package.json` | Angular 22.3.0, TypeScript 6.0.3, Vitest 5.1.1, Transloco 8.4.0, rxjs, ESLint and Prettier keep their Phase 0 pins; no UI library or other runtime dependency was added |
+
+### Added in Phase 7
+
+Digests are the OCI index (multi-platform) digests of the exact tags, read with `docker buildx imagetools inspect <image>:<tag>` on 2026-11-25. Action commit SHAs were read with `gh api repos/<owner>/<repo>/git/ref/tags/<tag>` on the same day; every tag is a lightweight tag pointing to a commit.
+
+| Item | Pin | Where pinned | Notes |
+|---|---|---|---|
+| nginx base image | `nginx:1.30.8-alpine@sha256:6437a63b5c529f0e06162b3f593c0154cff6fa2ea0f94fd7c27928cb399e022d` | `infra/nginx/Dockerfile` (stage `runtime`), `infra/nginx/check-routing.sh` (API stand-in) | runs as the image user `nginx` (uid 101), master included |
+| Web build image | `node:22.23.5-alpine@sha256:1314fb30ec37592d5845e5a160d522c0e680972aa534549940b8d73bde88481a` | `infra/nginx/Dockerfile` (stage `build`) | |
+| PostgreSQL | `postgres:18.7-alpine@sha256:0115267ab5a509022df9319c77be365cef335adb71556c75f60f5360ee247e71` | `infra/docker-compose.yml`, `infra/docker-compose.restore.yml` | the API Testcontainers tests still name the tag only (test scope) |
+| Mailpit | `axllent/mailpit:v1.34.0@sha256:23a2ef85bc50853ab3093645d1d64679afd8887e89da5e48a88940c172591a4e` | `infra/docker-compose.yml`, `infra/docker-compose.restore.yml` | |
+| API build / runtime images | `eclipse-temurin:25.0.5.1_2-jdk-noble@sha256:c7eef3dfeb81468533ea48c67bddaa8c7ca916454259e4d0d734d12bcff8e125`, `eclipse-temurin:25.0.5.1_2-jre-noble@sha256:2ec98aa522c472deadfd2b7c5b39bca680e33ef522a53a72f10789bdf89a6bb5` | `services/api/Dockerfile` | |
+| Scoring images | `python:3.14.10-slim-trixie@sha256:22eafb370920ad8b429e0aec3fff433e0669968519f5d60469d83729c138b28b`, `ghcr.io/astral-sh/uv:0.13.9@sha256:d3b601f0c7b118bc1753febf7c41cc80981df678445e0254284eecf84db79a7d` | `services/scoring/Dockerfile` | |
+| `actions/checkout` | v7.0.1 = `3d3c42e5aac5ba805825da76410c181273ba90b1` | `.github/workflows/ci.yml` | |
+| `actions/setup-java` | v6.3.0 = `d1374f8ac74474200d16ef8ecee22c7ae7a51880` | `.github/workflows/ci.yml` | the job used the floating `v6`, which pointed to v6.3.0 |
+| `actions/setup-node` | v7.1.0 = `949feb2413d6458794dcd2491c4babbbce0c15c1` | `.github/workflows/ci.yml` | |
+| `astral-sh/setup-uv` | v10.4.0 = `1db35dd8eee11c5894872e0b383ae6c406cf738d` | `.github/workflows/ci.yml` | |
+| `actions/upload-artifact` | v7.0.2 = `cf430e030ddbb5b0abf93d22962f4752f3646cd9` | `.github/workflows/ci.yml` | |
+| OWASP Dependency-Check Gradle plugin | `org.owasp.dependencycheck` 13.0.0 | `services/api/build.gradle.kts` | Gradle Plugin Portal checked 2026-11-25 (latest release); fails at CVSS >= 7 on `runtimeClasspath`; not part of `check`, run by `scripts/security-scan.sh` only when `NVD_API_KEY` is set (see Unverified) |
+| gitleaks (CI) | 8.30.1, `gitleaks_8.30.1_linux_x64.tar.gz` sha256 `551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb` | `.github/workflows/ci.yml` (`security` job), checked by `scripts/security-scan.sh` | GitHub release checked 2026-11-25 (latest) |
+| pip-audit | 2.10.1 | `scripts/security-scan.sh` | PyPI latest on 2026-11-25 |
+| age | 1.3.2 or newer (host tool, not pinned in the repository) | `scripts/backup.sh`, `scripts/restore.sh` | GitHub release v1.3.2 (2026-08-29) used for the restore drill |
+| pytest for the security-tool tests | 9.2.0 | `scripts/test-all.sh` | same as the other script tests |
+| Validation only (not in the repository) | actionlint 1.7.12 (`rhysd/actionlint:1.7.12`), shellcheck 0.11.0 (`koalaman/shellcheck:v0.11.0`) | | used to validate the workflow and the scripts |
+
+How the pins are updated:
+
+- **Images.** Dependabot (`.github/dependabot.yml`: ecosystem `docker` for `/infra/nginx`, `/services/api` and `/services/scoring`, ecosystem `docker-compose` for `/infra`) proposes a new tag together with its digest. By hand: `docker buildx imagetools inspect <image>:<new tag>` prints `Digest: sha256:...` (the index digest); replace tag and digest together, then run `scripts/dev-up.sh` and `infra/nginx/check-routing.sh`. A digest is never updated alone for the same tag without checking why the tag moved.
+- **Actions.** Dependabot (`github-actions`) moves SHA and version comment together. By hand: `gh api repos/<owner>/<repo>/git/ref/tags/<tag>`; when `.object.type` is `tag` (an annotated tag), dereference it with `gh api repos/<owner>/<repo>/git/tags/<sha>` and use that object's commit SHA. `scripts/security-scan.sh` (check `actions-pinned`) fails on any action reference that is not `<owner>/<repo>@<40 hex> # v<x.y.z>`.
 
 ## Consequences
 

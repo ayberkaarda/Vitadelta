@@ -168,12 +168,6 @@ export class ProductDetailPageComponent {
     [PRESELECT_PARAM]: this.id(),
   }));
 
-  protected readonly exceededCodes = computed(
-    () =>
-      this.response()?.product.flags.find((flag) => flag.code === 'EXCEEDS_UL')?.nutrientCodes ??
-      [],
-  );
-
   protected readonly converted = computed(() => {
     const meta = this.response()?.meta;
     return !!meta && meta.fx.status === 'OK' && meta.currency !== meta.nativeCurrency;

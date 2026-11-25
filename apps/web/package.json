@@ -20,6 +20,7 @@
     "api:check": "npm ci --prefix tools/openapi --no-audit --no-fund && node tools/openapi/generate.mjs --check",
     "e2e": "playwright test --project=e2e",
     "e2e:adversarial": "playwright test --project=adversarial --retries=0",
+    "e2e:screenshots": "playwright test --project=screenshots --retries=0",
     "e2e:install": "playwright install --only-shell chromium"
   },
   "dependencies": {

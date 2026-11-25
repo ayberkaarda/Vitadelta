@@ -74,7 +74,9 @@ class HealthServiceTest {
     when(dataSource.getConnection()).thenReturn(connection);
     when(connection.isValid(HealthService.DATABASE_CHECK_SECONDS)).thenReturn(true);
     when(fx.current())
-        .thenReturn(new FxFreshness.Snapshot("UP", LocalDate.parse("2026-11-24"), 1, false));
+        .thenReturn(
+            new FxFreshness.Snapshot(
+                "UP", LocalDate.parse("2026-11-24"), 1, false, List.of("XDR")));
   }
 
   @ParameterizedTest
@@ -104,6 +106,9 @@ class HealthServiceTest {
     assertThat(health.checkedAt()).isEqualTo(NOW);
     assertThat(health.components().fx().newestAsOf()).isEqualTo(LocalDate.parse("2026-11-24"));
     assertThat(health.components().fx().rateAgeDays()).isEqualTo(1);
+    // Unsupported bases of the last run are reported without changing the status.
+    assertThat(health.components().fx().unsupportedBases()).containsExactly("XDR");
+    assertThat(health.components().fx().status()).isEqualTo(HealthStatus.UP);
     assertThat(health.components().outbox().status()).isEqualTo(HealthStatus.UP);
     assertThat(health.jobs())
         .extracting(JobRun::name)
@@ -144,7 +149,8 @@ class HealthServiceTest {
 
   @Test
   void staleOrMissingRatesDegrade() {
-    when(fx.current()).thenReturn(new FxFreshness.Snapshot("DEGRADED", null, null, false));
+    when(fx.current())
+        .thenReturn(new FxFreshness.Snapshot("DEGRADED", null, null, false, List.of()));
     assertThat(service.adminHealth().status()).isEqualTo(HealthStatus.DEGRADED);
   }
 

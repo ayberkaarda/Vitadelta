@@ -35,7 +35,22 @@ updates:
     directory: /services/api
     schedule:
       interval: weekly
+  # Actions are pinned by commit SHA with the version in a comment; Dependabot moves both.
   - package-ecosystem: github-actions
     directory: /
+    schedule:
+      interval: weekly
+  # Base images are pinned by tag and digest (FROM <image>:<tag>@sha256:<digest>); Dependabot
+  # proposes the next tag together with its digest.
+  - package-ecosystem: docker
+    directories:
+      - /infra/nginx
+      - /services/api
+      - /services/scoring
+    schedule:
+      interval: weekly
+  # Images of the compose files (PostgreSQL, Mailpit), pinned the same way.
+  - package-ecosystem: docker-compose
+    directory: /infra
     schedule:
       interval: weekly

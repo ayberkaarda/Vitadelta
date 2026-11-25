@@ -1,7 +1,5 @@
 package com.vitadelta.api.identity;
 
-import com.vitadelta.api.common.problem.ProblemCode;
-import com.vitadelta.api.common.problem.ProblemException;
 import com.vitadelta.api.common.ratelimit.RateLimitPolicy;
 import com.vitadelta.api.common.ratelimit.RateLimiter;
 import com.vitadelta.api.common.web.ClientIpResolver;
@@ -15,12 +13,14 @@ import com.vitadelta.api.identity.IdentityApi.TokenRequest;
 import com.vitadelta.api.identity.IdentityApi.UserProfile;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import java.util.Optional;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -62,6 +62,7 @@ public class AuthController {
   }
 
   @PostMapping("/register")
+  @ResponseStatus(HttpStatus.ACCEPTED)
   @CookieScoped
   ResponseEntity<AcceptedMessage> register(
       @Valid @RequestBody RegisterRequest body, HttpServletRequest request) {
@@ -73,6 +74,7 @@ public class AuthController {
   }
 
   @PostMapping("/verify-email")
+  @ResponseStatus(HttpStatus.NO_CONTENT)
   ResponseEntity<Void> verifyEmail(
       @Valid @RequestBody TokenRequest body, HttpServletRequest request) {
     limit(RateLimitPolicy.VERIFY_RESET_PER_IP, request);
@@ -81,6 +83,7 @@ public class AuthController {
   }
 
   @PostMapping("/resend-verification")
+  @ResponseStatus(HttpStatus.ACCEPTED)
   ResponseEntity<AcceptedMessage> resendVerification(
       @Valid @RequestBody EmailRequest body, HttpServletRequest request) {
     limit(RateLimitPolicy.FORGOT_RESEND_PER_IP, request);
@@ -97,20 +100,28 @@ public class AuthController {
     return sessionResponse(session);
   }
 
+  /**
+   * Rotates the session. Without a {@code vd_refresh} cookie (or with an empty one) the caller has
+   * no session, which is the normal state of an anonymous visitor: {@code 204} without body and
+   * without {@code Set-Cookie}, no database access and no failed attempt. The forgery checks
+   * ({@link CookieScoped}) and the per-IP limit run first in every case.
+   */
   @PostMapping("/refresh")
   @CookieScoped(requestedWith = true)
   ResponseEntity<AuthTokenResponse> refresh(HttpServletRequest request) {
     limit(RateLimitPolicy.REFRESH_PER_IP, request);
-    String token =
-        AuthCookies.read(request, AuthCookies.REFRESH)
-            .orElseThrow(() ->
-                ProblemException.of(ProblemCode.UNAUTHORIZED, "The session cookie is missing."));
+    Optional<String> token = AuthCookies.read(request, AuthCookies.REFRESH);
+    if (token.isEmpty()) {
+      return ResponseEntity.noContent().build();
+    }
     AuthService.Session session =
-        auth.refresh(token, request.getHeader(HttpHeaders.USER_AGENT), cookies.clearRefresh());
+        auth.refresh(
+            token.get(), request.getHeader(HttpHeaders.USER_AGENT), cookies.clearRefresh());
     return sessionResponse(session);
   }
 
   @PostMapping("/logout")
+  @ResponseStatus(HttpStatus.NO_CONTENT)
   @CookieScoped(requestedWith = true)
   ResponseEntity<Void> logout(HttpServletRequest request) {
     AuthCookies.read(request, AuthCookies.REFRESH).ifPresent(auth::logout);
@@ -120,6 +131,7 @@ public class AuthController {
   }
 
   @PostMapping("/forgot-password")
+  @ResponseStatus(HttpStatus.ACCEPTED)
   ResponseEntity<AcceptedMessage> forgotPassword(
       @Valid @RequestBody EmailRequest body, HttpServletRequest request) {
     limit(RateLimitPolicy.FORGOT_RESEND_PER_IP, request);
@@ -128,6 +140,7 @@ public class AuthController {
   }
 
   @PostMapping("/reset-password")
+  @ResponseStatus(HttpStatus.NO_CONTENT)
   ResponseEntity<Void> resetPassword(
       @Valid @RequestBody ResetPasswordRequest body, HttpServletRequest request) {
     limit(RateLimitPolicy.VERIFY_RESET_PER_IP, request);

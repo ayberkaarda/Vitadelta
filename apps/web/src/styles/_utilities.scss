@@ -70,6 +70,13 @@
   white-space: nowrap;
 }
 
+// Catalog, account or server text that may hold a long unbroken token, in a flex item or a table
+// cell: it breaks at any point instead of widening its row. In a table cell, pair it with a
+// min-width so that ordinary words stay whole and the column does not collapse.
+.wrap-any {
+  overflow-wrap: anywhere;
+}
+
 // Inline stroke icon (see IconComponent); size modifiers.
 .i {
   width: 1.25rem;

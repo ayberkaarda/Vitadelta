@@ -3,7 +3,9 @@ package com.vitadelta.api.recommendation;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.vitadelta.api.catalog.price.StockFilter;
+import com.vitadelta.api.entitlement.EntitlementService;
 import com.vitadelta.api.identity.Role;
+import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
 import io.github.resilience4j.retry.RetryConfig;
 import io.github.resilience4j.retry.RetryRegistry;
@@ -101,12 +103,49 @@ class ResilienceConfigurationTest extends RecommendationApiTestBase {
 
     double rejectedBefore =
         meters.get(RecommendationService.QUOTA_REJECTED_METRIC).counter().count();
+    double entitlementBefore = anonymousQuotaRejections();
     String cookie = anonymousCookie();
     for (int i = 0; i < 4; i++) {
       query("{\"country\":\"TR\"}", null, cookie);
     }
     assertThat(meters.get(RecommendationService.QUOTA_REJECTED_METRIC).counter().count())
         .isEqualTo(rejectedBefore + 1);
+    assertThat(anonymousQuotaRejections()).isEqualTo(entitlementBefore + 1);
+  }
+
+  @Test
+  void theCircuitStateGaugeFollowsTheBreakerState() {
+    CircuitBreaker breaker = circuitBreakers.circuitBreaker(ScoringGateway.INSTANCE);
+    try {
+      breaker.transitionToOpenState();
+      assertThat(circuitState("open")).isEqualTo(1.0);
+      assertThat(circuitState("closed")).isZero();
+      breaker.transitionToHalfOpenState();
+      assertThat(circuitState("half_open")).isEqualTo(1.0);
+      assertThat(circuitState("open")).isZero();
+    } finally {
+      breaker.reset();
+    }
+    assertThat(circuitState("closed")).isEqualTo(1.0);
+  }
+
+  private double circuitState(String state) {
+    return meters
+        .get("resilience4j.circuitbreaker.state")
+        .tag("name", ScoringGateway.INSTANCE)
+        .tag("state", state)
+        .gauge()
+        .value();
+  }
+
+  private double anonymousQuotaRejections() {
+    var counter =
+        meters
+            .find(EntitlementService.REJECTED_METRIC)
+            .tag("action", "ANONYMOUS_QUERY")
+            .tag("reason", "quota_exhausted")
+            .counter();
+    return counter == null ? 0 : counter.count();
   }
 
   private double cacheGets(String result) {

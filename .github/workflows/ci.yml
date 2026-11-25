@@ -16,20 +16,20 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-java@v6
+      - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
         with:
           distribution: temurin
           java-version: "25"
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "22"
           cache: npm
           cache-dependency-path: apps/web/package-lock.json
 
-      - uses: astral-sh/setup-uv@v10.4.0
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
         with:
           version: "0.13.9"
           python-version: "3.14"
@@ -38,8 +38,173 @@ jobs:
         env:
           # The scoring performance test scales its 200 ms budget by this factor; shared runners are slower.
           VITADELTA_PERF_FACTOR: "3"
+          # scripts/security-scan.sh runs in the security job below, with gitleaks and full history.
+          RUN_SECURITY_SCAN: "0"
         run: bash scripts/test-all.sh
 
-      - name: Run security scan
-        if: ${{ hashFiles('scripts/security-scan.sh') != '' }}
-        run: bash scripts/security-scan.sh
+  security:
+    runs-on: ubuntu-24.04
+    # The first Dependency-Check run downloads the whole NVD feed; later runs restore it from the cache.
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Full history of every branch and tag for the gitleaks history scan.
+          fetch-depth: 0
+
+      - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
+        with:
+          version: "0.13.9"
+          python-version: "3.14"
+
+      - name: Install gitleaks 8.30.1
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/gitleaks.tar.gz" \
+            https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz
+          echo "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  $RUNNER_TEMP/gitleaks.tar.gz" | sha256sum --check --strict
+          mkdir -p "$RUNNER_TEMP/gitleaks"
+          tar -xzf "$RUNNER_TEMP/gitleaks.tar.gz" -C "$RUNNER_TEMP/gitleaks" gitleaks
+          echo "$RUNNER_TEMP/gitleaks" >> "$GITHUB_PATH"
+
+      # NVD feed of the OWASP Dependency-Check, restored from and saved to the Actions cache. Only
+      # where the repository secret is available: not for pull requests from forks (the secret is
+      # empty there), so the feed is not downloaded without a key.
+      - name: Restore the NVD data
+        id: nvd-cache
+        if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/nvd-data
+          key: nvd-data-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: |
+            nvd-data-${{ runner.os }}-
+
+      # Secret scan (history and working tree), tracked .env files, SQL built from strings, npm
+      # audit, pip-audit, the Dependabot configuration, the commit-SHA pins of the actions and the
+      # OWASP Dependency-Check of services/api (fails at CVSS >= 7). The NVD API key is passed to
+      # this step only, and only when the secret is available (pushes and pull requests of this
+      # repository); otherwise the Dependency-Check is reported SKIPPED(no NVD_API_KEY).
+      - name: Security scan
+        env:
+          NVD_API_KEY: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && secrets.NVD_API_KEY || '' }}
+          NVD_DATA_DIR: ${{ runner.temp }}/nvd-data
+        run: bash scripts/security-scan.sh --no-fallback
+
+      - name: Save the NVD data
+        if: ${{ !cancelled() && steps.nvd-cache.outcome == 'success' && hashFiles(format('{0}/nvd-data/**', runner.temp)) != '' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/nvd-data
+          key: nvd-data-${{ runner.os }}-${{ github.run_id }}
+
+      # The scan's own failure modes in throwaway repositories, with gitleaks and with the fallback.
+      - name: Security scan self-tests
+        run: bash scripts/security/selftest-security-scan.sh
+
+  # End-to-end and adversarial browser suites against the full compose stack. This job is
+  # informational and is not one of the checks required for merging; it runs for pull requests
+  # and for the default branch.
+  e2e:
+    if: ${{ github.event_name == 'pull_request' || github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    env:
+      E2E_BASE_URL: http://localhost:8080
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      # Creates .env with fresh secrets and a bootstrap administrator with a generated password
+      # (no repository secret is needed), builds the images and waits until every service is healthy.
+      # Without a terminal dev-up.sh never prints the generated password; it only names the file.
+      - name: Start the stack
+        id: stack
+        timeout-minutes: 30
+        run: bash scripts/dev-up.sh --bootstrap-admin
+
+      # Every generated secret of .env (passwords, signing and cookie secrets) is masked in the
+      # log of every later step.
+      - name: Mask the generated secrets
+        if: ${{ !cancelled() && hashFiles('.env') != '' }}
+        run: bash scripts/ci/mask-env-secrets.sh .env
+
+      - name: Seed the catalog
+        timeout-minutes: 10
+        run: bash scripts/seed.sh
+
+      - name: Install dependencies and the headless browser shell
+        working-directory: apps/web
+        timeout-minutes: 10
+        run: |
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps --only-shell chromium
+
+      # Trace capture is off in CI: a trace holds request and response bodies, cookies and typed
+      # input (the administrator flows type the generated password). Failures are reported through
+      # JUnit files and screenshots only.
+      - name: End-to-end suite
+        working-directory: apps/web
+        timeout-minutes: 20
+        env:
+          PLAYWRIGHT_JUNIT_OUTPUT_FILE: e2e/.output/junit-e2e.xml
+        run: npm run e2e -- --trace off --reporter=list,junit
+
+      # The API rate limits are per client IP and held in memory; a restart starts them empty.
+      - name: Restart the API
+        if: ${{ !cancelled() && steps.stack.outcome == 'success' }}
+        timeout-minutes: 5
+        run: |
+          docker compose --env-file .env -f infra/docker-compose.yml restart api
+          for _ in $(seq 1 90); do
+            if curl -fsS --max-time 5 "$E2E_BASE_URL/api/v1/health" > /dev/null; then exit 0; fi
+            sleep 2
+          done
+          echo "the API did not answer after the restart" >&2
+          exit 1
+
+      - name: Adversarial suite
+        if: ${{ !cancelled() && steps.stack.outcome == 'success' }}
+        working-directory: apps/web
+        timeout-minutes: 20
+        env:
+          PLAYWRIGHT_JUNIT_OUTPUT_FILE: e2e/.output/junit-adversarial.xml
+        run: npm run e2e:adversarial -- --trace off --reporter=list,junit
+
+      # Stack logs go to the job log only (the secrets above are masked there); they are never
+      # part of the uploaded artifact.
+      - name: Show the stack logs
+        if: ${{ failure() && hashFiles('.env') != '' }}
+        run: docker compose --env-file .env -f infra/docker-compose.yml logs --no-color --tail 300 || true
+
+      # Only the JUnit reports (secret values and token-shaped strings scrubbed) and the failure
+      # screenshots are uploaded; traces, page snapshots, videos and network data never are.
+      - name: Collect sanitised reports
+        if: ${{ failure() }}
+        run: bash scripts/ci/collect-e2e-artifacts.sh apps/web/e2e/.output "$RUNNER_TEMP/e2e-artifacts" .env
+
+      - name: Upload sanitised reports and screenshots
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-reports
+          path: ${{ runner.temp }}/e2e-artifacts/
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Tear down
+        if: ${{ always() }}
+        run: bash scripts/dev-down.sh --volumes

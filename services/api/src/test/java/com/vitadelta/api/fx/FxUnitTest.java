@@ -275,9 +275,22 @@ class FxUnitTest {
 
   @Test
   void resultsReportSuccessOnlyForCompleteRuns() {
-    assertThat(new FxRefreshJob.Result(true, 12, List.of(), false).succeeded()).isTrue();
-    assertThat(new FxRefreshJob.Result(true, 9, List.of("GBP"), false).succeeded()).isFalse();
-    assertThat(new FxRefreshJob.Result(true, 0, List.of(), true).succeeded()).isFalse();
+    assertThat(new FxRefreshJob.Result(true, 12, List.of(), List.of(), 4, false).succeeded())
+        .isTrue();
+    assertThat(new FxRefreshJob.Result(true, 9, List.of("GBP"), List.of(), 3, false).succeeded())
+        .isFalse();
+    assertThat(new FxRefreshJob.Result(true, 0, List.of(), List.of(), 0, true).succeeded())
+        .isFalse();
+    // Unsupported bases alone do not fail a run, unless nothing at all was refreshed.
+    assertThat(new FxRefreshJob.Result(true, 9, List.of(), List.of("CHF"), 3, false).succeeded())
+        .isTrue();
+    assertThat(
+            new FxRefreshJob.Result(true, 0, List.of(), List.of("EUR", "TRY"), 0, false)
+                .succeeded())
+        .isFalse();
+    assertThat(
+            new FxRefreshJob.Result(true, 6, List.of("GBP"), List.of("CHF"), 2, false).succeeded())
+        .isFalse();
     assertThat(FxRefreshJob.Result.skipped().succeeded()).isFalse();
   }
 }

@@ -51,10 +51,9 @@ class OpenApiContractTest extends RecommendationApiTestBase {
 
   /**
    * Accepted differences between the generated description and the contract, by operation, with the
-   * reason. The remaining ones are in the identity and billing packages (status codes through
-   * {@code ResponseEntity} without {@code @ResponseStatus}, enumeration-valued Strings without
-   * {@code allowableValues}, cookie-scoped bodies) and in the multipart upload of the offers
-   * import.
+   * reason. The remaining ones are in the identity and billing packages (enumeration-valued Strings
+   * without {@code allowableValues}, cookie-scoped bodies) and in the multipart upload of the
+   * offers import.
    */
   static final Map<String, Set<String>> KNOWN_GAPS = new TreeMap<>();
 
@@ -63,14 +62,12 @@ class OpenApiContractTest extends RecommendationApiTestBase {
     // although @Parameter(required = true) is declared; the part itself stays optional in code so
     // that a missing file is a 422 field error.
     gap("POST /admin/imports/offers", "request: required contract=[file] code=[]");
-    // entitlement/billing: status codes through ResponseEntity without @ResponseStatus; plan,
-    // status and source Strings without allowableValues; expiresAt nullable but sent.
-    gap("DELETE /admin/promo-codes/{code}", "success status contract=204 code=200");
+    // entitlement/billing: plan, status and source Strings without allowableValues; expiresAt
+    // nullable but sent.
     gap(
         "POST /admin/promo-codes",
         "request.planCode: enum contract=[PRO] code=[]",
-        "request: required contract=[durationDays, expiresAt, maxRedemptions, planCode] code=[durationDays, maxRedemptions, planCode]",
-        "success status contract=201 code=200");
+        "request: required contract=[durationDays, expiresAt, maxRedemptions, planCode] code=[durationDays, maxRedemptions, planCode]");
     gap(
         "POST /admin/users/{id}/subscription",
         "request.planCode: enum contract=[PRO] code=[]",
@@ -82,10 +79,8 @@ class OpenApiContractTest extends RecommendationApiTestBase {
         "response.plan: enum contract=[FREE, PRO] code=[]",
         "response.subscription.source: enum contract=[MANUAL, PROMO, PROVIDER] code=[]",
         "response.subscription.status: enum contract=[ACTIVE, CANCELED, EXPIRED] code=[]");
-    // identity: status codes through ResponseEntity without @ResponseStatus; enum-valued Strings
-    // without allowableValues; cookie-scoped bodies; GET /session/quota returns Object (oneOf not
-    // declared); PATCH /me binds a JSON tree.
-    gap("DELETE /me", "success status contract=204 code=200");
+    // identity: enum-valued Strings without allowableValues; cookie-scoped bodies; GET
+    // /session/quota returns Object (oneOf not declared); PATCH /me binds a JSON tree.
     gap("GET /admin/users", "response.items[].plan: enum contract=[FREE, PRO] code=[]");
     gap(
         "GET /me",
@@ -105,27 +100,17 @@ class OpenApiContractTest extends RecommendationApiTestBase {
         "response.subscription.source: enum contract=[MANUAL, PROMO, PROVIDER] code=[]",
         "response.subscription.status: enum contract=[ACTIVE, CANCELED, EXPIRED] code=[]");
     gap("POST /admin/users/{id}/status", "response.plan: enum contract=[FREE, PRO] code=[]");
-    gap("POST /auth/forgot-password", "success status contract=202 code=200");
     gap(
         "POST /auth/login",
         "response.tokenType: enum contract=[Bearer] code=[]",
         "response.user.locale: enum contract=[en, tr] code=[]");
-    gap(
-        "POST /auth/logout",
-        "request: schema contract=true code=false",
-        "success status contract=204 code=200");
+    gap("POST /auth/logout", "request: schema contract=true code=false");
     gap(
         "POST /auth/refresh",
         "request: schema contract=true code=false",
         "response.tokenType: enum contract=[Bearer] code=[]",
         "response.user.locale: enum contract=[en, tr] code=[]");
-    gap(
-        "POST /auth/register",
-        "request.locale: enum contract=[en, tr] code=[]",
-        "success status contract=202 code=200");
-    gap("POST /auth/resend-verification", "success status contract=202 code=200");
-    gap("POST /auth/reset-password", "success status contract=204 code=200");
-    gap("POST /auth/verify-email", "success status contract=204 code=200");
+    gap("POST /auth/register", "request.locale: enum contract=[en, tr] code=[]");
   }
 
   private static void gap(String operation, String... differences) {

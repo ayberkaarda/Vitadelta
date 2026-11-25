@@ -26,6 +26,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 /**
@@ -206,6 +207,43 @@ class FrankfurterFxRateProviderTest {
     FxProviderException down = failure();
     assertThat(down.requestRejected()).isFalse();
     assertThat(down.unsupportedQuotes()).isEmpty();
+  }
+
+  /**
+   * A base is rejected only by the verified answer, a 422 JSON object whose {@code message} is
+   * exactly {@code invalid currency: <requested base>}; every other answer that mentions the base
+   * (free text, a list, another currency, another status, not JSON) is an ordinary failure.
+   */
+  @ParameterizedTest(name = "{0} {1}")
+  @CsvSource(
+      delimiter = '|',
+      value = {
+        "422|{\"status\":422,\"message\":\"invalid currency: TRY\"}|true",
+        "422|{\"message\":\"invalid currency: TRY\"}|true",
+        "422|{\"status\":422,\"message\":\"TRY again later\"}|false",
+        "422|{\"status\":422,\"message\":\"invalid currency: XAU\"}|false",
+        "422|{\"status\":422,\"message\":\"invalid currency: TRY, EUR\"}|false",
+        "422|{\"status\":422,\"message\":\"invalid currency: try\"}|false",
+        "422|{\"status\":422,\"message\":\"invalid currency: TRYX\"}|false",
+        "422|{\"status\":422,\"message\":\"invalid currency: TRY \"}|false",
+        "422|{\"status\":422,\"message\":\"not an invalid currency: TRY\"}|false",
+        "422|{\"status\":422,\"message\":[\"invalid currency: TRY\"]}|false",
+        "422|{\"status\":422,\"error\":\"invalid currency: TRY\"}|false",
+        "422|[\"invalid currency: TRY\"]|false",
+        "422|invalid currency: TRY|false",
+        "422|{\"message\":\"invalid currency: TRY\",\"message\":\"invalid currency: TRY\"}|false",
+        "400|{\"status\":400,\"message\":\"invalid currency: TRY\"}|false",
+        "500|{\"status\":500,\"message\":\"invalid currency: TRY\"}|false",
+        "503|{\"status\":503,\"message\":\"invalid currency: TRY\"}|false"
+      })
+  void onlyTheVerifiedMessageNamingTheRequestedBaseRejectsTheBase(
+      int status, String body, boolean rejected) {
+    answer(status, "application/json", body);
+
+    FxProviderException e = failure();
+
+    assertThat(e.reason()).isEqualTo(Reason.HTTP_STATUS);
+    assertThat(e.baseRejected()).as(body).isEqualTo(rejected);
   }
 
   @Test

@@ -2,6 +2,7 @@
 # Brings up the local stack (postgres, mailpit, api, scoring, web) and verifies it.
 # On first run it creates the root .env from .env.example with development values
 # and freshly generated secrets. Requires bash (Git Bash or WSL on Windows), docker and curl.
+# Usage: scripts/dev-up.sh [--bootstrap-admin]
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -83,6 +84,78 @@ create_env() {
   mv "$tmp" "$ENV_FILE"
 }
 
+# Shows a newly generated bootstrap password exactly once, on the controlling terminal only
+# (/dev/tty, never stdout or stderr, so pipes, log files and CI logs never receive it). Without a
+# terminal, or in CI, it only says where the password is stored.
+show_generated_password() {
+  local email="$1" password="$2"
+  if [ -z "${CI:-}" ] && [ -z "${GITHUB_ACTIONS:-}" ] && { : > /dev/tty; } 2> /dev/null; then
+    {
+      printf '\n[dev-up] bootstrap administrator %s, generated password (shown once, also stored in %s):\n' "$email" "$ENV_FILE"
+      printf '\n    %s\n\n' "$password"
+    } > /dev/tty
+    log "the generated bootstrap password was shown once on the terminal"
+  else
+    log "no interactive terminal: the generated bootstrap password is not printed; read VITADELTA_BOOTSTRAP_ADMIN_PASSWORD in $ENV_FILE with an editor"
+  fi
+}
+
+# Gives the local bootstrap administrator an address and a fresh random password in .env when
+# either is empty; values that are already set are kept and never printed. The API creates the
+# account at its next start if it does not exist yet (the end-to-end suites sign in with it).
+ensure_bootstrap_admin() {
+  local email password tmp line generated=false
+  email="$(sed -n 's/^VITADELTA_BOOTSTRAP_ADMIN_EMAIL=//p' "$ENV_FILE" | tr -d '\r' | tail -n 1)"
+  password="$(sed -n 's/^VITADELTA_BOOTSTRAP_ADMIN_PASSWORD=//p' "$ENV_FILE" | tr -d '\r' | tail -n 1)"
+  if [ -n "$email" ] && [ -n "$password" ]; then
+    log "bootstrap administrator already configured in $ENV_FILE (values kept, not shown)"
+    return 0
+  fi
+  [ -n "$email" ] || email="admin@vitadelta.localhost"
+  if [ -z "$password" ]; then
+    password="$(random_hex 24 | tr -d '\r\n')"
+    generated=true
+  fi
+  tmp="$ENV_FILE.tmp.$$"
+  (
+    umask 077
+    : > "$tmp"
+    while IFS= read -r line || [ -n "$line" ]; do
+      line="${line%$'\r'}"
+      case "$line" in
+        VITADELTA_BOOTSTRAP_ADMIN_EMAIL=*) printf 'VITADELTA_BOOTSTRAP_ADMIN_EMAIL=%s\n' "$email" ;;
+        VITADELTA_BOOTSTRAP_ADMIN_PASSWORD=*) printf 'VITADELTA_BOOTSTRAP_ADMIN_PASSWORD=%s\n' "$password" ;;
+        *) printf '%s\n' "$line" ;;
+      esac
+    done < "$ENV_FILE" > "$tmp"
+    grep -q '^VITADELTA_BOOTSTRAP_ADMIN_EMAIL=' "$tmp" ||
+      printf 'VITADELTA_BOOTSTRAP_ADMIN_EMAIL=%s\n' "$email" >> "$tmp"
+    grep -q '^VITADELTA_BOOTSTRAP_ADMIN_PASSWORD=' "$tmp" ||
+      printf 'VITADELTA_BOOTSTRAP_ADMIN_PASSWORD=%s\n' "$password" >> "$tmp"
+  )
+  mv "$tmp" "$ENV_FILE"
+  log "bootstrap administrator $email configured in $ENV_FILE"
+  if [ "$generated" = true ]; then
+    show_generated_password "$email" "$password"
+  fi
+}
+
+usage() {
+  printf 'Usage: %s [--bootstrap-admin]\n' "$(basename "$0")"
+  printf '  --bootstrap-admin  fill an empty bootstrap administrator in .env with a local address\n'
+  printf '                     and a generated password (needed by the end-to-end suites); a new\n'
+  printf '                     password is shown once on the terminal, never on stdout or stderr\n'
+}
+
+bootstrap_admin=false
+for arg in "$@"; do
+  case "$arg" in
+    --bootstrap-admin) bootstrap_admin=true ;;
+    --help | -h) usage; exit 0 ;;
+    *) usage >&2; exit 2 ;;
+  esac
+done
+
 require docker
 require curl
 docker info >/dev/null 2>&1 || fail "docker daemon is not reachable; start Docker and retry"
@@ -91,6 +164,9 @@ if [ ! -f "$ENV_FILE" ]; then
   create_env
 else
   log "using existing $ENV_FILE"
+fi
+if [ "$bootstrap_admin" = true ]; then
+  ensure_bootstrap_admin
 fi
 
 compose() { docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" "$@"; }

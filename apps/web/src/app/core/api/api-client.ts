@@ -231,8 +231,20 @@ export class ApiClient {
     return this.post('/auth/login', body, { withCredentials: true });
   }
 
-  refreshSession(): Observable<AuthTokenResponse> {
-    return this.post('/auth/refresh', {}, { withCredentials: true, headers: CSRF_HEADERS });
+  /**
+   * `POST /auth/refresh`: the rotated session, or `null` for `204 No Content` (the request
+   * carried no refresh cookie, so there is no session to restore).
+   */
+  refreshSession(): Observable<AuthTokenResponse | null> {
+    return mapProblem(
+      this.http
+        .post<AuthTokenResponse>(
+          `${API_BASE}/auth/refresh`,
+          {},
+          { withCredentials: true, headers: CSRF_HEADERS, observe: 'response' },
+        )
+        .pipe(map((response) => (response.status === 204 ? null : response.body))),
+    );
   }
 
   logout(): Observable<void> {

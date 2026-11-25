@@ -5,6 +5,7 @@ import com.vitadelta.api.common.problem.ProblemException;
 import com.vitadelta.api.identity.AnonymousQuotaService;
 import com.vitadelta.api.identity.UserAccount;
 import com.vitadelta.api.identity.UserRepository;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -35,9 +36,16 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * Creating an alert calls {@link #requireAlertSlot} and, when its implicit saved-product row is
  * missing, {@link #requireSavedProductSlot} in the same transaction.
+ *
+ * <p>Every refusal is counted in {@value #REJECTED_METRIC} with the tags {@code action} ({@code
+ * SAVE_PRODUCT}, {@code ALERT_SUBSCRIPTION}, {@code ANONYMOUS_QUERY}) and {@code reason} ({@code
+ * limit_reached}, {@code email_not_verified}, {@code quota_exhausted}).
  */
 @Service
 public class EntitlementService {
+
+  /** Counter of refused limited actions, tags {@code action} and {@code reason}. */
+  public static final String REJECTED_METRIC = "vitadelta.entitlement.rejected";
 
   private final UserRepository users;
   private final SubscriptionRepository subscriptions;
@@ -45,6 +53,7 @@ public class EntitlementService {
   private final UsageRepository usage;
   private final AnonymousQuotaService anonymousQuota;
   private final Clock clock;
+  private final MeterRegistry meters;
 
   public EntitlementService(
       UserRepository users,
@@ -52,13 +61,15 @@ public class EntitlementService {
       PlanService plans,
       UsageRepository usage,
       AnonymousQuotaService anonymousQuota,
-      Clock clock) {
+      Clock clock,
+      MeterRegistry meters) {
     this.users = users;
     this.subscriptions = subscriptions;
     this.plans = plans;
     this.usage = usage;
     this.anonymousQuota = anonymousQuota;
     this.clock = clock;
+    this.meters = meters;
   }
 
   /**
@@ -105,6 +116,7 @@ public class EntitlementService {
     }
     long used = usage.savedProducts(userId);
     if (used >= limit) {
+      rejected("SAVE_PRODUCT", "limit_reached");
       throw exceeded(
           plan,
           limit,
@@ -126,6 +138,7 @@ public class EntitlementService {
   public void requireAlertSlot(UUID userId) {
     UserAccount user = lockUser(userId);
     if (!user.emailVerified()) {
+      rejected("ALERT_SUBSCRIPTION", "email_not_verified");
       throw ProblemException.of(
           ProblemCode.EMAIL_NOT_VERIFIED, "Verify your e-mail address to create alerts.");
     }
@@ -136,6 +149,7 @@ public class EntitlementService {
     }
     long used = usage.activeAlertSubscriptions(userId);
     if (used >= limit) {
+      rejected("ALERT_SUBSCRIPTION", "limit_reached");
       throw exceeded(
           plan,
           limit,
@@ -209,6 +223,7 @@ public class EntitlementService {
       return used.getAsInt();
     }
     int limit = anonymousQuota.queryLimit();
+    rejected("ANONYMOUS_QUERY", "quota_exhausted");
     throw ProblemException.of(
             ProblemCode.QUOTA_EXCEEDED,
             "The free trial queries are used up. Create an account to continue.")
@@ -225,6 +240,10 @@ public class EntitlementService {
    */
   public boolean refundAnonymousQuery(String idHash) {
     return anonymousQuota.refund(idHash);
+  }
+
+  private void rejected(String action, String reason) {
+    meters.counter(REJECTED_METRIC, "action", action, "reason", reason).increment();
   }
 
   private UserAccount lockUser(UUID userId) {

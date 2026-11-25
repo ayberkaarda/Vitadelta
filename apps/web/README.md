@@ -11,20 +11,21 @@ detection, Transloco, plain SCSS). It is served by nginx on the same origin as t
 
 ## Commands
 
-| Command                | Purpose                                                                        |
-| ---------------------- | ------------------------------------------------------------------------------ |
-| `npm ci`               | Install the locked dependencies                                                |
-| `npm start`            | Development server on `http://localhost:4200`                                  |
-| `npm run lint`         | ESLint, Prettier check, e2e type check and the i18n template check             |
-| `npm run format`       | Apply Prettier formatting                                                      |
-| `npm test`             | Unit tests with Vitest (jsdom, single run) and the 70 % line coverage gate     |
-| `npm run build`        | Production build into `dist/web/browser` (no source maps), then the size check |
-| `npm run bundle:check` | Self-test, then fails when the initial files exceed 380 kB gzipped             |
-| `npm run i18n:check`   | Fails when a template contains literal user-facing text outside i18n           |
-| `npm run api:types`    | Regenerates `src/app/core/api/schema.d.ts` from the public contract            |
-| `npm run api:check`    | Fails when `schema.d.ts` differs from a fresh generation                       |
-| `npm run e2e`          | Playwright end-to-end suite against the running stack (see below)              |
-| `npm run e2e:install`  | Downloads the headless Chromium the suite runs in                              |
+| Command                   | Purpose                                                                        |
+| ------------------------- | ------------------------------------------------------------------------------ |
+| `npm ci`                  | Install the locked dependencies                                                |
+| `npm start`               | Development server on `http://localhost:4200`                                  |
+| `npm run lint`            | ESLint, Prettier check, e2e type check and the i18n template check             |
+| `npm run format`          | Apply Prettier formatting                                                      |
+| `npm test`                | Unit tests with Vitest (jsdom, single run) and the 70 % line coverage gate     |
+| `npm run build`           | Production build into `dist/web/browser` (no source maps), then the size check |
+| `npm run bundle:check`    | Self-test, then fails when the initial files exceed 380 kB gzipped             |
+| `npm run i18n:check`      | Fails when a template contains literal user-facing text outside i18n           |
+| `npm run api:types`       | Regenerates `src/app/core/api/schema.d.ts` from the public contract            |
+| `npm run api:check`       | Fails when `schema.d.ts` differs from a fresh generation                       |
+| `npm run e2e`             | Playwright end-to-end suite against the running stack (see below)              |
+| `npm run e2e:screenshots` | Writes the six README images to `docs/screenshots/` from the running stack     |
+| `npm run e2e:install`     | Downloads the headless Chromium the suite runs in                              |
 
 ## Structure
 
@@ -71,12 +72,11 @@ e2e/            Playwright end-to-end suite (flows, support helpers, synthetic i
 
 The suite in `e2e/` drives the built app through nginx with headless Chromium (Playwright,
 `@axe-core/playwright` for the accessibility scan). It expects the Docker Compose stack to be
-running and seeded, started with the bootstrap admin set in the root `.env`:
+running and seeded, started with a bootstrap admin in the root `.env`:
 
 ```bash
-# root .env: VITADELTA_BOOTSTRAP_ADMIN_EMAIL and VITADELTA_BOOTSTRAP_ADMIN_PASSWORD
 bash scripts/dev-down.sh --volumes   # optional: start from an empty database
-bash scripts/dev-up.sh
+bash scripts/dev-up.sh --bootstrap-admin   # fills an empty bootstrap admin in the root .env
 bash scripts/seed.sh
 cd apps/web
 npm run e2e:install                  # once per machine
@@ -105,3 +105,23 @@ npm run e2e
 - Output (traces and screenshots of failures, HTML report) goes to `e2e/.output/`, which is not
   committed. `npx playwright show-report e2e/.output/report` opens the report.
 - `RUN_E2E=1 bash scripts/test-all.sh` adds the suite to the full test run when the stack is up.
+- `06-long-text.e2e.ts` answers every API call with mocked data whose product, brand, retailer,
+  nutrient, notification, e-mail and file texts are long unbroken tokens, and checks at 375 and
+  1280 px that no page scrolls sideways (wide tables may scroll inside their frame on phones).
+
+### README screenshots
+
+`npm run e2e:screenshots` (Playwright project `screenshots`, not part of `npm run e2e`) needs the
+same running, seeded stack and global setup, and overwrites six images in `docs/screenshots/` at
+the repository root: `overview-<lang>.png` (the query builder as a visitor),
+`results-breakdown-<lang>.png` (signed-in results with the breakdown drawer open) and
+`compare-<lang>.png` (GOLD-A vs GOLD-B with the verdict card and the per-nutrient table), for
+`en` and `tr`. They use the synthetic TR fixtures only and a demo account
+(`readme-demo@example.com`) that is registered and verified through Mailpit on the first run and
+reused afterwards. Each image is 1280 px wide, light theme, scale 1; its height ends 16 px below
+the last block shown, so no card, row or control is cut. The last test prints the six sizes.
+
+```bash
+cd apps/web
+npm run e2e:screenshots
+```

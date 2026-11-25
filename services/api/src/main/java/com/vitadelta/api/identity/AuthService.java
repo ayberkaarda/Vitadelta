@@ -15,6 +15,7 @@ import com.vitadelta.api.identity.RefreshTokenService.Rotated;
 import com.vitadelta.api.identity.RefreshTokenService.Rotation;
 import com.vitadelta.api.mail.AuthMailDispatcher;
 import com.vitadelta.api.mail.OutgoingMail;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Locale;
@@ -36,9 +37,21 @@ import org.springframework.transaction.support.TransactionTemplate;
  *       {@code invalid_credentials} for unknown address and wrong password alike; {@code
  *       account_disabled} only after a correct password.
  * </ul>
+ *
+ * <p>Metrics (tags are bounded enumerations, never a user, address or token): {@value
+ * #LOGIN_FAILED_METRIC} with {@code reason} {@code invalid_credentials}, {@code account_disabled}
+ * or {@code throttled} (per-account back-off), and {@value #REFRESH_REJECTED_METRIC} with {@code
+ * reason} {@code UNKNOWN}, {@code EXPIRED}, {@code REUSED} or {@code DISABLED}. A refresh without
+ * session cookie never reaches this class and is not counted.
  */
 @Service
 public class AuthService {
+
+  /** Counter of failed logins (after the rate limits), tag {@code reason}. */
+  public static final String LOGIN_FAILED_METRIC = "vitadelta.auth.login.failed";
+
+  /** Counter of rejected refresh-token rotations, tag {@code reason}. */
+  public static final String REFRESH_REJECTED_METRIC = "vitadelta.auth.refresh.rejected";
 
   private final UserRepository users;
   private final PasswordHasher hasher;
@@ -53,6 +66,7 @@ public class AuthService {
   private final LoginThrottle throttle;
   private final Clock clock;
   private final TransactionTemplate transactions;
+  private final MeterRegistry meters;
 
   public AuthService(
       UserRepository users,
@@ -67,7 +81,8 @@ public class AuthService {
       RecipientMailLimiter recipients,
       LoginThrottle throttle,
       Clock clock,
-      PlatformTransactionManager transactionManager) {
+      PlatformTransactionManager transactionManager,
+      MeterRegistry meters) {
     this.users = users;
     this.hasher = hasher;
     this.passwordPolicy = passwordPolicy;
@@ -81,6 +96,7 @@ public class AuthService {
     this.throttle = throttle;
     this.clock = clock;
     this.transactions = new TransactionTemplate(transactionManager);
+    this.meters = meters;
   }
 
   /**
@@ -242,18 +258,24 @@ public class AuthService {
   /** Logs in and starts a new refresh-token family. */
   public Session login(LoginRequest request, String userAgent) {
     String email = Emails.normalize(request.email());
-    LoginThrottle.Attempt attempt = throttle.begin(email);
+    LoginThrottle.Attempt attempt;
+    try {
+      attempt = throttle.begin(email);
+    } catch (ProblemException e) {
+      meters.counter(LOGIN_FAILED_METRIC, "reason", "throttled").increment();
+      throw e;
+    }
     try {
       Optional<UserAccount> found = users.findByEmail(email);
       if (found.isEmpty()) {
         hasher.verifyAgainstDummy(request.password());
         attempt.failed();
-        throw invalidCredentials();
+        throw loginFailed();
       }
       UserAccount verified = found.get();
       if (!hasher.matches(request.password(), verified.passwordHash())) {
         attempt.failed();
-        throw invalidCredentials();
+        throw loginFailed();
       }
       Session session =
           transactions.execute(status -> {
@@ -264,10 +286,11 @@ public class AuthService {
                     .orElse(null);
             if (user == null) {
               attempt.failed();
-              throw invalidCredentials();
+              throw loginFailed();
             }
             attempt.succeeded();
             if (user.status() == UserStatus.DISABLED) {
+              meters.counter(LOGIN_FAILED_METRIC, "reason", "account_disabled").increment();
               throw ProblemException.of(ProblemCode.ACCOUNT_DISABLED, "The account is disabled.");
             }
             users.markLoggedIn(user.id(), clock.instant());
@@ -278,6 +301,11 @@ public class AuthService {
     } finally {
       attempt.release();
     }
+  }
+
+  private ProblemException loginFailed() {
+    meters.counter(LOGIN_FAILED_METRIC, "reason", "invalid_credentials").increment();
+    return invalidCredentials();
   }
 
   static ProblemException invalidCredentials() {
@@ -295,8 +323,10 @@ public class AuthService {
     return switch (rotation) {
       case Rotated(UserAccount user, String token) ->
           new Session(user, issueAccessToken(user), token);
-      case Rejected(RefreshTokenService.Reason reason) ->
-          throw rejection(reason).withHeader(HttpHeaders.SET_COOKIE, clearCookie);
+      case Rejected(RefreshTokenService.Reason reason) -> {
+        meters.counter(REFRESH_REJECTED_METRIC, "reason", reason.name()).increment();
+        throw rejection(reason).withHeader(HttpHeaders.SET_COOKIE, clearCookie);
+      }
     };
   }
 

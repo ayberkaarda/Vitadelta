@@ -22,15 +22,28 @@
   },
   "formulation": {
     "title": "Bileşim",
-    "units_note": "Standart birimler · porsiyon başına ve günlük",
+    "units_note": "Standart birimler · referans ve üst sınır günlük",
     "caption": "{{ name }} bileşimi",
     "nutrient": "Besin öğesi",
     "form": "Etiketteki form",
     "per_serving": "Porsiyon başına",
     "per_day": "Günlük",
+    "of_reference": "Referansa göre",
+    "upper_limit": "Üst sınır",
     "exceeded": "Üst sınırın üzerinde",
     "conversion_assumed": "IU dönüşümü varsayıldı",
     "empty": "Bu ürün için listelenmiş besin öğesi yok.",
+    "reference_of": "referans {{ amount }} · {{ set }}",
+    "reference_none": "referans yok",
+    "ul_none": "belirlenmemiş",
+    "ul_exceeded": "aşıldı",
+    "ul_basis": {
+      "TOTAL": "toplam alım",
+      "SUPPLEMENTAL": "yalnızca takviye"
+    },
+    "ul_amount": "Sınıra sayılan: {{ amount }}",
+    "ul_source": "Kaynak",
+    "ul_source_label": "Kaynak: {{ code }} üst sınırı",
     "note": "Üst sınırın üzerindeki miktarlar yalnızca sınıra kadar puanlanır. Kimyasal form bilgi amaçlı gösterilir; puanı yalnızca forma özgü üst sınırlar ve IU dönüşümü üzerinden etkiler."
   },
   "offers": {

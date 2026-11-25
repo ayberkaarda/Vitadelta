@@ -2,11 +2,15 @@ package com.vitadelta.api.identity;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.http.HttpHeaders;
@@ -19,6 +23,14 @@ import tools.jackson.databind.JsonNode;
  */
 @ExtendWith(OutputCaptureExtension.class)
 class AuthFlowIntegrationTest extends IdentityIntegrationTest {
+
+  @Autowired MeterRegistry meters;
+
+  private double refreshRejections() {
+    return meters.find(AuthService.REFRESH_REJECTED_METRIC).counters().stream()
+        .mapToDouble(Counter::count)
+        .sum();
+  }
 
   @Test
   void registerVerifyLoginRefreshReuseLogout(CapturedOutput output) {
@@ -162,15 +174,77 @@ class AuthFlowIntegrationTest extends IdentityIntegrationTest {
 
   @Test
   void expiredAndUnknownRefreshTokensAreUnauthorized() {
+    double rejectedBefore = refreshRejections();
     assertProblem(refresh(SecureTokens.newToken()), 401, "unauthorized");
-    assertProblem(refresh("not-a-token"), 401, "unauthorized");
-    assertProblem(
-        post("/api/v1/auth/refresh", "{}", "X-Requested-With", "vitadelta"), 401, "unauthorized");
+    EntityExchangeResult<String> garbage = refresh("not-a-token");
+    assertProblem(garbage, 401, "unauthorized");
+    assertThat(setCookie(garbage, AuthCookies.REFRESH).orElseThrow()).contains("Max-Age=0");
     String email = uniqueEmail();
     registerVerified(email);
     Login session = login(email, PASSWORD);
     clock.advance(RefreshTokenService.LIFETIME.plusSeconds(1));
     assertProblem(refresh(session.refreshToken()), 401, "unauthorized");
+    assertThat(refreshRejections()).as("counted rejections").isEqualTo(rejectedBefore + 3);
+    assertThat(meters.find(AuthService.REFRESH_REJECTED_METRIC).counters())
+        .allSatisfy(c ->
+            assertThat(c.getId().getTag("reason"))
+                .isIn("UNKNOWN", "EXPIRED", "REUSED", "DISABLED"));
+  }
+
+  /**
+   * No session cookie is the normal state of an anonymous visitor: {@code 204} without a body and
+   * without {@code Set-Cookie}, not a failed attempt. The forgery checks and the per-IP limit still
+   * run first.
+   */
+  @Test
+  void aRefreshWithoutSessionCookieIsNoContentAfterTheForgeryAndRateChecks() {
+    double rejectedBefore = refreshRejections();
+    for (EntityExchangeResult<String> anonymous :
+        List.of(
+            post("/api/v1/auth/refresh", "{}", "X-Requested-With", "vitadelta"),
+            post(
+                "/api/v1/auth/refresh",
+                "{}",
+                "X-Requested-With",
+                "vitadelta",
+                HttpHeaders.COOKIE,
+                AuthCookies.REFRESH + "="),
+            post(
+                "/api/v1/auth/refresh",
+                "{}",
+                "X-Requested-With",
+                "vitadelta",
+                HttpHeaders.COOKIE,
+                "vd_other=value"))) {
+      assertThat(anonymous.getStatus().value()).as(anonymous.getResponseBody()).isEqualTo(204);
+      assertThat(anonymous.getResponseBody()).isNullOrEmpty();
+      assertThat(anonymous.getResponseHeaders().get(HttpHeaders.SET_COOKIE)).isNull();
+      assertThat(anonymous.getResponseHeaders().getFirst("X-Request-Id")).isNotBlank();
+      assertThat(anonymous.getResponseHeaders().get(HttpHeaders.CACHE_CONTROL))
+          .containsExactly("no-store");
+    }
+    assertThat(refreshRejections()).as("not counted as a failed refresh").isEqualTo(rejectedBefore);
+
+    // The forgery guard still answers first.
+    assertProblem(post("/api/v1/auth/refresh", "{}"), 403, "forbidden");
+
+    // The per-IP limit (60 per minute) still counts requests without a cookie.
+    ip = randomIp();
+    int passed = 0;
+    EntityExchangeResult<String> limited = null;
+    for (int i = 0; i < 200 && limited == null; i++) {
+      EntityExchangeResult<String> result =
+          post("/api/v1/auth/refresh", "{}", "X-Requested-With", "vitadelta");
+      if (result.getStatus().value() == 429) {
+        limited = result;
+      } else {
+        assertThat(result.getStatus().value()).isEqualTo(204);
+        passed++;
+      }
+    }
+    assertThat(passed).isGreaterThanOrEqualTo(60);
+    assertThat(limited).isNotNull();
+    assertProblem(limited, 429, "rate_limited");
   }
 
   @Test

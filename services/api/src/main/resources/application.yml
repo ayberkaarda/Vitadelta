@@ -251,6 +251,24 @@ springdoc:
   writer-with-order-by-keys: true
 
 logging:
+  # Loggers that print request data by design (request lines and query strings, controller
+  # arguments, message-converter output, security decisions, raw request bytes, SQL bind values)
+  # are pinned to INFO, so raising the root level (LOGGING_LEVEL_ROOT=DEBUG) never enables them.
+  # Raising one of them takes an explicit entry for that logger, for example
+  # LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_WEB=DEBUG, and is meant for local development only: the
+  # redactor still masks credentials, cookies and e-mail addresses, but these lines carry request
+  # data that is not otherwise logged.
+  level:
+    "[org.springframework.web]": INFO
+    "[org.springframework.http]": INFO
+    "[org.springframework.security]": INFO
+    "[org.springframework.jdbc.core]": INFO
+    "[org.apache.coyote]": INFO
+    "[org.apache.tomcat.util.net]": INFO
+    "[org.apache.tomcat.util.http]": INFO
+    "[org.hibernate.orm.jdbc.bind]": INFO
+    "[org.hibernate.orm.jdbc.extract]": INFO
+    "[org.hibernate.SQL]": INFO
   structured:
     format:
       console: logstash

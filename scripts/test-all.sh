@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Runs every test suite that exists in the repository and prints a summary.
-# Suites: contracts, scoring (services/scoring), api (services/api), web (apps/web) and the
-# opt-in steps of RUN_E2E=1: the nginx routing check (docker) and the e2e and adversarial
-# suites (apps/web/e2e; a running, seeded stack).
+# Suites: contracts, scoring (services/scoring), data-tools (scripts/dsld, scripts/security),
+# security (scripts/security-scan.sh), api (services/api), web (apps/web) and the opt-in steps of
+# RUN_E2E=1: the nginx routing check (docker) and the e2e and adversarial suites (apps/web/e2e;
+# a running, seeded stack).
 # A suite whose directory is absent is reported as SKIPPED. Exit status is non-zero
 # if any step fails. Requires bash (Git Bash or WSL on Windows) plus the toolchain
 # of each present suite: node/npx, uv, java.
@@ -107,6 +108,20 @@ fi
 # data-tools
 if begin_suite data-tools scripts/dsld/tests uv; then
   run_step data-tools "pytest dsld" "$ROOT" uv run --no-project --with pytest==9.2.0 pytest scripts/dsld/tests -q
+  suite_broken=false
+  run_step data-tools "pytest security tools" "$ROOT" \
+    uv run --no-project --with pytest==9.2.0 pytest scripts/security/tests -q -p no:cacheprovider
+  suite_broken=false
+  run_step data-tools "security-scan self-tests" "$ROOT" bash scripts/security/selftest-security-scan.sh
+fi
+
+# security (scripts/security-scan.sh, section 15.3): secret scan, tracked .env files, SQL built
+# from strings, dependency audits and the Dependabot configuration. RUN_SECURITY_SCAN=0 leaves it
+# to a separate run (the CI workflow runs it in its own job).
+if [ "${RUN_SECURITY_SCAN:-1}" = "0" ]; then
+  record security "(RUN_SECURITY_SCAN=0: run separately)" "SKIPPED" "-"
+elif begin_suite security scripts git uv npm; then
+  run_step security "security-scan.sh" "$ROOT" bash scripts/security-scan.sh
 fi
 
 # api

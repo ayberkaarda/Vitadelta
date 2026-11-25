@@ -21,6 +21,8 @@
   flex-direction: column;
   gap: 2px;
   min-width: 10rem;
+  // Long catalog tokens break inside the column; min-width keeps ordinary words whole.
+  overflow-wrap: anywhere;
 
   .name {
     font-weight: var(--vd-font-weight-semibold);

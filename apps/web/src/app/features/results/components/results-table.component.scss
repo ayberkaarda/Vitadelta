@@ -7,6 +7,8 @@
   flex-direction: column;
   gap: 2px;
   min-width: 11rem;
+  // Long catalog tokens break inside the column; min-width keeps ordinary words whole.
+  overflow-wrap: anywhere;
 
   .b {
     font-size: var(--vd-font-size-xs);
@@ -52,13 +54,13 @@
 
 .acts {
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
   gap: var(--vd-space-2);
 
   vd-product-action-buttons {
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
   }
 }
 

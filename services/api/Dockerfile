@@ -5,7 +5,7 @@
 # contracts directory): infra/docker-compose.yml declares it as an additional context; a manual
 # build passes it explicitly, from the repository root:
 #   docker build --build-context contracts=contracts services/api
-FROM eclipse-temurin:25.0.5.1_2-jdk-noble AS build
+FROM eclipse-temurin:25.0.5.1_2-jdk-noble@sha256:c7eef3dfeb81468533ea48c67bddaa8c7ca916454259e4d0d734d12bcff8e125 AS build
 WORKDIR /workspace/services/api
 COPY gradlew settings.gradle.kts build.gradle.kts ./
 COPY gradle ./gradle
@@ -15,7 +15,7 @@ COPY src ./src
 RUN ./gradlew --no-daemon bootJar \
     && java -Djarmode=tools -jar build/libs/vitadelta-api-0.0.1.jar extract --layers --launcher --destination /workspace/extracted
 
-FROM eclipse-temurin:25.0.5.1_2-jre-noble
+FROM eclipse-temurin:25.0.5.1_2-jre-noble@sha256:2ec98aa522c472deadfd2b7c5b39bca680e33ef522a53a72f10789bdf89a6bb5
 RUN apt-get update \
     && apt-get install --yes --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/* \

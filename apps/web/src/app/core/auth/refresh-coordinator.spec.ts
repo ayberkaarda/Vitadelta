@@ -115,15 +115,15 @@ class FakeLocks implements LockManagerLike {
 interface Tab {
   readonly coordinator: RefreshCoordinator;
   readonly channel: FakeChannel;
-  readonly calls: Subject<AuthTokenResponse>[];
+  readonly calls: Subject<AuthTokenResponse | null>[];
 }
 
 function createTab(bus: FakeBus, locks: LockManagerLike | null, handshakeTimeout = 2000): Tab {
   const channel = new FakeChannel(bus);
-  const calls: Subject<AuthTokenResponse>[] = [];
+  const calls: Subject<AuthTokenResponse | null>[] = [];
   const api = {
     refreshSession: () => {
-      const subject = new Subject<AuthTokenResponse>();
+      const subject = new Subject<AuthTokenResponse | null>();
       calls.push(subject);
       return subject.asObservable();
     },
@@ -142,8 +142,8 @@ function createTab(bus: FakeBus, locks: LockManagerLike | null, handshakeTimeout
 }
 
 function answer(
-  subject: Subject<AuthTokenResponse> | undefined,
-  response: AuthTokenResponse,
+  subject: Subject<AuthTokenResponse | null> | undefined,
+  response: AuthTokenResponse | null,
 ): void {
   if (!subject) {
     throw new Error('No refresh call was made');
@@ -273,6 +273,55 @@ describe('RefreshCoordinator', () => {
       ],
     });
     await expect(TestBed.inject(RefreshCoordinator).refresh()).resolves.toBeNull();
+  });
+
+  it('treats 204 (no refresh cookie) as no session without announcing or retrying', async () => {
+    const locks = new FakeLocks();
+    const tab = createTab(new FakeBus(), locks);
+    const remote: SessionMessage[] = [];
+    tab.coordinator.remoteChanges$.subscribe((message) => remote.push(message));
+    const result = tab.coordinator.refresh();
+    await flush();
+    answer(tab.calls[0], null);
+    await expect(result).resolves.toBeNull();
+    await flush();
+    expect(tab.calls).toHaveLength(1);
+    // Only the lock hand-off report: no session or sign-out message reaches other tabs.
+    expect(tab.channel.sent).toEqual([
+      { type: 'refresh-done', completedAt: expect.any(Number), outcome: 'none', response: null },
+    ]);
+    expect(remote).toEqual([]);
+  });
+
+  it('a waiting tab takes over a 204 outcome without calling the API', async () => {
+    const bus = new FakeBus(true);
+    const locks = new FakeLocks();
+    const tabA = createTab(bus, locks);
+    const tabB = createTab(bus, locks);
+    const seenByB: SessionMessage[] = [];
+    tabB.coordinator.remoteChanges$.subscribe((message) => seenByB.push(message));
+
+    const resultA = tabA.coordinator.refresh();
+    await flush();
+    const resultB = tabB.coordinator.refresh();
+    await flush();
+    answer(tabA.calls[0], null);
+    await expect(resultA).resolves.toBeNull();
+    await flush();
+    bus.deliverAll();
+    await flush();
+    expect(tabB.calls).toHaveLength(0);
+    await expect(resultB).resolves.toBeNull();
+    expect(seenByB).toEqual([]);
+  });
+
+  it('resolves null without a retry when Web Locks are missing and the API answers 204', async () => {
+    const tab = createTab(new FakeBus(), null);
+    const result = tab.coordinator.refresh();
+    answer(tab.calls[0], null);
+    await expect(result).resolves.toBeNull();
+    expect(tab.calls).toHaveLength(1);
+    expect(tab.channel.sent).toEqual([]);
   });
 
   it('forwards sign-outs from other tabs and forgets their session', async () => {

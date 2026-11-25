@@ -103,7 +103,8 @@ export class SessionStore {
 
   /**
    * Restores the session on app start: `/auth/refresh`, then `/me` on success, otherwise
-   * `/session/quota` for the anonymous counters. Idempotent.
+   * `/session/quota` for the anonymous counters. A `204` (no refresh cookie) is the ordinary
+   * anonymous start, not an error. Idempotent.
    */
   bootstrap(): Promise<void> {
     this.bootstrapPromise ??= this.restore();
@@ -289,7 +290,9 @@ export class SessionStore {
       await this.reloadMe();
       return;
     }
-    this.clear();
+    // No session (204 without a refresh cookie, or a refused cookie): nothing was held yet, so
+    // there is nothing to clear or announce; the visitor is anonymous.
+    this.statusSignal.set('anonymous');
     await this.reloadQuota();
   }
 

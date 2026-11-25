@@ -25,7 +25,7 @@ export default defineConfig({
     headless: true,
     locale: 'en-US',
     timezoneId: 'UTC',
-    trace: 'retain-on-failure',
+    trace: process.env['CI'] ? 'off' : 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'off',
     actionTimeout: 15_000,
@@ -43,6 +43,18 @@ export default defineConfig({
       testDir: './e2e/adversarial',
       testMatch: '**/*.adversarial.ts',
       use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      // README screenshots (`npm run e2e:screenshots`); never part of the suites above.
+      name: 'screenshots',
+      testMatch: 'screenshots.ts',
+      retries: 0,
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1280, height: 800 },
+        deviceScaleFactor: 1,
+        colorScheme: 'light',
+      },
     },
   ],
 });

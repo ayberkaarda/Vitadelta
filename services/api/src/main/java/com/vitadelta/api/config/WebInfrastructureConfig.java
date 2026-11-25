@@ -1,5 +1,6 @@
 package com.vitadelta.api.config;
 
+import com.vitadelta.api.common.web.LogContextFilter;
 import com.vitadelta.api.common.web.RequestBodyLimitFilter;
 import com.vitadelta.api.common.web.RequestIdFilter;
 import com.vitadelta.api.common.web.RequestIds;
@@ -20,7 +21,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 /**
  * Servlet infrastructure shared by every route: the request-id filter (first filter of the chain),
- * the request body size limit and the CORS policy.
+ * the logging-context filter, the request body size limit and the CORS policy.
  */
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
@@ -42,6 +43,22 @@ public class WebInfrastructureConfig {
     FilterRegistrationBean<RequestIdFilter> registration =
         new FilterRegistrationBean<>(new RequestIdFilter());
     registration.setOrder(REQUEST_ID_FILTER_ORDER);
+    registration.addUrlPatterns("/*");
+    return registration;
+  }
+
+  /**
+   * Order of the logging-context filter: inside the Spring Security filter chain's scope, so the
+   * authenticated principal is known, and before the body limit filter.
+   */
+  public static final int LOG_CONTEXT_FILTER_ORDER =
+      SecurityFilterProperties.DEFAULT_FILTER_ORDER + 5;
+
+  @Bean
+  FilterRegistrationBean<LogContextFilter> logContextFilter() {
+    FilterRegistrationBean<LogContextFilter> registration =
+        new FilterRegistrationBean<>(new LogContextFilter());
+    registration.setOrder(LOG_CONTEXT_FILTER_ORDER);
     registration.addUrlPatterns("/*");
     return registration;
   }

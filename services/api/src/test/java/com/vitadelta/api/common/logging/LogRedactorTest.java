@@ -32,6 +32,37 @@ class LogRedactorTest {
     assertThat(LogRedactor.redact(input)).isEqualTo(expected);
   }
 
+  @ParameterizedTest(name = "{0}")
+  @CsvSource(
+      delimiter = '|',
+      value = {
+        "Securing GET /api/v1/admin/users?q=adv.x1%40example.org|"
+            + "Securing GET /api/v1/admin/users?q=a***@example.org",
+        "GET /api/v1/admin/users?q=ADV.X1%40EXAMPLE.ORG&page=2|"
+            + "GET /api/v1/admin/users?q=A***@EXAMPLE.ORG&page=2",
+        "q=Adv.X1%2540Example.Org|q=A***@Example.Org",
+        "q=adv.x1%2b1%40example.org|q=a***@example.org",
+        "url /users?email=adv%40mail.example.co.uk#top|url /users?email=a***@mail.example.co.uk#top",
+        "json {\"email\":\"adv\\u0040example.org\"}|json {\"email\":\"a***@example.org\"}",
+        "50%40 off at the store|50%40 off at the store"
+      })
+  void masksEncodedEmailAddressesInQueryStringsAndText(String input, String expected) {
+    assertThat(LogRedactor.redact(input)).isEqualTo(expected);
+  }
+
+  @ParameterizedTest(name = "{0}")
+  @CsvSource(
+      delimiter = '|',
+      value = {
+        "JSON parse error: Unrecognized token 'hunter2secret': was expecting (JSON String)|"
+            + "JSON parse error: Unrecognized token '[REDACTED]': was expecting (JSON String)",
+        "Cannot deserialize value of type `Plan` from String \"PROMO-ABC\": not one of the values|"
+            + "Cannot deserialize value of type `Plan` from String \"[REDACTED]\": not one of the values"
+      })
+  void redactsParserExcerptsOfRequestBodies(String input, String expected) {
+    assertThat(LogRedactor.redact(input)).isEqualTo(expected);
+  }
+
   @Test
   void redactsBareJsonWebTokens() {
     assertThat(LogRedactor.redact("decoded " + JWT + " ok")).isEqualTo("decoded [REDACTED] ok");

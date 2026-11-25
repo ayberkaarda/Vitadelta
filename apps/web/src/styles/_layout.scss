@@ -32,6 +32,8 @@
   gap: var(--vd-space-2);
   font-size: var(--vd-font-size-sm);
   color: var(--vd-color-text-muted);
+  // The last crumb is a product name: a long token breaks instead of widening the page.
+  overflow-wrap: anywhere;
 }
 
 .subnav {
@@ -167,7 +169,8 @@
 
 .kv {
   display: grid;
-  grid-template-columns: max-content 1fr;
+  // The value column may shrink below its longest word (a retailer name) and break it.
+  grid-template-columns: max-content minmax(0, 1fr);
   gap: var(--vd-space-2) var(--vd-space-4);
   font-size: var(--vd-font-size-sm);
 
