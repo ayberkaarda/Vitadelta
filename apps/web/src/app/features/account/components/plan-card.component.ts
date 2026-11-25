@@ -6,14 +6,16 @@ import { Me } from '../../../core/api/api-types';
 import { Formatter } from '../../../core/format/formatter';
 import { UsageMeterComponent } from '../../../shared/charts/usage-meter.component';
 import { formatMonth, nextMonthStart } from '../account-format';
+import { ManageSubscriptionComponent } from './manage-subscription.component';
 
 /**
  * "Your plan" card (design hand-off §4.8): plan tag, PRO period, and the three usage meters.
- * Every number comes from the `/me` payload; `limit = null` renders as unlimited.
+ * Every number comes from the `/me` payload; `limit = null` renders as unlimited. A subscription
+ * paid through the payment provider (`source = PROVIDER`) gets "Manage subscription" (ADR-0014).
  */
 @Component({
   selector: 'vd-plan-card',
-  imports: [RouterLink, TranslocoPipe, UsageMeterComponent],
+  imports: [ManageSubscriptionComponent, RouterLink, TranslocoPipe, UsageMeterComponent],
   template: `
     @let m = me();
     <section class="card raised stack" aria-labelledby="plan-card-title">
@@ -51,6 +53,9 @@ import { formatMonth, nextMonthStart } from '../account-format';
           </p>
         }
       </div>
+      @if (m.subscription.source === 'PROVIDER') {
+        <vd-manage-subscription />
+      }
       <div>
         <a class="btn" routerLink="/upgrade">{{ 'account.plan.compare' | transloco }}</a>
       </div>

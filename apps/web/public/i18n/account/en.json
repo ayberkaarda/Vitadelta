@@ -61,6 +61,11 @@
     "resets": "Resets on {{ date }} (UTC)",
     "compare": "Compare FREE and PRO"
   },
+  "billing": {
+    "manage": "Manage subscription",
+    "manage_hint": "Change the payment method, see invoices or cancel on the secure Stripe page.",
+    "busy": "Opening the billing portal…"
+  },
   "promo": {
     "title": "Have a promo code?",
     "title_redeem": "Redeem a promo code",
