@@ -1,0 +1,55 @@
+<div class="auth">
+  <section class="auth-card" aria-labelledby="forgot-title">
+    <h1 id="forgot-title" class="h2">{{ 'auth.forgot.title' | transloco }}</h1>
+    <p class="body-text muted">{{ 'auth.forgot.lead' | transloco }}</p>
+
+    @if (problem(); as p) {
+      <vd-problem-notice [problem]="p" (retry)="submit()" />
+    }
+    <vd-error-summary [errors]="errors().summary" />
+
+    @let emailError = errors().fields[ids.email];
+    <form class="stack" novalidate (submit)="submit($event)">
+      <vd-field
+        [controlId]="ids.email"
+        [label]="'auth.fields.email' | transloco"
+        [error]="emailError ? (emailError | transloco) : null"
+      >
+        <input
+          #emailInput
+          vdControl
+          class="inp"
+          type="email"
+          name="email"
+          autocomplete="email"
+          spellcheck="false"
+          [readOnly]="sentKey() !== null"
+          [value]="email()"
+          (input)="email.set(emailInput.value)"
+        />
+      </vd-field>
+      <button
+        class="btn btn-primary btn-block"
+        type="submit"
+        [disabled]="sentKey() !== null"
+        [attr.aria-busy]="busy()"
+      >
+        @if (sentKey() !== null) {
+          {{ 'auth.forgot.sent' | transloco }}
+        } @else {
+          {{ 'auth.forgot.submit' | transloco }}
+        }
+      </button>
+    </form>
+    <div class="live-region" aria-live="polite">
+      @if (sentKey(); as key) {
+        <vd-notice tone="ok" icon="ok"
+          ><p>{{ key | transloco }}</p></vd-notice
+        >
+      }
+    </div>
+    <p class="alt">
+      <a routerLink="/auth/login">{{ 'auth.forgot.back_to_login' | transloco }}</a>
+    </p>
+  </section>
+</div>

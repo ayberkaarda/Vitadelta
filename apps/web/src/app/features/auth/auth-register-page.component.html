@@ -1,0 +1,114 @@
+<div class="auth">
+  <section class="auth-card" aria-labelledby="register-title">
+    @if (sent(); as s) {
+      <span class="ic-well" aria-hidden="true"><vd-icon name="mail" /></span>
+      <h1 id="register-title" class="h2" tabindex="-1" vdFocusOnInit>
+        {{ 'auth.register.sent_title' | transloco }}
+      </h1>
+      <div class="stack-2 body-text" role="status">
+        <p>{{ s.messageKey | transloco }}</p>
+        <p class="muted">{{ 'auth.register.sent_address' | transloco: { email: s.email } }}</p>
+      </div>
+      <p class="body-text muted">{{ 'auth.register.sent_hint' | transloco }}</p>
+      @if (resentKey(); as key) {
+        <vd-notice tone="ok" live="status"
+          ><p>{{ key | transloco }}</p></vd-notice
+        >
+      }
+      @if (resendProblem(); as p) {
+        <vd-problem-notice [problem]="p" (retry)="resend()" />
+      }
+      <button
+        type="button"
+        class="btn btn-block"
+        [attr.aria-busy]="resendBusy()"
+        (click)="resend()"
+      >
+        <vd-icon name="refresh" [spin]="resendBusy()" />{{ 'auth.register.resend' | transloco }}
+      </button>
+    } @else {
+      <h1 id="register-title" class="h2">{{ 'auth.register.title' | transloco }}</h1>
+
+      @if (problem(); as p) {
+        <vd-problem-notice [problem]="p" (retry)="submit()" />
+      }
+      <vd-error-summary [errors]="errors().summary" />
+
+      @let emailError = errors().fields[ids.email];
+      @let passwordError = errors().fields[ids.password];
+      @let countryError = errors().fields[ids.country];
+      <form class="stack" novalidate (submit)="submit($event)">
+        <vd-field
+          [controlId]="ids.email"
+          [label]="'auth.fields.email' | transloco"
+          [error]="emailError ? (emailError | transloco) : null"
+        >
+          <input
+            #emailInput
+            vdControl
+            class="inp"
+            type="email"
+            name="email"
+            autocomplete="email"
+            spellcheck="false"
+            [value]="email()"
+            (input)="email.set(emailInput.value)"
+          />
+        </vd-field>
+        <vd-field
+          [controlId]="ids.password"
+          [label]="'auth.fields.password' | transloco"
+          [hint]="'auth.password_rule' | transloco"
+          [error]="passwordError ? (passwordError | transloco) : null"
+        >
+          <input
+            #passwordInput
+            vdControl
+            class="inp"
+            type="password"
+            name="new-password"
+            autocomplete="new-password"
+            [value]="password()"
+            (input)="password.set(passwordInput.value)"
+          />
+        </vd-field>
+        <vd-field
+          [controlId]="ids.country"
+          [label]="'auth.fields.country' | transloco"
+          [error]="countryError ? (countryError | transloco) : null"
+        >
+          <select
+            #countrySelect
+            vdControl
+            class="sel"
+            name="country"
+            (change)="country.set(countrySelect.value)"
+          >
+            @for (option of region.countries(); track option.code) {
+              <option [value]="option.code" [selected]="option.code === country()">
+                {{ option.nameEn }}
+              </option>
+            }
+          </select>
+        </vd-field>
+        <p class="fine">
+          {{ 'auth.register.consent_prefix' | transloco }}
+          <a routerLink="/privacy">{{ 'auth.register.consent_link' | transloco }}</a>{{
+            'auth.register.consent_suffix' | transloco
+          }}
+        </p>
+        <button class="btn btn-primary btn-block" type="submit" [attr.aria-busy]="busy()">
+          @if (busy()) {
+            <vd-icon name="refresh" [spin]="true" />{{ 'auth.register.busy' | transloco }}
+          } @else {
+            {{ 'auth.register.submit' | transloco }}
+          }
+        </button>
+      </form>
+      <p class="alt">
+        {{ 'auth.register.have_account' | transloco }}
+        <a routerLink="/auth/login">{{ 'auth.register.login_link' | transloco }}</a>
+      </p>
+    }
+  </section>
+</div>

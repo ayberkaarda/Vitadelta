@@ -1,0 +1,75 @@
+{
+  "fields": {
+    "email": "E-mail",
+    "password": "Password",
+    "new_password": "New password",
+    "repeat_password": "Repeat password",
+    "country": "Country"
+  },
+  "password_rule": "At least 10 characters",
+  "errors": {
+    "email": "Enter a valid e-mail address.",
+    "password_mismatch": "The two passwords do not match.",
+    "country": "Choose a country from the list."
+  },
+  "login": {
+    "page_title": "Log in",
+    "title": "Log in",
+    "submit": "Log in",
+    "busy": "Logging in…",
+    "forgot": "Forgot password?",
+    "new_here": "New here?",
+    "register_link": "Create an account",
+    "session_ended": "Your session ended. Log in again to continue where you were.",
+    "password_changed": "Your password was changed. Log in with the new password.",
+    "disabled_body": "Contact us at the address on the privacy notice if you think this is a mistake."
+  },
+  "register": {
+    "page_title": "Create account",
+    "title": "Create your account",
+    "submit": "Create account",
+    "busy": "Creating account…",
+    "have_account": "Already registered?",
+    "login_link": "Log in",
+    "consent_prefix": "By creating an account you accept the processing described in the",
+    "consent_link": "privacy notice",
+    "consent_suffix": ".",
+    "sent_title": "Check your e-mail",
+    "sent_address": "Address entered: {{ email }}",
+    "sent_hint": "Nothing arrived after a few minutes? Check your spam folder, then resend.",
+    "resend": "Resend e-mail"
+  },
+  "verify": {
+    "page_title": "Verify e-mail",
+    "busy_title": "Verifying…",
+    "busy_text": "We are checking your verification link.",
+    "success_title": "E-mail verified",
+    "success_text": "Your account is ready. Alerts can now be sent to your address.",
+    "login": "Log in",
+    "to_account": "Go to your account",
+    "failed_title": "Verification did not finish",
+    "expired_title": "This link has expired",
+    "expired_text": "Verification links expire after a while and work only once. Enter your e-mail to get a new one.",
+    "invalid_title": "This link is not valid",
+    "invalid_text": "The link is incomplete or was already used. Enter your e-mail to get a new one.",
+    "resend": "Send a new link"
+  },
+  "forgot": {
+    "page_title": "Forgot password",
+    "title": "Reset your password",
+    "lead": "Enter the e-mail address of your account. We send a link to choose a new password.",
+    "submit": "Send reset link",
+    "sent": "Link sent",
+    "back_to_login": "Back to log in"
+  },
+  "reset": {
+    "page_title": "Choose a new password",
+    "title": "Choose a new password",
+    "submit": "Save password",
+    "busy": "Saving…",
+    "sessions_note": "After saving, every other session is logged out.",
+    "invalid_title": "This reset link is no longer valid",
+    "invalid_text": "It may have expired or been used already.",
+    "request_new": "Request a new link"
+  }
+}

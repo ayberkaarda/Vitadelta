@@ -1,0 +1,87 @@
+<div class="auth">
+  <section
+    class="auth-card"
+    aria-labelledby="verify-title"
+    [attr.aria-busy]="state() === 'verifying'"
+  >
+    @switch (state()) {
+      @case ('verifying') {
+        <span class="ic-well" aria-hidden="true"><vd-icon name="refresh" [spin]="true" /></span>
+        <h1 id="verify-title" class="h2">{{ 'auth.verify.busy_title' | transloco }}</h1>
+        <p class="body-text muted" role="status">{{ 'auth.verify.busy_text' | transloco }}</p>
+      }
+      @case ('verified') {
+        <span class="ic-well t-ok" aria-hidden="true"><vd-icon name="ok" /></span>
+        <h1 id="verify-title" class="h2" tabindex="-1" vdFocusOnInit>
+          {{ 'auth.verify.success_title' | transloco }}
+        </h1>
+        <p class="body-text" role="status">{{ 'auth.verify.success_text' | transloco }}</p>
+        @if (session.isAuthenticated()) {
+          <a class="btn btn-primary btn-block" routerLink="/account">{{
+            'auth.verify.to_account' | transloco
+          }}</a>
+        } @else {
+          <a class="btn btn-primary btn-block" routerLink="/auth/login">{{
+            'auth.verify.login' | transloco
+          }}</a>
+        }
+      }
+      @case ('failed') {
+        <span class="ic-well t-bad" aria-hidden="true"><vd-icon name="warn" /></span>
+        <h1 id="verify-title" class="h2" tabindex="-1" vdFocusOnInit>
+          {{ 'auth.verify.failed_title' | transloco }}
+        </h1>
+        @if (problem(); as p) {
+          <vd-problem-notice [problem]="p" [retryable]="true" (retry)="verify()" />
+        }
+      }
+      @default {
+        <span class="ic-well t-warn" aria-hidden="true"><vd-icon name="clock" /></span>
+        <h1 id="verify-title" class="h2" tabindex="-1" vdFocusOnInit>
+          {{
+            (state() === 'expired' ? 'auth.verify.expired_title' : 'auth.verify.invalid_title')
+              | transloco
+          }}
+        </h1>
+        <p class="body-text" role="status">
+          {{
+            (state() === 'expired' ? 'auth.verify.expired_text' : 'auth.verify.invalid_text')
+              | transloco
+          }}
+        </p>
+        @if (resentKey(); as key) {
+          <vd-notice tone="ok" live="status"
+            ><p>{{ key | transloco }}</p></vd-notice
+          >
+        }
+        @if (resendProblem(); as p) {
+          <vd-problem-notice [problem]="p" (retry)="resend()" />
+        }
+        <vd-error-summary [errors]="resendErrors().summary" />
+        @let emailError = resendErrors().fields[ids.email];
+        <form class="stack" novalidate (submit)="resend($event)">
+          <vd-field
+            [controlId]="ids.email"
+            [label]="'auth.fields.email' | transloco"
+            [error]="emailError ? (emailError | transloco) : null"
+          >
+            <input
+              #emailInput
+              vdControl
+              class="inp"
+              type="email"
+              name="email"
+              autocomplete="email"
+              spellcheck="false"
+              [value]="email()"
+              (input)="email.set(emailInput.value)"
+            />
+          </vd-field>
+          <button class="btn btn-primary btn-block" type="submit" [attr.aria-busy]="resendBusy()">
+            {{ 'auth.verify.resend' | transloco }}
+          </button>
+        </form>
+      }
+    }
+  </section>
+</div>
