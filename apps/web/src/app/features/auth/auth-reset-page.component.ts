@@ -5,7 +5,7 @@ import { firstValueFrom } from 'rxjs';
 
 import { ApiClient } from '../../core/api/api-client';
 import { ApiProblem } from '../../core/api/api-problem';
-import { readFragmentToken } from '../../core/auth/fragment-token';
+import { takeEmailToken } from '../../core/auth/email-token';
 import { ErrorSummaryComponent } from '../../shared/form/error-summary.component';
 import { ControlDirective, FieldComponent } from '../../shared/form/field.component';
 import { IconComponent } from '../../shared/icon/icon.component';
@@ -20,9 +20,10 @@ import {
 import { MIN_PASSWORD_LENGTH } from './form-errors';
 
 /**
- * `/auth/reset#token=…` (project specification §8.2, §10.2). The token is read from the URL
- * fragment, which is removed with `history.replaceState` before anything else happens; it is
- * sent only in the POST body. A successful reset goes to the login page.
+ * `/auth/reset#token=…` (project specification §8.2, §10.2). The token was taken out of the
+ * address bar before the application started (`captureEmailToken`, before any request) and
+ * is handed over once from memory; it is sent only in the POST body. A successful reset goes
+ * to the login page.
  */
 @Component({
   selector: 'vd-auth-reset-page',
@@ -43,7 +44,7 @@ import { MIN_PASSWORD_LENGTH } from './form-errors';
 export class AuthResetPageComponent {
   private readonly api = inject(ApiClient);
   private readonly router = inject(Router);
-  private readonly token: string | null = readFragmentToken();
+  private readonly token: string | null = takeEmailToken('/auth/reset');
 
   protected readonly ids = { password: 'reset-password', repeat: 'reset-repeat' } as const;
   protected readonly password = signal('');

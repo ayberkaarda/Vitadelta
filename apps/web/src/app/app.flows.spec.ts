@@ -1,16 +1,17 @@
 import { HttpBackend, provideHttpClient, withInterceptors } from '@angular/common/http';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router, TitleStrategy, provideRouter, withComponentInputBinding } from '@angular/router';
-import { provideTransloco } from '@jsverse/transloco';
 
 import authEn from '../../public/i18n/auth/en.json';
 import authTr from '../../public/i18n/auth/tr.json';
 import privacyTr from '../../public/i18n/privacy/tr.json';
 import resultsTr from '../../public/i18n/results/tr.json';
 import { routes } from './app.routes';
+import { startApplication } from './app.start';
 import { authInterceptor } from './core/auth/auth.interceptor';
 import { SESSION_CHANNEL, WEB_LOCKS } from './core/auth/refresh-coordinator';
 import { I18nTitleStrategy } from './core/i18n/i18n-title.strategy';
+import { provideI18n } from './core/i18n/provide-i18n';
 import { TranslocoHttpLoader } from './core/i18n/transloco-http-loader';
 import { UnreadCountStore } from './core/state/unread-count.store';
 import { ShellComponent } from './shell/shell.component';
@@ -67,11 +68,13 @@ describe('application flows', () => {
     await settle();
   }
 
-  async function start(seed?: (backend: FakeBackend) => void): Promise<void> {
+  async function start(seed?: (backend: FakeBackend) => void, keepAddress = false): Promise<void> {
     localStorage.clear();
     localStorage.setItem('vd.lang', 'en');
     localStorage.setItem('vd.country', 'TR');
-    window.history.replaceState(null, '', '/');
+    if (!keepAddress) {
+      window.history.replaceState(null, '', '/');
+    }
     backend = new FakeBackend();
     seed?.(backend);
     TestBed.configureTestingModule({
@@ -81,7 +84,7 @@ describe('application flows', () => {
         { provide: HttpBackend, useValue: backend },
         provideRouter(routes, withComponentInputBinding()),
         { provide: TitleStrategy, useExisting: I18nTitleStrategy },
-        provideTransloco({
+        provideI18n({
           config: {
             availableLangs: ['en', 'tr'],
             defaultLang: 'en',
@@ -181,6 +184,20 @@ describe('application flows', () => {
     await settle();
     expect(text($('vd-notification-bell .count'))).toBe('2');
     expect($('vd-notification-bell a')?.getAttribute('aria-label')).toContain('2');
+  });
+
+  it('sends no request while an e-mail token is in the address bar of a freshly opened link', async () => {
+    const token = 'Zmxvdy1zeW50aGV0aWMtdmVyaWZpY2F0aW9uLXRva2Vu';
+    window.history.replaceState(null, '', `/auth/verify#token=${token}`);
+    // As main.ts: the token is captured first, then the application starts and routes.
+    await startApplication(() => start((b) => b.seedSession('USER'), true));
+    await go(window.location.pathname);
+    expect(router.url).toBe('/auth/verify');
+    expect(backend.sentFrom.length).toBeGreaterThan(3);
+    expect(backend.sentFrom.filter((entry) => entry.includes(token))).toEqual([]);
+    const verify = backend.requests.filter((r) => r.path === '/auth/verify-email');
+    expect(verify.map((r) => r.body)).toEqual([{ token }]);
+    expect(window.location.href).not.toContain(token);
   });
 
   it('keeps signed-in users without the ADMIN role out of the admin area', async () => {

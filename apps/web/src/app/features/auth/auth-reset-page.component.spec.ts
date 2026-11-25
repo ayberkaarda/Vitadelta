@@ -6,6 +6,7 @@ import authEn from '../../../../public/i18n/auth/en.json';
 import authTr from '../../../../public/i18n/auth/tr.json';
 import { ApiClient } from '../../core/api/api-client';
 import { ApiProblem } from '../../core/api/api-problem';
+import { captureEmailToken } from '../../core/auth/email-token';
 import { EN, translocoTesting } from '../../testing/transloco-testing';
 import { AuthResetPageComponent } from './auth-reset-page.component';
 
@@ -37,7 +38,7 @@ describe('AuthResetPageComponent', () => {
     await settle();
   };
 
-  async function setup(hash = `#token=${TOKEN}`): Promise<void> {
+  async function setup(hash = `#token=${TOKEN}`, openedAsPage = true): Promise<void> {
     window.history.replaceState(null, '', `/auth/reset${hash}`);
     order.length = 0;
     const replaceState = window.history.replaceState.bind(window.history);
@@ -45,6 +46,11 @@ describe('AuthResetPageComponent', () => {
       order.push('replaceState');
       replaceState(...args);
     });
+    if (openedAsPage) {
+      // A link opened as a fresh page: main.ts captures the token before the app starts.
+      captureEmailToken();
+    }
+    order.push('start');
     resetPassword = vi.fn(() => {
       order.push('reset');
       return of(undefined);
@@ -66,19 +72,32 @@ describe('AuthResetPageComponent', () => {
     window.history.replaceState(null, '', '/');
   });
 
-  it('removes the fragment at once and posts the token with the new password', async () => {
+  it('removes the fragment before start-up and posts the token with the new password', async () => {
     await setup();
     expect(window.location.hash).toBe('');
-    expect(order).toEqual(['replaceState']);
+    expect(order).toEqual(['replaceState', 'start']);
     type('reset-password', 'a-new-long-password');
     type('reset-repeat', 'a-new-long-password');
     await submit();
-    expect(order).toEqual(['replaceState', 'reset']);
+    expect(order).toEqual(['replaceState', 'start', 'reset']);
     expect(resetPassword).toHaveBeenCalledWith({
       token: TOKEN,
       newPassword: 'a-new-long-password',
     });
     expect(navigate).toHaveBeenCalledWith('/auth/login?reset=done');
+  });
+
+  it('reads and removes the fragment itself when the link opens inside the running app', async () => {
+    await setup(`#token=${TOKEN}`, false);
+    expect(order).toEqual(['start', 'replaceState']);
+    expect(window.location.href).not.toContain(TOKEN);
+    type('reset-password', 'a-new-long-password');
+    type('reset-repeat', 'a-new-long-password');
+    await submit();
+    expect(resetPassword).toHaveBeenCalledWith({
+      token: TOKEN,
+      newPassword: 'a-new-long-password',
+    });
   });
 
   it('checks length and repetition before calling the API', async () => {

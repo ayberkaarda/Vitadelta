@@ -6,6 +6,7 @@ import authEn from '../../../../public/i18n/auth/en.json';
 import authTr from '../../../../public/i18n/auth/tr.json';
 import { ApiClient } from '../../core/api/api-client';
 import { ApiProblem } from '../../core/api/api-problem';
+import { captureEmailToken } from '../../core/auth/email-token';
 import { SessionStore } from '../../core/auth/session.store';
 import { EN, translocoTesting } from '../../testing/transloco-testing';
 import { AuthVerifyPageComponent } from './auth-verify-page.component';
@@ -30,6 +31,7 @@ describe('AuthVerifyPageComponent', () => {
     hash: string,
     verify: () => Observable<void>,
     authenticated = false,
+    openedAsPage = true,
   ): Promise<void> {
     window.history.replaceState(null, '', `/auth/verify${hash}`);
     calls.length = 0;
@@ -38,6 +40,11 @@ describe('AuthVerifyPageComponent', () => {
       calls.push('replaceState');
       replaceState(...args);
     });
+    if (openedAsPage) {
+      // A link opened as a fresh page: main.ts captures the token before the app starts.
+      captureEmailToken();
+    }
+    calls.push('start');
     verifyEmail = vi.fn((body: unknown) => {
       calls.push(`verify:${JSON.stringify(body)}`);
       return verify();
@@ -69,11 +76,18 @@ describe('AuthVerifyPageComponent', () => {
 
   it('reads the token from the fragment, removes it first and posts it in the body', async () => {
     await setup(`#token=${TOKEN}`, () => of(undefined));
-    expect(calls).toEqual(['replaceState', `verify:${JSON.stringify({ token: TOKEN })}`]);
+    expect(calls).toEqual(['replaceState', 'start', `verify:${JSON.stringify({ token: TOKEN })}`]);
     expect(window.location.hash).toBe('');
     expect(window.location.href).not.toContain(TOKEN);
     expect(host().querySelector('h1')?.textContent).toContain(authEn.verify.success_title);
     expect(host().querySelector('a[href="/auth/login"]')).not.toBeNull();
+  });
+
+  it('reads and removes the fragment itself when the link opens inside the running app', async () => {
+    await setup(`#token=${TOKEN}`, () => of(undefined), false, false);
+    expect(calls).toEqual(['start', 'replaceState', `verify:${JSON.stringify({ token: TOKEN })}`]);
+    expect(window.location.href).not.toContain(TOKEN);
+    expect(host().querySelector('h1')?.textContent).toContain(authEn.verify.success_title);
   });
 
   it('reloads the profile of a signed-in user after verification', async () => {

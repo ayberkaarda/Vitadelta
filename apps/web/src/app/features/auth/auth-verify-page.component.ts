@@ -5,7 +5,7 @@ import { firstValueFrom } from 'rxjs';
 
 import { ApiClient } from '../../core/api/api-client';
 import { ApiProblem } from '../../core/api/api-problem';
-import { readFragmentToken } from '../../core/auth/fragment-token';
+import { takeEmailToken } from '../../core/auth/email-token';
 import { SessionStore } from '../../core/auth/session.store';
 import { ErrorSummaryComponent } from '../../shared/form/error-summary.component';
 import { ControlDirective, FieldComponent } from '../../shared/form/field.component';
@@ -25,9 +25,9 @@ import { authFieldMessage, isEmailShaped } from './form-errors';
 export type VerifyState = 'verifying' | 'verified' | 'expired' | 'invalid' | 'failed';
 
 /**
- * `/auth/verify#token=…` (project specification §8.2, §10.2). The token is read from the URL
- * fragment and the fragment is removed with `history.replaceState` in the constructor, before
- * any request; the token is then posted in the body only and kept in memory for a retry.
+ * `/auth/verify#token=…` (project specification §8.2, §10.2). The token was taken out of the
+ * address bar before the application started (`captureEmailToken`, before any request) and
+ * is handed over once from memory; it is posted in the body only and kept for a retry.
  * Expired or invalid links offer a resend form.
  */
 @Component({
@@ -63,7 +63,7 @@ export class AuthVerifyPageComponent {
   protected readonly resendProblem = signal<ApiProblem | null>(null);
 
   constructor() {
-    this.token = readFragmentToken();
+    this.token = takeEmailToken('/auth/verify');
     if (this.token === null) {
       this.state.set('invalid');
     } else {
