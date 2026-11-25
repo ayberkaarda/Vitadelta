@@ -86,7 +86,7 @@ class OutboxProcessorIntegrationTest extends AlertsIntegrationTest {
     quietEvents(30);
     Instant now = clock.instant();
     CountDownLatch firstClaimed = new CountDownLatch(1);
-    CountDownLatch secondDone = new CountDownLatch(1);
+    CountDownLatch releaseFirst = new CountDownLatch(1);
     ExecutorService executor = Executors.newFixedThreadPool(2);
     try {
       Future<List<OutboxRepository.ClaimedEvent>> first =
@@ -95,21 +95,24 @@ class OutboxProcessorIntegrationTest extends AlertsIntegrationTest {
                 List<OutboxRepository.ClaimedEvent> claimed =
                     outbox.claim(now, now.plus(Duration.ofMinutes(2)), 20);
                 firstClaimed.countDown();
-                await(secondDone);
+                await(releaseFirst);
                 return claimed;
               }));
-      firstClaimed.await(30, TimeUnit.SECONDS);
-      Future<List<OutboxRepository.ClaimedEvent>> second =
-          executor.submit(() -> {
-            try {
-              return transactions.execute(
-                  tx -> outbox.claim(now, now.plus(Duration.ofMinutes(2)), 100));
-            } finally {
-              secondDone.countDown();
-            }
-          });
-      List<OutboxRepository.ClaimedEvent> a = first.get(60, TimeUnit.SECONDS);
-      List<OutboxRepository.ClaimedEvent> b = second.get(60, TimeUnit.SECONDS);
+      assertThat(firstClaimed.await(30, TimeUnit.SECONDS)).isTrue();
+      List<OutboxRepository.ClaimedEvent> b;
+      try {
+        // The first claiming transaction still holds its row locks: with SKIP LOCKED the second
+        // claim passes over them at once instead of waiting for the first transaction to end.
+        Future<List<OutboxRepository.ClaimedEvent>> second =
+            executor.submit(() ->
+                transactions.execute(
+                    tx -> outbox.claim(now, now.plus(Duration.ofMinutes(2)), 100)));
+        b = second.get(5, TimeUnit.SECONDS);
+        assertThat(first.isDone()).isFalse();
+      } finally {
+        releaseFirst.countDown();
+      }
+      List<OutboxRepository.ClaimedEvent> a = first.get(30, TimeUnit.SECONDS);
       Set<UUID> idsA = new HashSet<>(a.stream().map(OutboxRepository.ClaimedEvent::id).toList());
       Set<UUID> idsB = new HashSet<>(b.stream().map(OutboxRepository.ClaimedEvent::id).toList());
       assertThat(idsA).hasSize(20);
@@ -128,7 +131,9 @@ class OutboxProcessorIntegrationTest extends AlertsIntegrationTest {
 
   private static void await(CountDownLatch latch) {
     try {
-      latch.await(30, TimeUnit.SECONDS);
+      if (!latch.await(30, TimeUnit.SECONDS)) {
+        throw new IllegalStateException("The latch was not released within 30 seconds");
+      }
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
       throw new IllegalStateException(e);
