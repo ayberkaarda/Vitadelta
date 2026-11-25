@@ -1,0 +1,13 @@
+Hello,
+
+[(${productName})] ([(${brand})], [(${productCode})]) is back in stock in [(${countryCode})]: [(${newPrice})] at [(${retailer})].
+
+Open VitaDelta:
+[(${homeUrl})]
+
+VitaDelta shows comparative information only; it is not medical advice.
+
+--
+You receive this e-mail because of an alert on your VitaDelta account.
+Change your notification preferences: [(${preferencesUrl})]
+Privacy notice: [(${privacyUrl})]

@@ -1,0 +1,13 @@
+Hello,
+
+The price of [(${productName})] ([(${brand})], [(${productCode})]) in [(${countryCode})] changed from [(${oldPrice})] to [(${newPrice})] ([(${retailer})]).
+
+Open VitaDelta:
+[(${homeUrl})]
+
+VitaDelta shows comparative information only; it is not medical advice.
+
+--
+You receive this e-mail because of an alert on your VitaDelta account.
+Change your notification preferences: [(${preferencesUrl})]
+Privacy notice: [(${privacyUrl})]

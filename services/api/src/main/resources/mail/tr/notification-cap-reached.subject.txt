@@ -1,0 +1,1 @@
+[(${periodMonth})] için VitaDelta bildirim sınırınıza ulaşıldı

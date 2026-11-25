@@ -1,0 +1,15 @@
+Hello,
+
+Your alerts have created [(${limit})] notifications in [(${periodMonth})], the monthly limit of your plan. Further alerts this month create no notification.
+
+The counter starts again next month. With the PRO plan, notifications are unlimited.
+
+Open VitaDelta:
+[(${homeUrl})]
+
+VitaDelta shows comparative information only; it is not medical advice.
+
+--
+You receive this e-mail because of an alert on your VitaDelta account.
+Change your notification preferences: [(${preferencesUrl})]
+Privacy notice: [(${privacyUrl})]

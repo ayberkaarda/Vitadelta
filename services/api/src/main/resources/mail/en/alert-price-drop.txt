@@ -1,0 +1,15 @@
+Hello,
+
+The price of [(${productName})] ([(${brand})], [(${productCode})]) in [(${countryCode})] dropped to [(${newPrice})] at [(${retailer})].
+
+That is [(${dropPercent})] % below your reference price of [(${baselinePrice})]; your alert threshold is [(${thresholdPercent})] %. The new price is now your reference price.
+
+Open VitaDelta:
+[(${homeUrl})]
+
+VitaDelta shows comparative information only; it is not medical advice.
+
+--
+You receive this e-mail because of an alert on your VitaDelta account.
+Change your notification preferences: [(${preferencesUrl})]
+Privacy notice: [(${privacyUrl})]
