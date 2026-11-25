@@ -205,6 +205,18 @@
       "title": "Import failed",
       "body": "The file was not imported. Nothing was written."
     },
+    "billing_unavailable": {
+      "title": "Online payment is not available right now",
+      "body": "The payment service could not be reached. Nothing was charged. Try again later or use a promo code."
+    },
+    "plan_already_active": {
+      "title": "PRO is already active",
+      "body": "Your account already has PRO, so there is nothing to pay. Your plan details are in your account."
+    },
+    "no_billing_account": {
+      "title": "No paid subscription found",
+      "body": "Subscriptions can be managed after a completed online payment. A PRO plan from a promo code needs no management."
+    },
     "internal_error": {
       "title": "Something went wrong on our side",
       "body": "The request could not be completed. Try again later."

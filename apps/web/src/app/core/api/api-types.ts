@@ -124,6 +124,8 @@ export type SetUserStatusRequest = Schemas['SetUserStatusRequest'];
 export type CreatePromoCodeRequest = Schemas['CreatePromoCodeRequest'];
 export type PromoCode = Schemas['PromoCode'];
 export type PromoCodeList = Schemas['PromoCodeList'];
+export type BillingRedirect = Schemas['BillingRedirect'];
+export type SubscriptionSource = Schemas['SubscriptionSource'];
 
 export type SearchProductsParams = operations['searchProducts']['parameters']['query'];
 export type GetProductParams = operations['getProduct']['parameters']['query'];
@@ -175,6 +177,9 @@ export const PROBLEM_CODES = exhaustive<ProblemCode>()([
   'unsupported_iu_form',
   'invalid_offer_url',
   'import_failed',
+  'billing_unavailable',
+  'plan_already_active',
+  'no_billing_account',
   'internal_error',
 ]);
 
