@@ -7,7 +7,9 @@
 # data directory is mounted read-only at /data (see infra/docker-compose.yml). The seed validates
 # every file first and writes nothing when any row is invalid (exit code 2, row-level messages in
 # the output). It is idempotent: rows are upserted by their business keys, so running it again
-# keeps every id; each successful run bumps catalog_version exactly once.
+# keeps every id. A run bumps catalog_version once when it changed a catalog or reference row and
+# not at all otherwise; changed offers emit OFFERS_CHANGED outbox events like an admin import, an
+# unchanged run emits none.
 #
 # Requires bash (Git Bash or WSL on Windows), docker and the root .env created by scripts/dev-up.sh.
 # Usage: scripts/seed.sh
