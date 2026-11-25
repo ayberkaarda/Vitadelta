@@ -1,0 +1,92 @@
+{
+  "page_title": "Ürün",
+  "loading": "Ürün yükleniyor…",
+  "loaded": "{{ name }} yüklendi",
+  "aside_label": "Fiyat ve uyarılar",
+  "crumbs": {
+    "label": "Konum",
+    "results": "Sonuçlar",
+    "find": "Bul"
+  },
+  "pack": {
+    "per_container": "Kutuda {{ count }} adet",
+    "per_serving": "Porsiyon başına {{ count }} adet",
+    "servings_day": "Günde {{ count }} porsiyon",
+    "servings_day_one": "Günde 1 porsiyon",
+    "days": "{{ count }} gün"
+  },
+  "actions": {
+    "group": "Ürün işlemleri",
+    "create_alert": "Uyarı oluştur",
+    "compare": "Şununla karşılaştır…"
+  },
+  "formulation": {
+    "title": "Bileşim",
+    "units_note": "Standart birimler · porsiyon başına ve günlük",
+    "caption": "{{ name }} bileşimi",
+    "nutrient": "Besin öğesi",
+    "form": "Etiketteki form",
+    "per_serving": "Porsiyon başına",
+    "per_day": "Günlük",
+    "exceeded": "Üst sınırın üzerinde",
+    "conversion_assumed": "IU dönüşümü varsayıldı",
+    "empty": "Bu ürün için listelenmiş besin öğesi yok.",
+    "note": "Üst sınırın üzerindeki miktarlar yalnızca sınıra kadar puanlanır. Kimyasal form bilgi amaçlı gösterilir; puanı yalnızca forma özgü üst sınırlar ve IU dönüşümü üzerinden etkiler."
+  },
+  "offers": {
+    "title": "{{ country }} teklifleri",
+    "caption": "Demo fiyatlar, gerçek satıcı verisi değildir",
+    "retailer": "Satıcı",
+    "price": "Fiyat",
+    "stock": "Stok",
+    "checked": "Kontrol tarihi",
+    "link": "Bağlantı",
+    "used_for_cost": "maliyette kullanılan",
+    "in_stock": "Stokta",
+    "out_of_stock": "Stokta yok",
+    "visit": "Git",
+    "visit_label": "{{ retailer }} sayfasına git (yeni sekmede açılır)",
+    "empty": "Bu ürün için {{ country }} içinde teklif yok."
+  },
+  "price": {
+    "eyebrow": "Günlük maliyet",
+    "effective": "Geçerli fiyat",
+    "days": "Kaç günlük",
+    "offer": "Teklif",
+    "offer_value": "{{ retailer }} · {{ date }}",
+    "availability": "Satış durumu",
+    "sold_in": "{{ country }} içinde satılıyor",
+    "not_sold_in": "{{ country }} içinde satılmıyor",
+    "no_offer": "{{ country }} için henüz teklif yok, bu yüzden günlük maliyet hesaplanamıyor."
+  },
+  "alert": {
+    "title": "Beni şu durumda uyar",
+    "PRICE_DROP": "Fiyat düştüğünde",
+    "BACK_IN_STOCK": "Yeniden stoğa girdiğinde",
+    "PRICE_CHANGE": "Fiyat değiştiğinde",
+    "threshold_label": "En az (yüzde)",
+    "threshold_error": "0,01 ile 99,99 arasında, en fazla iki ondalık basamaklı bir değer girin.",
+    "from_price": "bugünkü {{ price }} fiyatından",
+    "usage": "E-posta ve gelen kutusu. {{ plan }} planında {{ limit }} uyarıdan {{ used }} tanesini kullanıyorsunuz.",
+    "usage_unlimited": "E-posta ve gelen kutusu. {{ plan }} planında sınırsız; şu an {{ used }} etkin uyarınız var.",
+    "submit": "Uyarı oluştur",
+    "created": "Uyarı oluşturuldu. Tetiklendiğinde e-posta ve gelen kutusu mesajı alırsınız.",
+    "existing": "Bu ürün için uyarılarınız",
+    "active": "etkin",
+    "paused": "duraklatıldı",
+    "trigger": {
+      "PRICE_DROP": "Fiyat düşüşü",
+      "BACK_IN_STOCK": "Yeniden stokta",
+      "PRICE_CHANGE": "Her fiyat değişikliği"
+    }
+  },
+  "not_found": {
+    "title": "Ürün bulunamadı",
+    "text": "Bu ürün yok ya da katalogdan kaldırıldı.",
+    "find": "Bul sayfasına git"
+  },
+  "not_available": {
+    "title": "{{ country }} içinde satılmıyor",
+    "text": "Bu ürün {{ country }} içinde satılmıyor. Üst kısımdan başka bir ülke seçin ya da yeni bir arama başlatın."
+  }
+}
