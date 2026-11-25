@@ -6,7 +6,7 @@ VitaDelta, vitamin ve takviye karşılaştırma hizmetidir. Takviye ürünlerini
 
 > VitaDelta yalnızca karşılaştırmalı bilgi sunar. Tıbbi tavsiye değildir ve bir hekim ya da eczacıyla yapılacak görüşmenin yerini tutmaz.
 
-**Durum: Faz 4, katalog ve ürün uç noktaları, kayıt olmadan deneme sınırıyla sıralı öneriler, ikili karşılaştırma ve yönetici içe aktarmaları; temelde Faz 3 hesapları, planları ve promosyon kodları ile Faz 2 puanlama motoru (`/score` ve `/compare`, golden ve property testleri, karar kalibrasyonu) yer alır.** Depo; tüm servislerin çalıştırılabilir iskeletlerini, sözleşmeleri, yerel ortamı ve CI iş akışını, katalog veritabanı şemasını, referans verileri ve bunları yükleyen bir seed yükleyiciyi, ayrıca dahili `/score` ve `/compare` uç noktalarının arkasındaki puanlama motorunu içerir. Puanlama formülleri, yapılandırma ve hata modeli [services/scoring/README.md](services/scoring/README.md) dosyasında; karar kalibrasyonu sonucu [services/scoring/calibration/verdict-calibration.md](services/scoring/calibration/verdict-calibration.md) dosyasında yer alır. API artık kayıt, e-posta doğrulama, yenileme oturumlu giriş, parola sıfırlama, plan yetkileri ve promosyon kodlarını da sağlar. Katalog API üzerinden okunabilir (ülkeler, besinler, ürün arama ve ayrıntı), öneri sorguları puanlama servisinin puanladığı sıralı bir liste döndürür ve iki ürün ikili olarak karşılaştırılabilir. Kalan ürün özellikleri sonraki fazlarda gelecektir.
+**Durum: Faz 5, kayıtlı ürünler, uyarı abonelikleri, işlemsel outbox ile e-posta teslimatlı bildirimler, gösterim para birimi dönüşümlü döviz kurları ile yönetici sağlık ve outbox istatistikleri; temelde Faz 4 katalog ve ürün uç noktaları, kayıt olmadan deneme sınırıyla sıralı öneriler, ikili karşılaştırma ve yönetici içe aktarmaları, Faz 3 hesapları, planları ve promosyon kodları ile Faz 2 puanlama motoru (`/score` ve `/compare`, golden ve property testleri, karar kalibrasyonu) yer alır.** Depo; tüm servislerin çalıştırılabilir iskeletlerini, sözleşmeleri, yerel ortamı ve CI iş akışını, katalog veritabanı şemasını, referans verileri ve bunları yükleyen bir seed yükleyiciyi, ayrıca dahili `/score` ve `/compare` uç noktalarının arkasındaki puanlama motorunu içerir. Puanlama formülleri, yapılandırma ve hata modeli [services/scoring/README.md](services/scoring/README.md) dosyasında; karar kalibrasyonu sonucu [services/scoring/calibration/verdict-calibration.md](services/scoring/calibration/verdict-calibration.md) dosyasında yer alır. API artık kayıt, e-posta doğrulama, yenileme oturumlu giriş, parola sıfırlama, plan yetkileri ve promosyon kodlarını da sağlar. Katalog API üzerinden okunabilir (ülkeler, besinler, ürün arama ve ayrıntı), öneri sorguları puanlama servisinin puanladığı sıralı bir liste döndürür ve iki ürün ikili olarak karşılaştırılabilir. Kalan ürün özellikleri sonraki fazlarda gelecektir.
 
 ## Mimariye genel bakış
 
@@ -59,7 +59,7 @@ Kataloğu çalışan yığına şu komutla yükleyin:
 scripts/seed.sh
 ```
 
-Betik referans verileri, sentetik fixture'ları ve gerçek ABD etiket anlık görüntüsünü (sentetik demo fiyatlarla) yükler. Seed idempotenttir: `data/` altındaki dosyaları değiştirdikten sonra yeniden çalıştırın.
+Betik referans verileri, sentetik fixture'ları ve gerçek ABD etiket anlık görüntüsünü (sentetik demo fiyatlarla) yükler. Seed idempotenttir: `data/` altındaki dosyaları değiştirdikten sonra yeniden çalıştırın. Hiçbir şeyi değiştirmeyen bir çalıştırma katalog sürümünü değiştirmez; değişen teklifler, yönetici içe aktarımı gibi fiyat uyarılarını tetikler.
 
 Yığını şu komutlarla durdurun:
 
@@ -99,7 +99,33 @@ curl -s -X POST "http://localhost:8080/api/v1/recommendations/compare" \
 curl -s "http://localhost:8080/api/v1/openapi.json"
 ```
 
-Hesabı olmayan ziyaretçi üç ücretsiz öneri sorgusu yapabilir ve her sorgunun ilk üç sonucunu görür; dördüncü sorgu `quota_exceeded` ile yanıtlanır. Aynı anonim oturumu istekler arasında korumak için sorgu çağrısında `-c cookies.txt -b cookies.txt` kullanın. Çalışan API'nin OpenAPI belgesi `/api/v1/openapi.json` adresinden sunulur. Yöneticiler ürünleri (JSON) ve teklifleri (CSV) `/api/v1/admin/imports/*` üzerinden içe aktarır (ADMIN rolü); biçimler `contracts/schemas/` altında tanımlıdır. Kur modülü gelene kadar başka bir gösterim para birimiyle istenen fiyatlar kendi para biriminde gösterilir.
+Hesabı olmayan ziyaretçi üç ücretsiz öneri sorgusu yapabilir ve her sorgunun ilk üç sonucunu görür; dördüncü sorgu `quota_exceeded` ile yanıtlanır. Aynı anonim oturumu istekler arasında korumak için sorgu çağrısında `-c cookies.txt -b cookies.txt` kullanın. Çalışan API'nin OpenAPI belgesi `/api/v1/openapi.json` adresinden sunulur. Yöneticiler ürünleri (JSON) ve teklifleri (CSV) `/api/v1/admin/imports/*` üzerinden içe aktarır (ADMIN rolü); biçimler `contracts/schemas/` altında tanımlıdır. Döviz kurları, Frankfurter üzerinden alınan ECB referans kurlarıdır ve altı saatte bir yenilenir; yalnızca bilgi amaçlıdır ve bir para birimi çifti için saklanmış kur yoksa fiyatlar kendi para biriminde kalır ve yanıt bunu belirtir.
+
+Kayıt olma, ürün kaydetme, uyarıya abone olma ve sonuçları okuma şöyle görünür (doğrulama belirteci Mailpit'teki son iletiden okunur; kaydedilen ürün aşağıdaki fiyat düşüşü gösterimi için kullanılan üründür):
+
+```bash
+API=http://localhost:8080/api/v1
+JSON='Content-Type: application/json'
+curl -s -X POST "$API/auth/register" -H "$JSON" \
+  -d '{"email": "me@example.com", "password": "correct-horse-battery", "countryCode": "TR"}'
+VERIFY=$(curl -s http://127.0.0.1:8025/api/v1/message/latest | grep -o '#token=[A-Za-z0-9_-]*' | head -1 | cut -d= -f2)
+curl -s -X POST "$API/auth/verify-email" -H "$JSON" -d "{\"token\": \"$VERIFY\"}"
+ACCESS=$(curl -s -X POST "$API/auth/login" -H "$JSON" \
+  -d '{"email": "me@example.com", "password": "correct-horse-battery"}' | grep -o '"accessToken":"[^"]*"' | cut -d'"' -f4)
+PRODUCT=$(curl -s "$API/products?country=TR&q=Gold%20Standard%20Daily%20B" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+curl -s -X POST "$API/me/saved-products" -H "$JSON" -H "Authorization: Bearer $ACCESS" \
+  -d "{\"productId\": \"$PRODUCT\", \"countryCode\": \"TR\"}"
+curl -s -X POST "$API/me/alerts" -H "$JSON" -H "Authorization: Bearer $ACCESS" \
+  -d "{\"productId\": \"$PRODUCT\", \"countryCode\": \"TR\", \"trigger\": \"PRICE_DROP\", \"thresholdPercent\": 5}"
+curl -s "$API/me/notifications" -H "Authorization: Bearer $ACCESS"
+curl -s "$API/me/notifications/unread-count" -H "Authorization: Bearer $ACCESS"
+curl -s "$API/fx/currencies"
+curl -s "$API/fx/rates?base=TRY"
+curl -s -X POST "$API/recommendations/query" -H "$JSON" \
+  -d '{"country": "TR", "displayCurrency": "USD"}'
+```
+
+Bir uyarının yerelde tetiklendiğini görmek için başlangıç yöneticisi olarak oturum açın ve `data/fixtures/offers.price-drop.synthetic.csv` dosyasını `POST /api/v1/admin/imports/offers` ile içe aktarın (multipart alanı `file`). Bu, Gold Standard Daily B fiyatını 900,00'dan 846,00'a düşürür; yaklaşık on saniye içinde outbox işleyicisi bildirimi oluşturur, bildirim `GET /api/v1/me/notifications` içinde görünür ve uyarı e-postası Mailpit'te http://127.0.0.1:8025 adresinde görülebilir.
 
 ## Testleri çalıştırma
 

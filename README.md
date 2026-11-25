@@ -6,7 +6,7 @@ VitaDelta is a vitamin and supplement comparison service. It compares supplement
 
 > VitaDelta provides comparative information only. It is not medical advice and does not replace a conversation with a physician or pharmacist.
 
-**Status: Phase 4, catalog and product endpoints, ranked recommendations with the try-before-sign-up limit, pairwise comparison and admin imports, on top of the Phase 3 accounts, plans and promo codes and the Phase 2 scoring engine (`/score` and `/compare`, golden and property tests, verdict calibration).** The repository contains the runnable shells of every service, the contracts, the local stack and the CI workflow, the catalog database schema, the reference data and a loader that seeds them, and the scoring engine behind the internal `/score` and `/compare` endpoints. The scoring formulas, configuration and error model are described in [services/scoring/README.md](services/scoring/README.md); the verdict calibration result is in [services/scoring/calibration/verdict-calibration.md](services/scoring/calibration/verdict-calibration.md). The API now also provides registration, e-mail verification, login with refresh sessions, password reset, plan entitlements and promo codes. The catalog is readable through the API (countries, nutrients, product search and detail), recommendation queries return a ranked list scored by the scoring service, and two products can be compared pairwise. Remaining product features arrive in later phases.
+**Status: Phase 5, saved products, alert subscriptions, notifications with e-mail delivery through a transactional outbox, exchange rates with display-currency conversion, and admin health and outbox statistics, on top of the Phase 4 catalog and product endpoints, ranked recommendations with the try-before-sign-up limit, pairwise comparison and admin imports, the Phase 3 accounts, plans and promo codes and the Phase 2 scoring engine (`/score` and `/compare`, golden and property tests, verdict calibration).** The repository contains the runnable shells of every service, the contracts, the local stack and the CI workflow, the catalog database schema, the reference data and a loader that seeds them, and the scoring engine behind the internal `/score` and `/compare` endpoints. The scoring formulas, configuration and error model are described in [services/scoring/README.md](services/scoring/README.md); the verdict calibration result is in [services/scoring/calibration/verdict-calibration.md](services/scoring/calibration/verdict-calibration.md). The API now also provides registration, e-mail verification, login with refresh sessions, password reset, plan entitlements and promo codes. The catalog is readable through the API (countries, nutrients, product search and detail), recommendation queries return a ranked list scored by the scoring service, and two products can be compared pairwise. Remaining product features arrive in later phases.
 
 ## Architecture at a glance
 
@@ -59,7 +59,7 @@ Load the catalog into the running stack with:
 scripts/seed.sh
 ```
 
-It loads the reference data, the synthetic fixtures and the real US label snapshot (with synthetic demo prices). The seed is idempotent: run it again after changing files under `data/`.
+It loads the reference data, the synthetic fixtures and the real US label snapshot (with synthetic demo prices). The seed is idempotent: run it again after changing files under `data/`. A run that changes nothing leaves the catalog version as it is; changed offers trigger price alerts like an admin import.
 
 Stop the stack with:
 
@@ -99,7 +99,33 @@ curl -s -X POST "http://localhost:8080/api/v1/recommendations/compare" \
 curl -s "http://localhost:8080/api/v1/openapi.json"
 ```
 
-Without an account, a visitor gets three free recommendation queries and sees the top three results of each; the fourth query is answered with `quota_exceeded`. Use `-c cookies.txt -b cookies.txt` with the query call to keep the same anonymous session between requests. The OpenAPI document of the running API is served at `/api/v1/openapi.json`. Administrators import products (JSON) and offers (CSV) through `/api/v1/admin/imports/*` (role ADMIN); the formats are defined in `contracts/schemas/`. Until the exchange-rate module exists, prices requested in another display currency are shown in their native currency.
+Without an account, a visitor gets three free recommendation queries and sees the top three results of each; the fourth query is answered with `quota_exceeded`. Use `-c cookies.txt -b cookies.txt` with the query call to keep the same anonymous session between requests. The OpenAPI document of the running API is served at `/api/v1/openapi.json`. Administrators import products (JSON) and offers (CSV) through `/api/v1/admin/imports/*` (role ADMIN); the formats are defined in `contracts/schemas/`. Exchange rates are ECB reference rates fetched through Frankfurter and refreshed every six hours; they are indicative only, and when no rate is stored for a currency pair the prices stay in their native currency and the response says so.
+
+Registering, saving a product, subscribing to an alert and reading the results looks like this (the verification token is read from the latest message in Mailpit; the saved product is the one used for the price-drop demo below):
+
+```bash
+API=http://localhost:8080/api/v1
+JSON='Content-Type: application/json'
+curl -s -X POST "$API/auth/register" -H "$JSON" \
+  -d '{"email": "me@example.com", "password": "correct-horse-battery", "countryCode": "TR"}'
+VERIFY=$(curl -s http://127.0.0.1:8025/api/v1/message/latest | grep -o '#token=[A-Za-z0-9_-]*' | head -1 | cut -d= -f2)
+curl -s -X POST "$API/auth/verify-email" -H "$JSON" -d "{\"token\": \"$VERIFY\"}"
+ACCESS=$(curl -s -X POST "$API/auth/login" -H "$JSON" \
+  -d '{"email": "me@example.com", "password": "correct-horse-battery"}' | grep -o '"accessToken":"[^"]*"' | cut -d'"' -f4)
+PRODUCT=$(curl -s "$API/products?country=TR&q=Gold%20Standard%20Daily%20B" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+curl -s -X POST "$API/me/saved-products" -H "$JSON" -H "Authorization: Bearer $ACCESS" \
+  -d "{\"productId\": \"$PRODUCT\", \"countryCode\": \"TR\"}"
+curl -s -X POST "$API/me/alerts" -H "$JSON" -H "Authorization: Bearer $ACCESS" \
+  -d "{\"productId\": \"$PRODUCT\", \"countryCode\": \"TR\", \"trigger\": \"PRICE_DROP\", \"thresholdPercent\": 5}"
+curl -s "$API/me/notifications" -H "Authorization: Bearer $ACCESS"
+curl -s "$API/me/notifications/unread-count" -H "Authorization: Bearer $ACCESS"
+curl -s "$API/fx/currencies"
+curl -s "$API/fx/rates?base=TRY"
+curl -s -X POST "$API/recommendations/query" -H "$JSON" \
+  -d '{"country": "TR", "displayCurrency": "USD"}'
+```
+
+To see an alert fire locally, sign in as the bootstrap administrator and import `data/fixtures/offers.price-drop.synthetic.csv` through `POST /api/v1/admin/imports/offers` (multipart field `file`). It lowers the Gold Standard Daily B price from 900.00 to 846.00; within about ten seconds the outbox processor creates the notification, which then shows up in `GET /api/v1/me/notifications`, and the alert e-mail is visible in Mailpit at http://127.0.0.1:8025.
 
 ## Running the tests
 
