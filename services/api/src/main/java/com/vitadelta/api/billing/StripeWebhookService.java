@@ -60,11 +60,15 @@ import tools.jackson.databind.json.JsonMapper;
  *         <li>anything else (past due, unpaid, an open renewal invoice) changes nothing: the paid
  *             period stays in effect until it ends.
  *       </ul>
+ *   <li>When the user no longer exists, a subscription that has not ended is canceled at Stripe
+ *       after the transaction (a checkout paid after the account was deleted, or a deletion that
+ *       committed during this delivery), so a deleted account is never left being charged.
  * </ol>
  *
  * Metrics: {@code vitadelta.billing.webhook{outcome}}, {@code
  * vitadelta.billing.webhook.rejected{reason}}, {@code vitadelta.billing.payment_failed}, {@code
- * vitadelta.billing.duplicate_subscription}, {@code vitadelta.billing.stripe.failed}.
+ * vitadelta.billing.duplicate_subscription}, {@code vitadelta.billing.stripe.failed}, {@code
+ * vitadelta.billing.cancel_on_delete.canceled}, {@code vitadelta.billing.cancel_on_delete.failed}.
  */
 @Service
 public class StripeWebhookService {
@@ -103,7 +107,7 @@ public class StripeWebhookService {
     IGNORED_MODE,
     /** Not a subscription created by this API's checkout (no or mismatching user, other price). */
     IGNORED_FOREIGN,
-    /** The user no longer exists. */
+    /** The user no longer exists; a live subscription of the user is canceled at Stripe. */
     USER_MISSING,
     /** The customer or subscription is already mapped to another user. */
     CUSTOMER_CONFLICT;
@@ -263,7 +267,38 @@ public class StripeWebhookService {
     if (userId.isEmpty()) {
       return Outcome.IGNORED_FOREIGN;
     }
-    return transactions.execute(status -> apply(event, subscription, userId.get()));
+    Outcome outcome = transactions.execute(status -> apply(event, subscription, userId.get()));
+    if (outcome == Outcome.USER_MISSING && !subscription.terminal()) {
+      cancelOrphan(event, subscription);
+    }
+    return outcome;
+  }
+
+  /**
+   * Cancels at Stripe a live subscription of this API whose user no longer exists (a checkout paid
+   * after the account was deleted, or a deletion that committed while this delivery was reading
+   * Stripe), outside any transaction, and only then records the event. A failed cancellation is
+   * counted in {@code vitadelta.billing.cancel_on_delete.failed} and answered {@code 503} without
+   * recording the event, so Stripe's retry of the delivery retries the cancellation.
+   */
+  private void cancelOrphan(Event event, StripeSubscription subscription) {
+    try {
+      stripe.cancelSubscription(subscription.id());
+      meters.counter("vitadelta.billing.cancel_on_delete.canceled").increment();
+      LOG.warn(
+          "Stripe event {}: subscription {} belongs to a deleted account and was canceled",
+          event.id(),
+          subscription.id());
+    } catch (StripeApiException e) {
+      meters.counter("vitadelta.billing.cancel_on_delete.failed").increment();
+      LOG.warn(
+          "Stripe event {}: subscription {} of a deleted account could not be canceled: {}",
+          event.id(),
+          subscription.id(),
+          e.getMessage());
+      throw ProviderCheckoutService.unavailable();
+    }
+    accounts.recordEvent(event.id(), event.type(), Outcome.USER_MISSING.tag(), clock.instant());
   }
 
   /** The subscription an event refers to (and, for a checkout, the session's user). */
@@ -320,7 +355,11 @@ public class StripeWebhookService {
   private Outcome apply(Event event, StripeSubscription subscription, UUID userId) {
     Instant now = clock.instant();
     if (users.findByIdForUpdate(userId).isEmpty()) {
-      return record(event, Outcome.USER_MISSING, now);
+      // A live subscription is canceled at Stripe after this transaction (cancelOrphan), and the
+      // event is recorded only once that succeeded.
+      return subscription.terminal()
+          ? record(event, Outcome.USER_MISSING, now)
+          : Outcome.USER_MISSING;
     }
     if (accounts.eventRecorded(event.id())) {
       return Outcome.DUPLICATE;

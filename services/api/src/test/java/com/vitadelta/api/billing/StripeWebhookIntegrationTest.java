@@ -31,6 +31,7 @@ class StripeWebhookIntegrationTest extends StripeIntegrationTest {
 
   @Autowired AccountService accounts;
   @Autowired PasswordHasher hasher;
+  @Autowired io.micrometer.core.instrument.MeterRegistry meters;
 
   /** A period end on whole seconds (Stripe timestamps), {@code days} after the test clock. */
   private Instant end(int days) {
@@ -536,5 +537,49 @@ class StripeWebhookIntegrationTest extends StripeIntegrationTest {
     accounts.delete(paid.user().id(), password);
 
     assertThat(users.findById(paid.user().id())).isEmpty();
+  }
+
+  @Test
+  void aLiveSubscriptionOfADeletedUserIsCanceledAndAFailedCancellationIsRetried() {
+    TestUser user = user();
+    jdbc.sql("DELETE FROM app_user WHERE id = ?").param(user.id()).update();
+    String subscription = stripeId("sub_");
+    String customer = stripeId("cus_");
+    subscription(subscription, customer, "active", user.id(), PRICE, end(30), "paid");
+    STRIPE.stubFor(
+        WireMock.delete(urlPathEqualTo("/v1/subscriptions/" + subscription))
+            .willReturn(aResponse().withStatus(500).withBody("{}")));
+    String eventId = stripeId("evt_");
+    String body = invoiceEvent(eventId, "invoice.paid", subscription);
+    double failedBefore = meters.counter("vitadelta.billing.cancel_on_delete.failed").count();
+
+    assertProblem(webhook(body), 503, "billing_unavailable");
+    assertThat(webhookEvents(eventId)).isZero();
+    assertThat(meters.counter("vitadelta.billing.cancel_on_delete.failed").count())
+        .isEqualTo(failedBefore + 1);
+
+    STRIPE.stubFor(
+        WireMock.delete(urlPathEqualTo("/v1/subscriptions/" + subscription))
+            .willReturn(
+                aResponse()
+                    .withStatus(200)
+                    .withHeader("Content-Type", "application/json")
+                    .withBody("{\"id\":\"" + subscription + "\",\"status\":\"canceled\"}")));
+    assertAck(webhook(body));
+    assertThat(
+            jdbc.sql("SELECT outcome FROM billing_webhook_event WHERE event_id = ?")
+                .param(eventId)
+                .query(String.class)
+                .single())
+        .isEqualTo("user_missing");
+    assertThat(
+            STRIPE.findAll(deleteRequestedFor(urlPathEqualTo("/v1/subscriptions/" + subscription))))
+        .hasSize(2);
+    assertThat(
+            jdbc.sql("SELECT count(*) FROM billing_subscription WHERE external_ref = ?")
+                .param(subscription)
+                .query(Long.class)
+                .single())
+        .isZero();
   }
 }
