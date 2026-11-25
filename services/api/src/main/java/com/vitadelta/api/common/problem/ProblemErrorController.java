@@ -1,10 +1,12 @@
 package com.vitadelta.api.common.problem;
 
+import com.vitadelta.api.common.web.RequestIds;
 import jakarta.servlet.RequestDispatcher;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.boot.webmvc.error.ErrorController;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -34,7 +36,13 @@ public class ProblemErrorController implements ErrorController {
     if (status.is5xxServerError()) {
       Object exception = request.getAttribute(RequestDispatcher.ERROR_EXCEPTION);
       if (exception instanceof Throwable throwable) {
-        LOG.error("Request failed for {}", original.getRequestURI(), throwable);
+        // The error dispatch runs after the request-id filter has left: restore the id for the
+        // line.
+        try (MDC.MDCCloseable _ =
+            MDC.putCloseable(
+                RequestIds.KEY, RequestIds.current(request).orElseGet(RequestIds::generate))) {
+          LOG.error("Request failed for {}", original.getRequestURI(), throwable);
+        }
       }
       return ProblemBodies.entity(Problems.internalError(original), null);
     }

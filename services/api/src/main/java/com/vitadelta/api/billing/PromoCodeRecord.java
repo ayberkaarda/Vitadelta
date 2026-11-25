@@ -23,4 +23,25 @@ public record PromoCodeRecord(
   public boolean expired(Instant now) {
     return expiresAt != null && !expiresAt.isAfter(now);
   }
+
+  /**
+   * Hides the code: a promo code is a bearer credential for a subscription, and framework debug
+   * logging prints the objects it serializes.
+   */
+  @Override
+  public String toString() {
+    return "PromoCodeRecord[code=<hidden>, planCode="
+        + planCode
+        + ", durationDays="
+        + durationDays
+        + ", maxRedemptions="
+        + maxRedemptions
+        + ", redeemedCount="
+        + redeemedCount
+        + ", expiresAt="
+        + expiresAt
+        + ", createdBy="
+        + createdBy
+        + "]";
+  }
 }

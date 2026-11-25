@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -53,6 +54,7 @@ public class AdminBillingController {
   }
 
   @PostMapping("/api/v1/admin/promo-codes")
+  @ResponseStatus(HttpStatus.CREATED)
   ResponseEntity<PromoCodeRecord> create(
       @Valid @RequestBody CreatePromoCodeRequest body, Authentication authentication) {
     PromoCodeRecord created =
@@ -72,6 +74,7 @@ public class AdminBillingController {
   }
 
   @DeleteMapping("/api/v1/admin/promo-codes/{code}")
+  @ResponseStatus(HttpStatus.NO_CONTENT)
   ResponseEntity<Void> delete(@PathVariable String code) {
     if (!promoCodes.delete(code)) {
       throw new ResponseStatusException(HttpStatus.NOT_FOUND);
