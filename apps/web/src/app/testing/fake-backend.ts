@@ -22,6 +22,7 @@ import {
   DefaultWeights,
   Me,
   Notification,
+  PlanList,
   RankedProduct,
   RecommendationQueryResponse,
   SavedProduct,
@@ -56,7 +57,15 @@ interface Account {
   password: string;
   role: 'USER' | 'ADMIN';
   verified: boolean;
+  /** PRO paid through the payment provider (set by a simulated provider webhook). */
+  providerPro: boolean;
+  /** A completed provider checkout made this account a provider customer. */
+  billingCustomer: boolean;
 }
+
+/** Synthetic hosted pages of the payment provider (test-mode shapes, never opened). */
+export const FAKE_CHECKOUT_URL = 'https://checkout.stripe.com/c/pay/cs_test_flowSynthetic01';
+export const FAKE_PORTAL_URL = 'https://billing.stripe.com/p/session/test_flowSynthetic01';
 
 type Reply = readonly [status: number, body: unknown];
 
@@ -107,6 +116,7 @@ export class FakeBackend implements HttpBackend {
   private readonly saved = new Map<string, string>();
   private readonly alerts: AlertSubscription[] = [];
   private unread = 0;
+  private billingProvider = false;
 
   /** Signs a user in on "page load" (a valid refresh cookie). */
   seedSession(role: 'USER' | 'ADMIN' = 'USER'): void {
@@ -116,6 +126,8 @@ export class FakeBackend implements HttpBackend {
       password: 'correct-horse-battery',
       role,
       verified: true,
+      providerPro: false,
+      billingCustomer: false,
     };
     this.accounts.set(account.email, account);
     this.refreshFor = account;
@@ -129,6 +141,22 @@ export class FakeBackend implements HttpBackend {
   /** The refresh cookie is gone or revoked: `/auth/refresh` answers 401. */
   breakRefresh(): void {
     this.refreshBroken = true;
+  }
+
+  /** Configures the payment provider: `checkoutAvailable` and the billing routes. */
+  enableBillingProvider(): void {
+    this.billingProvider = true;
+  }
+
+  /**
+   * Simulates the provider's signed webhook after a completed checkout: the signed-in account
+   * becomes PRO with `source = PROVIDER` and a provider customer.
+   */
+  completeCheckout(): void {
+    if (this.refreshFor) {
+      this.refreshFor.providerPro = true;
+      this.refreshFor.billingCustomer = true;
+    }
   }
 
   /** Simulates a new notification created by the alert evaluator. */
@@ -199,6 +227,8 @@ export class FakeBackend implements HttpBackend {
         return [200, DEFAULTS];
       case 'GET /session/quota':
         return [200, this.anonymousQuota()];
+      case 'GET /plans':
+        return [200, this.plans()];
       case 'POST /auth/refresh':
         return this.refresh();
       case 'POST /auth/logout':
@@ -237,6 +267,10 @@ export class FakeBackend implements HttpBackend {
         return this.createAlert(body);
       case 'GET /me/alerts':
         return [200, { items: this.alertList() }];
+      case 'POST /billing/checkout-session':
+        return this.checkout(account);
+      case 'POST /billing/portal-session':
+        return this.portal(account);
     }
     if (path.startsWith(`${API}/admin/`)) {
       return account.role === 'ADMIN' ? [200, { items: [] }] : problem('forbidden', 403);
@@ -276,6 +310,8 @@ export class FakeBackend implements HttpBackend {
         password: String(body['password']),
         role: 'USER',
         verified: false,
+        providerPro: false,
+        billingCustomer: false,
       });
       this.verificationToken = 'dmVyaWZ5LXN5bnRoZXRpYy1mbG93LXRva2Vu';
     }
@@ -311,7 +347,7 @@ export class FakeBackend implements HttpBackend {
   }
 
   private me(account: Account): Me {
-    return fixtureMe({
+    const free = fixtureMe({
       ...fixtureUser({ id: account.id, email: account.email, role: account.role }),
       emailVerified: account.verified,
       usage: {
@@ -320,6 +356,88 @@ export class FakeBackend implements HttpBackend {
         notificationsThisMonth: { used: 0, limit: 30, periodMonth: '2026-11-01' },
       },
     });
+    if (!account.providerPro) {
+      return free;
+    }
+    return {
+      ...free,
+      plan: {
+        code: 'PRO',
+        name: 'Pro',
+        savedProductsLimit: null,
+        alertSubscriptionsLimit: null,
+        notificationsPerMonthLimit: null,
+      },
+      subscription: {
+        id: '6f7a8b9c-0d1e-4f2a-8b3c-4d5e6f7a8b9c',
+        planCode: 'PRO',
+        status: 'ACTIVE',
+        source: 'PROVIDER',
+        startedAt: '2026-11-25T10:00:00Z',
+        currentPeriodEnd: '2026-12-25T10:00:00Z',
+        canceledAt: null,
+      },
+      usage: {
+        savedProducts: { used: this.saved.size, limit: null },
+        alertSubscriptions: { used: this.alerts.filter((a) => a.active).length, limit: null },
+        notificationsThisMonth: { used: 0, limit: null, periodMonth: '2026-11-01' },
+      },
+    };
+  }
+
+  private plans(): PlanList {
+    return {
+      meta: { nativeCurrency: 'TRY', currency: 'TRY', fx: FX_IDENTITY_TRY },
+      items: [
+        {
+          code: 'FREE',
+          name: 'Free',
+          savedProductsLimit: 5,
+          alertSubscriptionsLimit: 3,
+          notificationsPerMonthLimit: 30,
+          price: null,
+          checkoutAvailable: false,
+        },
+        {
+          code: 'PRO',
+          name: 'Pro',
+          savedProductsLimit: null,
+          alertSubscriptionsLimit: null,
+          notificationsPerMonthLimit: null,
+          price: {
+            amount: 199,
+            amountNative: 199,
+            currency: 'TRY',
+            nativeCurrency: 'TRY',
+            billingPeriod: 'MONTHLY',
+          },
+          checkoutAvailable: this.billingProvider,
+        },
+      ],
+    };
+  }
+
+  private checkout(account: Account): Reply {
+    if (!this.billingProvider) {
+      return problem('billing_unavailable', 503);
+    }
+    if (!account.verified) {
+      return problem('email_not_verified', 403);
+    }
+    if (account.providerPro) {
+      return problem('plan_already_active', 409);
+    }
+    return [200, { url: FAKE_CHECKOUT_URL }];
+  }
+
+  private portal(account: Account): Reply {
+    if (!this.billingProvider) {
+      return problem('billing_unavailable', 503);
+    }
+    if (!account.billingCustomer) {
+      return problem('no_billing_account', 409);
+    }
+    return [200, { url: FAKE_PORTAL_URL }];
   }
 
   private query(body: Record<string, unknown>, authorization: string | null): Reply {

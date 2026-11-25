@@ -4,11 +4,13 @@ import { Router, TitleStrategy, provideRouter, withComponentInputBinding } from 
 
 import authEn from '../../public/i18n/auth/en.json';
 import authTr from '../../public/i18n/auth/tr.json';
+import upgradeEn from '../../public/i18n/upgrade/en.json';
 import privacyTr from '../../public/i18n/privacy/tr.json';
 import resultsTr from '../../public/i18n/results/tr.json';
 import { routes } from './app.routes';
 import { startApplication } from './app.start';
 import { authInterceptor } from './core/auth/auth.interceptor';
+import { ExternalNavigation } from './core/billing/billing-navigator';
 import { SESSION_CHANNEL, WEB_LOCKS } from './core/auth/refresh-coordinator';
 import { I18nTitleStrategy } from './core/i18n/i18n-title.strategy';
 import { provideI18n } from './core/i18n/provide-i18n';
@@ -16,7 +18,13 @@ import { TranslocoHttpLoader } from './core/i18n/transloco-http-loader';
 import { UnreadCountStore } from './core/state/unread-count.store';
 import { ShellComponent } from './shell/shell.component';
 import { EN, TR } from './testing/transloco-testing';
-import { ANONYMOUS_VISIBLE, FakeBackend } from './testing/fake-backend';
+import { CHECKOUT_CONFIRM_DELAYS } from './features/upgrade/components/checkout-return.component';
+import {
+  ANONYMOUS_VISIBLE,
+  FAKE_CHECKOUT_URL,
+  FAKE_PORTAL_URL,
+  FakeBackend,
+} from './testing/fake-backend';
 
 // Cross-feature flows against the stateful fake API: real routes and lazy features, real
 // stores, the real auth interceptor and translation loading. Only the network is replaced.
@@ -25,6 +33,8 @@ describe('application flows', () => {
   let backend: FakeBackend;
   let fixture: ComponentFixture<ShellComponent>;
   let router: Router;
+  /** URLs the app sent the browser to outside itself (never loaded in the tests). */
+  let leftTo: string[];
 
   const host = () => fixture.nativeElement as HTMLElement;
   const $ = <T extends Element = HTMLElement>(selector: string) =>
@@ -76,6 +86,7 @@ describe('application flows', () => {
       window.history.replaceState(null, '', '/');
     }
     backend = new FakeBackend();
+    leftTo = [];
     seed?.(backend);
     TestBed.configureTestingModule({
       providers: [
@@ -97,6 +108,8 @@ describe('application flows', () => {
         }),
         { provide: SESSION_CHANNEL, useValue: null },
         { provide: WEB_LOCKS, useValue: null },
+        { provide: ExternalNavigation, useValue: { assign: (url: string) => leftTo.push(url) } },
+        { provide: CHECKOUT_CONFIRM_DELAYS, useValue: [0, 0, 0] },
       ],
     });
     router = TestBed.inject(Router);
@@ -280,6 +293,56 @@ describe('application flows', () => {
     expect(alertCalls[0].authorization).not.toBe(alertCalls[1].authorization);
     expect(router.url).toBe('/account/alerts');
     expect($('vd-empty-state')).not.toBeNull();
+  });
+
+  it('buys PRO through the hosted checkout, waits for the webhook and opens the billing portal', async () => {
+    await start((b) => {
+      b.seedSession('USER');
+      b.enableBillingProvider();
+    });
+    await go('/upgrade');
+    expect(backend.count('GET', '/plans')).toBe(1);
+    expect(text($('[data-how]'))).toBe(upgradeEn.how_to_get_pro_online);
+
+    // The checkout button asks the API for a session and leaves for the provider's page.
+    await click('[data-plan="PRO"] button[data-action="checkout"]');
+    const checkout = backend.requests.find((r) => r.path === '/billing/checkout-session');
+    expect(checkout?.method).toBe('POST');
+    expect(checkout?.authorization).toMatch(/^Bearer access-\d+$/);
+    expect(leftTo).toEqual([FAKE_CHECKOUT_URL]);
+
+    // The provider returns the browser (a new page load of /upgrade) before its webhook has
+    // reached the API.
+    await go('/account');
+    const reloadsBefore = backend.count('GET', '/me');
+    await go('/upgrade?checkout=success');
+    await settle();
+    expect(router.url).toBe('/upgrade');
+    expect($('[data-return="pending"]')).not.toBeNull();
+    expect(backend.count('GET', '/me')).toBe(reloadsBefore + 3);
+    expect(text($('[data-plan="PRO"]'))).not.toContain(upgradeEn.your_plan);
+
+    // The webhook lands; checking again shows what the server says now.
+    backend.completeCheckout();
+    await click('[data-return="pending"] button');
+    expect(text($('[data-return="active"]'))).toContain('Dec 25, 2026');
+    expect(text($('[data-plan="PRO"]'))).toContain(upgradeEn.your_plan);
+    expect($('[data-plan="PRO"] button[data-action="checkout"]')).toBeNull();
+
+    // The account page offers the provider's billing portal.
+    await go('/account');
+    await click('vd-plan-card button[data-action="manage-subscription"]');
+    expect(backend.count('POST', '/billing/portal-session')).toBe(1);
+    expect(leftTo).toEqual([FAKE_CHECKOUT_URL, FAKE_PORTAL_URL]);
+  });
+
+  it('shows no checkout button while no payment provider is configured', async () => {
+    await start((b) => b.seedSession('USER'));
+    await go('/upgrade');
+    expect($('[data-plan="PRO"]')).not.toBeNull();
+    expect($('[data-billing]')).toBeNull();
+    expect(text($('[data-how]'))).toBe(upgradeEn.how_to_get_pro);
+    expect(backend.requests.some((r) => r.path.startsWith('/billing/'))).toBe(false);
   });
 
   it('sends the user to the login page when the refresh fails', async () => {
