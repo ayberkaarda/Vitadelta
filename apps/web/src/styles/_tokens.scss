@@ -1,9 +1,10 @@
 // Design tokens exposed as CSS custom properties.
 //
-// Every text/background pair below meets WCAG 2.2 AA (>= 4.5:1) in both themes:
+// Every text/background pair below meets WCAG 2.1 AA (>= 4.5:1) in both themes:
 // text, muted text, accent and the status foregrounds are checked against the page
 // background, the surface and their own tinted status background. Control borders
-// (`--vd-color-border-strong`) and the focus ring meet the 3:1 non-text minimum.
+// (`--vd-color-border-strong`), bar fills against their track and the focus ring meet the
+// 3:1 non-text minimum.
 
 @mixin light-colors {
   // Neutrals: cool slate, slightly tinted so white surfaces read as raised cards.
@@ -18,6 +19,7 @@
   // Brand and interaction.
   --vd-color-accent: #1d5bb8;
   --vd-color-accent-hover: #174a97;
+  --vd-color-accent-bg: #e8f0fb;
   --vd-color-on-accent: #ffffff;
   --vd-color-focus: #1d5bb8;
 
@@ -31,7 +33,16 @@
   --vd-color-neutral: #4a5767;
   --vd-color-neutral-bg: #edf0f3;
 
+  // Data marks (score bars, delta bars, coverage strips).
+  --vd-bar-track: #e1e7ed;
+  --vd-bar-fill-alt: #66768a;
+  --vd-delta-loss: #a3460f;
+  --vd-nocredit: #7b8794;
+
+  // Overlays.
+  --vd-color-scrim: rgb(13 19 24 / 42%);
   --vd-shadow-raised: 0 1px 2px rgb(18 29 41 / 6%), 0 4px 12px rgb(18 29 41 / 5%);
+  --vd-shadow-overlay: 0 2px 6px rgb(18 29 41 / 8%), 0 12px 32px rgb(18 29 41 / 16%);
 }
 
 @mixin dark-colors {
@@ -45,6 +56,7 @@
 
   --vd-color-accent: #8db6f5;
   --vd-color-accent-hover: #aecbf8;
+  --vd-color-accent-bg: #172a45;
   --vd-color-on-accent: #0d1318;
   --vd-color-focus: #8db6f5;
 
@@ -57,7 +69,14 @@
   --vd-color-neutral: #b4c0cc;
   --vd-color-neutral-bg: #1f2933;
 
+  --vd-bar-track: #2a3541;
+  --vd-bar-fill-alt: #8494a6;
+  --vd-delta-loss: #f59e62;
+  --vd-nocredit: #6c7a88;
+
+  --vd-color-scrim: rgb(0 0 0 / 60%);
   --vd-shadow-raised: 0 1px 2px rgb(0 0 0 / 40%);
+  --vd-shadow-overlay: 0 12px 32px rgb(0 0 0 / 55%);
 }
 
 :root {
@@ -71,10 +90,12 @@
   --vd-space-5: 1.5rem;
   --vd-space-6: 2rem;
   --vd-space-7: 3rem;
+  --vd-space-8: 4rem;
 
-  // Type scale (major third from 1rem) and weights.
+  // Type scale and weights.
   --vd-font-family:
     system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --vd-font-mono: ui-monospace, 'SF Mono', 'Cascadia Mono', Consolas, 'Liberation Mono', monospace;
   --vd-font-size-xs: 0.75rem;
   --vd-font-size-sm: 0.875rem;
   --vd-font-size-md: 1rem;
@@ -97,15 +118,24 @@
   --vd-radius-pill: 999px;
   --vd-focus-ring-width: 3px;
   --vd-focus-ring-offset: 2px;
+  --vd-page-max-width: 76rem;
   --vd-content-max-width: 48rem;
+  --vd-header-max-width: 90rem;
+  --vd-drawer-width: 30rem;
   --vd-control-height: 2.5rem;
+  --vd-gutter: max(16px, var(--vd-space-5));
 
   // Motion.
   --vd-duration-fast: 120ms;
+  --vd-duration-panel: 200ms;
   --vd-duration-spin: 900ms;
   --vd-ease-standard: cubic-bezier(0.2, 0, 0, 1);
 
   @include light-colors;
+
+  // Theme-independent aliases resolved against the active theme.
+  --vd-bar-fill: var(--vd-color-accent);
+  --vd-delta-gain: var(--vd-color-accent);
 
   // Service status (API health).
   --vd-status-up: var(--vd-color-success);
@@ -119,14 +149,28 @@
 
   // Domain semantic colours.
   --vd-verdict-worth: var(--vd-color-success);
+  --vd-verdict-worth-bg: var(--vd-color-success-bg);
   --vd-verdict-marginal: var(--vd-color-warning);
+  --vd-verdict-marginal-bg: var(--vd-color-warning-bg);
   --vd-verdict-not-worth: var(--vd-color-danger);
+  --vd-verdict-not-worth-bg: var(--vd-color-danger-bg);
+  --vd-verdict-dominates: var(--vd-color-success);
+  --vd-verdict-equivalent: var(--vd-color-accent);
+  --vd-verdict-neutral: var(--vd-color-neutral);
   --vd-flag-warning: var(--vd-color-warning);
+  --vd-flag-warning-bg: var(--vd-color-warning-bg);
   --vd-locked: var(--vd-color-text-muted);
+  --vd-locked-bg: var(--vd-color-surface-subtle);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
     @include dark-colors;
+  }
+}
+
+@media (max-width: 48rem) {
+  :root {
+    --vd-control-height: 2.75rem;
   }
 }

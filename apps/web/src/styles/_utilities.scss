@@ -1,0 +1,101 @@
+// Small single-purpose helpers.
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+// Wrapper of a polite/assertive live region. It stays in the DOM (so later messages are
+// announced) but takes no space and adds no flex/grid gap while it is empty.
+.live-region:empty {
+  position: absolute;
+}
+
+// `.wide-only` is shown from 48rem up only (a secondary control or row that has another entry
+// point or a summary on phones); `.narrow-only` is its phone counterpart.
+@media (max-width: 48rem) {
+  .wide-only {
+    display: none !important;
+  }
+}
+
+@media (min-width: 48.0625rem) {
+  .narrow-only {
+    display: none !important;
+  }
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+.mono {
+  font-family: var(--vd-font-mono);
+  font-size: 0.92em;
+}
+
+.muted {
+  color: var(--vd-color-text-muted);
+}
+
+.text-sm {
+  font-size: var(--vd-font-size-sm);
+}
+
+.text-xs {
+  font-size: var(--vd-font-size-xs);
+}
+
+.strong {
+  font-weight: var(--vd-font-weight-semibold);
+}
+
+.text-right {
+  text-align: right;
+}
+
+.grow {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+// Inline stroke icon (see IconComponent); size modifiers.
+.i {
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vertical-align: middle;
+}
+
+.i-sm {
+  width: 1rem;
+  height: 1rem;
+}
+
+.code {
+  font-family: var(--vd-font-mono);
+  font-size: var(--vd-font-size-xs);
+  color: var(--vd-color-text-muted);
+}
+
+.ncode {
+  font-family: var(--vd-font-mono);
+  font-size: 0.8125rem;
+  font-weight: var(--vd-font-weight-semibold);
+}
