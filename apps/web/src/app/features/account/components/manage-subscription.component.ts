@@ -4,7 +4,10 @@ import { TranslocoPipe } from '@jsverse/transloco';
 
 import { ApiProblem } from '../../../core/api/api-problem';
 import { loginQueryParams } from '../../../core/auth/return-url';
-import { ProviderActionGuard } from '../../../core/billing/action-guard';
+import {
+  BILLING_CONFLICT_PAUSE_SECONDS,
+  ProviderActionGuard,
+} from '../../../core/billing/action-guard';
 import { BillingNavigator } from '../../../core/billing/billing-navigator';
 import { IconComponent } from '../../../shared/icon/icon.component';
 import { NoticeComponent } from '../../../shared/notice/notice.component';
@@ -84,7 +87,10 @@ export class ManageSubscriptionComponent {
   protected readonly busy = signal(false);
   protected readonly problem = signal<ApiProblem | null>(null);
   /** Cancels a pending session when the page is left; holds the rate-limit countdown. */
-  protected readonly guard = new ProviderActionGuard(inject(DestroyRef));
+  protected readonly guard = new ProviderActionGuard(
+    inject(DestroyRef),
+    inject(BILLING_CONFLICT_PAUSE_SECONDS),
+  );
 
   protected async open(): Promise<void> {
     if (this.busy() || this.guard.coolingDown()) {
