@@ -32,7 +32,8 @@ class HealthEndpointTest extends PostgresIntegrationTest {
   }
 
   @Test
-  void healthReturnsExactlyStatusUp() {
+  void healthReturnsOnlyTheOverallStatus() {
+    // No scoring service and no stored FX rate in this context: degraded, still 200.
     client
         .get()
         .uri("/api/v1/health")
@@ -42,7 +43,7 @@ class HealthEndpointTest extends PostgresIntegrationTest {
         .expectHeader()
         .contentTypeCompatibleWith(MediaType.APPLICATION_JSON)
         .expectBody(String.class)
-        .isEqualTo("{\"status\":\"UP\"}");
+        .isEqualTo("{\"status\":\"DEGRADED\"}");
   }
 
   @Test
