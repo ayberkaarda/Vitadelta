@@ -27,9 +27,7 @@
     "account_link": "Go to your account",
     "verify_link": "Resend the verification e-mail",
     "unsettled_title": "A paid subscription is still open",
-    "unsettled_text": "Your account still has a Stripe subscription that has not ended, for example an unpaid renewal, or your last payment is still being confirmed. Settle it in the billing portal instead of starting a second subscription.",
-    "conflict_title": "Your checkout is already being prepared",
-    "conflict_text": "Another checkout of your account was being created at the same moment, perhaps in another tab. Try again in a moment."
+    "unsettled_text": "Your account still has a Stripe subscription that has not ended, for example an unpaid renewal, or your last payment is still being confirmed. Settle it in the billing portal instead of starting a second subscription."
   },
   "return": {
     "confirming_title": "Thank you! Confirming your payment…",

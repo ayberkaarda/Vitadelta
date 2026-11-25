@@ -18,7 +18,6 @@ import {
   SubscriptionSource,
 } from '../../core/api/api-types';
 import { SessionStore } from '../../core/auth/session.store';
-import { BILLING_CONFLICT_PAUSE_SECONDS } from '../../core/billing/action-guard';
 import { ExternalNavigation } from '../../core/billing/billing-navigator';
 import { CurrencyStore } from '../../core/state/currency.store';
 import { FX_IDENTITY_TRY, FX_STALE_EUR, fixtureMe } from '../../testing/api-fixtures';
@@ -183,7 +182,6 @@ describe('UpgradePageComponent', () => {
         { provide: CurrencyStore, useValue: { requestCurrency, recordMeta } },
         { provide: ExternalNavigation, useValue: { assign } },
         { provide: CHECKOUT_CONFIRM_DELAYS, useValue: [0, 0] },
-        { provide: BILLING_CONFLICT_PAUSE_SECONDS, useValue: 1 },
       ],
     });
   }
@@ -449,29 +447,6 @@ describe('UpgradePageComponent', () => {
       expect(
         card('PRO')?.querySelector('button[data-action="manage-subscription"]'),
       ).not.toBeNull();
-    });
-
-    it('asks to try again shortly when another checkout is being created (409 conflict_retry)', async () => {
-      await setup(true, 'FREE', { checkout: true });
-      await failCheckout(new ApiProblem({ kind: 'problem', status: 409, code: 'conflict_retry' }));
-      const notice = card('PRO')?.querySelector('[data-code="conflict_retry"]');
-      expect(notice?.textContent).toContain(upgradeEn.checkout.conflict_title);
-      expect(notice?.textContent).toContain(upgradeEn.checkout.conflict_text);
-      expect(notice?.querySelector('button')).toBeNull();
-      expect(checkoutButton()?.getAttribute('aria-disabled')).toBe('true');
-      checkoutButton()?.click();
-      await settle();
-      expect(createCheckoutSession).toHaveBeenCalledTimes(1);
-
-      await new Promise((resolve) => setTimeout(resolve, 1100));
-      await settle();
-      // Released after the short pause, never retried on its own.
-      expect(checkoutButton()?.getAttribute('aria-disabled')).toBe('false');
-      expect(createCheckoutSession).toHaveBeenCalledTimes(1);
-      checkoutButton()?.click();
-      await settle();
-      expect(createCheckoutSession).toHaveBeenCalledTimes(2);
-      expect(assign).toHaveBeenCalledWith(CHECKOUT_URL);
     });
 
     it('counts down the rate limit before another try (429)', async () => {

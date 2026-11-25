@@ -1,16 +1,6 @@
-import { DestroyRef, InjectionToken, computed, signal } from '@angular/core';
+import { DestroyRef, computed, signal } from '@angular/core';
 
 import { ApiProblem } from '../api/api-problem';
-
-/**
- * Seconds a billing button waits after `409 conflict_retry` (another checkout of the same user
- * was being created at that moment) before it can be pressed again. A short, bounded pause; the
- * request is never repeated on its own.
- */
-export const BILLING_CONFLICT_PAUSE_SECONDS = new InjectionToken<number>(
-  'BILLING_CONFLICT_PAUSE_SECONDS',
-  { providedIn: 'root', factory: () => 3 },
-);
 
 /**
  * Lifetime and rate-limit state of a button that opens a hosted provider page.
@@ -19,8 +9,7 @@ export const BILLING_CONFLICT_PAUSE_SECONDS = new InjectionToken<number>(
  *   the route changed), so a late session answer never moves the browser.
  * - After `429 rate_limited` with `Retry-After`, {@link coolingDown} stays `true` until the
  *   server's delay has passed, the same countdown the problem notice shows, so the primary button
- *   cannot bypass the limit. After `409 conflict_retry` it holds the button for the short
- *   conflict pause the same way.
+ *   cannot bypass the limit.
  */
 export class ProviderActionGuard {
   private readonly controller = new AbortController();
@@ -31,25 +20,17 @@ export class ProviderActionGuard {
   readonly signal: AbortSignal = this.controller.signal;
   readonly coolingDown = computed(() => this.secondsLeft() > 0);
 
-  constructor(
-    destroyRef: DestroyRef,
-    private readonly conflictPauseSeconds = 3,
-  ) {
+  constructor(destroyRef: DestroyRef) {
     destroyRef.onDestroy(() => {
       this.controller.abort();
       this.stop();
     });
   }
 
-  /** Starts the countdown of a rate-limit or conflict problem; other problems clear it. */
+  /** Starts the countdown of a rate-limit problem; other problems clear it. */
   apply(problem: ApiProblem): void {
     this.stop();
-    const seconds =
-      problem.code === 'rate_limited'
-        ? (problem.retryAfterSeconds ?? 0)
-        : problem.code === 'conflict_retry'
-          ? this.conflictPauseSeconds
-          : 0;
+    const seconds = problem.code === 'rate_limited' ? (problem.retryAfterSeconds ?? 0) : 0;
     this.secondsLeft.set(seconds);
     if (seconds > 0) {
       this.timer = setInterval(() => {
