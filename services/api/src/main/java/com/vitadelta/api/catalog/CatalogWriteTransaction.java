@@ -1,6 +1,7 @@
 package com.vitadelta.api.catalog;
 
 import jakarta.persistence.EntityManager;
+import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import org.springframework.stereotype.Component;
@@ -15,8 +16,9 @@ import org.springframework.transaction.support.TransactionTemplate;
  * reference_value, ul_set, upper_limit, country).
  *
  * <p>{@link #execute(Supplier)} runs the work in its own transaction, flushes every pending change
- * and then executes the catalog version bump as the last statement of the transaction, so the
- * version row lock is held only for the commit. The version increases by exactly one per committed
+ * and then executes the catalog version bump as the last catalog statement of the transaction (only
+ * an optional after-bump callback, which writes no catalog row, may follow), so the version row
+ * lock is held only briefly before the commit. The version increases by exactly one per committed
  * transaction, whatever the number of rows written (also when nothing changed). When the work
  * throws, the transaction is rolled back and the version is not bumped.
  *
@@ -28,6 +30,8 @@ public class CatalogWriteTransaction {
 
   static final String BUMP_SQL =
       "UPDATE catalog_version SET version = version + 1, bumped_at = now() WHERE id = 1";
+
+  static final String VERSION_SQL = "SELECT version FROM catalog_version WHERE id = 1";
 
   private static final ThreadLocal<Boolean> ACTIVE = new ThreadLocal<>();
 
@@ -62,6 +66,21 @@ public class CatalogWriteTransaction {
    * @throws IllegalStateException when called inside an active transaction
    */
   public <T> T execute(Supplier<T> work, Predicate<? super T> changed) {
+    return execute(work, changed, (result, version) -> {});
+  }
+
+  /**
+   * Like {@link #execute(Supplier, Predicate)}; when the version was bumped, {@code afterBump} then
+   * runs in the same transaction with the result and the new catalog version, which is the version
+   * every reader sees once the transaction commits. Rows it writes (for example outbox events)
+   * commit or roll back together with the catalog rows. It runs while the version row lock is held,
+   * so it must stay short and must not write catalog rows. It is not called without a bump.
+   *
+   * @return the value returned by {@code work}
+   * @throws IllegalStateException when called inside an active transaction
+   */
+  public <T> T execute(
+      Supplier<T> work, Predicate<? super T> changed, BiConsumer<? super T, Long> afterBump) {
     if (TransactionSynchronizationManager.isActualTransactionActive()) {
       throw new IllegalStateException(
           "CatalogWriteTransaction must start its own transaction, not join an active one");
@@ -76,6 +95,10 @@ public class CatalogWriteTransaction {
           if (bumped != 1) {
             throw new IllegalStateException("catalog_version row is missing");
           }
+          long version =
+              ((Number) entityManager.createNativeQuery(VERSION_SQL).getSingleResult()).longValue();
+          afterBump.accept(result, version);
+          entityManager.flush();
         }
         return result;
       } finally {
