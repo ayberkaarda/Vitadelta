@@ -108,7 +108,11 @@ API=http://localhost:8080/api/v1
 JSON='Content-Type: application/json'
 curl -s -X POST "$API/auth/register" -H "$JSON" \
   -d '{"email": "me@example.com", "password": "correct-horse-battery", "countryCode": "TR"}'
-VERIFY=$(curl -s http://127.0.0.1:8025/api/v1/message/latest | grep -o '#token=[A-Za-z0-9_-]*' | head -1 | cut -d= -f2)
+VERIFY=
+until [ -n "$VERIFY" ]; do
+  sleep 1
+  VERIFY=$(curl -s http://127.0.0.1:8025/api/v1/message/latest | grep -o '#token=[A-Za-z0-9_-]*' | head -1 | cut -d= -f2)
+done
 curl -s -X POST "$API/auth/verify-email" -H "$JSON" -d "{\"token\": \"$VERIFY\"}"
 ACCESS=$(curl -s -X POST "$API/auth/login" -H "$JSON" \
   -d '{"email": "me@example.com", "password": "correct-horse-battery"}' | grep -o '"accessToken":"[^"]*"' | cut -d'"' -f4)
