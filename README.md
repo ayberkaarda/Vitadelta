@@ -103,6 +103,10 @@ npm run e2e
 RUN_E2E=1 scripts/test-all.sh
 ```
 
+## Running behind a TLS-terminating proxy
+
+nginx in this stack is the first hop and records the peer address of each connection as the client address; the API trusts only that entry (`X-Forwarded-For` is overwritten, never appended), so per-client rate limits work per client. When another proxy such as a load balancer terminates TLS in front of nginx, set `VITADELTA_REAL_IP_FROM` to its address or CIDR (comma- or space-separated list) in `.env`, together with `VITADELTA_TLS=true`. nginx then restores the client address from the `X-Forwarded-For` header of connections from those peers only (right-most address that is not itself a listed proxy) and passes it on to the API. Without it, all clients behind the proxy would share one rate-limit bucket. Leave it empty when clients connect to nginx directly; never list networks you do not control, because their forwarded headers are believed. `infra/nginx/check-routing.sh` verifies this behaviour against a stub upstream.
+
 ## Trying the API
 
 After `scripts/dev-up.sh` and `scripts/seed.sh`, the API is reachable through nginx on http://localhost:8080:

@@ -38,25 +38,50 @@ to_docker_path() {
 # A copy of the build plus one fingerprinted media file (the build references none today),
 # so the media caching rule is checked as well.
 site="$(mktemp -d)"
-cleanup() {
-  docker rm -f "$name" > /dev/null 2>&1 || true
-  rm -rf "$site"
-}
-trap cleanup EXIT
 cp -R "$dist/." "$site/"
 mkdir -p "$site/media"
 printf 'wOF2' > "$site/media/check-Ab3dE_9z.woff2"
 printf 'wOF2' > "$site/media/unhashed.woff2"
 
-MSYS_NO_PATHCONV=1 docker run -d --name "$name" \
-  --add-host api:127.0.0.1 \
-  -e VITADELTA_TLS=false -e NGINX_ENVSUBST_FILTER='^VITADELTA_' \
-  -p "127.0.0.1:$port:8080" \
-  -v "$(to_docker_path "$here/nginx.conf"):/etc/nginx/nginx.conf:ro" \
-  -v "$(to_docker_path "$here/snippets"):/etc/nginx/snippets:ro" \
-  -v "$(to_docker_path "$here/templates"):/etc/nginx/templates:ro" \
-  -v "$(to_docker_path "$site"):/usr/share/nginx/html:ro" \
-  "$image" > /dev/null
+# A stub upstream that echoes the forwarded client address. It is a second server block of
+# the same nginx on 127.0.0.2:8080 (the "api" host of every container below), so no extra
+# container or network is needed.
+stub="$(mktemp -d)"
+cat > "$stub/stub.conf" << 'EOF'
+server {
+    listen 127.0.0.2:8080;
+    location / {
+        default_type text/plain;
+        return 200 "xff=$http_x_forwarded_for|forwarded=$http_forwarded|real_ip=$http_x_real_ip\n";
+    }
+}
+EOF
+trap 'docker rm -f "$name" "$name-trusted" "$name-untrusted" > /dev/null 2>&1 || true; rm -rf "$site" "$stub"' EXIT
+
+# start_nginx <container name> <VITADELTA_REAL_IP_FROM value> [docker run options...]
+# The image entrypoint scripts are not mounted executable, so the real-ip generator is run
+# explicitly before the stock entrypoint (which renders the template and starts nginx).
+start_nginx() {
+  local cname="$1" real_ip="$2"
+  shift 2
+  MSYS_NO_PATHCONV=1 docker run -d --name "$cname" \
+    --add-host api:127.0.0.2 \
+    -e VITADELTA_TLS=false -e NGINX_ENVSUBST_FILTER='^VITADELTA_' \
+    -e "VITADELTA_REAL_IP_FROM=$real_ip" \
+    "$@" \
+    -v "$(to_docker_path "$here/nginx.conf"):/etc/nginx/nginx.conf:ro" \
+    -v "$(to_docker_path "$here/snippets"):/etc/nginx/snippets:ro" \
+    -v "$(to_docker_path "$here/templates"):/etc/nginx/templates:ro" \
+    -v "$(to_docker_path "$here/entrypoint.d"):/vitadelta-entrypoint:ro" \
+    -v "$(to_docker_path "$stub/stub.conf"):/etc/nginx/conf.d/zz-stub.conf:ro" \
+    -v "$(to_docker_path "$site"):/usr/share/nginx/html:ro" \
+    --entrypoint sh \
+    "$image" -c 'sh /vitadelta-entrypoint/40-vitadelta-real-ip.sh && exec /docker-entrypoint.sh nginx -g "daemon off;"' > /dev/null
+}
+
+start_nginx "$name" "" -p "127.0.0.1:$port:8080"
+start_nginx "$name-trusted" "127.0.0.1/32"
+start_nginx "$name-untrusted" "192.0.2.0/24, 198.51.100.7"
 
 base="http://127.0.0.1:$port"
 for _ in $(seq 1 50); do
@@ -125,6 +150,37 @@ check "/i18n/admin/xx.json" 404 "-"
 check "/media/missing.woff2" 404 "-"
 check "/media/missing-Ab3dE_9z.woff2" 404 "-"
 check "/actuator/health" 404 "-"
+
+# Client-address forwarding to the API. The requests are sent from inside each container, so
+# the peer address nginx sees is 127.0.0.1. "xff" is what the API receives.
+upstream_view() {
+  # upstream_view <container> <forged X-Forwarded-For value>
+  docker exec "$1" wget -q -O - --header "X-Forwarded-For: $2" \
+    --header "Forwarded: for=198.51.100.99" --header "X-Real-IP: 198.51.100.98" \
+    http://127.0.0.1:8080/api/v1/echo | tr -d '\r'
+}
+
+check_forwarding() {
+  # check_forwarding <label> <container> <forged X-Forwarded-For> <expected upstream view>
+  local got
+  got="$(upstream_view "$2" "$3")"
+  if [ "$got" = "$4" ]; then
+    echo "ok    forwarding: $1 -> $got"
+  else
+    echo "FAIL  forwarding: $1 -> $got (expected $4)"
+    failures=$((failures + 1))
+  fi
+}
+
+empty_forwarded="forwarded=|real_ip="
+# Default (VITADELTA_REAL_IP_FROM empty): a forged header is overwritten with the peer address.
+check_forwarding "default ignores a forged header" "$name" "203.0.113.7" "xff=127.0.0.1|$empty_forwarded"
+# The peer is a trusted proxy: the client address behind it is forwarded, recursively
+# skipping trusted hops, and other forwarding headers are still dropped.
+check_forwarding "trusted proxy restores the client" "$name-trusted" "203.0.113.7" "xff=203.0.113.7|$empty_forwarded"
+check_forwarding "trusted proxy chain keeps the right-most untrusted hop" "$name-trusted" "198.51.100.1, 203.0.113.7, 127.0.0.1" "xff=203.0.113.7|$empty_forwarded"
+# The peer is not in the trusted list: its own forged header is ignored.
+check_forwarding "untrusted peer cannot forge the client" "$name-untrusted" "203.0.113.7" "xff=127.0.0.1|$empty_forwarded"
 
 if [ "$failures" -gt 0 ]; then
   echo "$failures routing check(s) failed." >&2
