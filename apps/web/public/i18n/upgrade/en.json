@@ -1,0 +1,23 @@
+{
+  "page_title": "Plans",
+  "eyebrow": "Plans",
+  "title": "FREE covers comparing. PRO removes the limits on keeping track.",
+  "lead": "Both plans rank every product in your country with full results. PRO is for people who watch many products and prices.",
+  "loading": "Loading plans…",
+  "your_plan": "Your plan",
+  "per_month": "per month",
+  "unlimited": "Unlimited",
+  "rows": {
+    "queries": "Queries and full results",
+    "saved": "Saved products",
+    "alerts": "Active alerts",
+    "notifications": "Notifications per month"
+  },
+  "price_note": "Price for information. With a display currency the amount is converted and the native price is shown with it.",
+  "how_title": "How to get PRO",
+  "how_to_get_pro": "Online payment is not available yet. PRO is activated with a promo code, or by the VitaDelta team on request. When the PRO period ends, your account returns to FREE automatically; nothing is deleted.",
+  "signin_title": "Redeem a promo code",
+  "signin_text": "Promo codes are redeemed in your account. Create a free account or log in to enter a code.",
+  "signin_register": "Create a free account",
+  "signin_login": "Log in"
+}
