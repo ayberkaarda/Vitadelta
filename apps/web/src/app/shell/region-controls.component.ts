@@ -31,7 +31,7 @@ export class RegionControlsComponent {
   private readonly query = inject(QueryStore);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
-  private readonly format = inject(Formatter);
+  protected readonly format = inject(Formatter);
 
   readonly layout = input<'bar' | 'sheet'>('bar');
 

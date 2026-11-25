@@ -91,6 +91,39 @@ export function formatDateTime(locale: string, value: string): string {
   return new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(date);
 }
 
+const REGION_CODE = /^[A-Z]{2}$/;
+const regionNames = new Map<string, Intl.DisplayNames | null>();
+
+function regionNamesFor(locale: string): Intl.DisplayNames | null {
+  if (!regionNames.has(locale)) {
+    let names: Intl.DisplayNames | null;
+    try {
+      names = new Intl.DisplayNames([locale], { type: 'region', fallback: 'none' });
+    } catch (error: unknown) {
+      if (!(error instanceof RangeError)) {
+        throw error;
+      }
+      names = null;
+    }
+    regionNames.set(locale, names);
+  }
+  return regionNames.get(locale) ?? null;
+}
+
+/**
+ * Name of an ISO 3166-1 alpha-2 region in the language of `locale` ("Almanya" for `DE` in
+ * Turkish). The API only provides an English name: it is the fallback when the runtime has no
+ * localized name, followed by the code itself.
+ */
+export function formatCountryName(
+  locale: string,
+  code: string | null | undefined,
+  fallback?: string | null,
+): string {
+  const localized = code && REGION_CODE.test(code) ? regionNamesFor(locale)?.of(code) : undefined;
+  return localized || fallback || code || '';
+}
+
 /**
  * `Intl` formatting in the active locale (language plus selected country): money, scores,
  * quantities, percentages and dates. Components read the
@@ -150,5 +183,10 @@ export class Formatter {
 
   dateTime(value: string): string {
     return formatDateTime(this.locale(), value);
+  }
+
+  /** Localized country name for a region code; `nameEn` from the API is the fallback. */
+  countryName(code: string | null | undefined, nameEn?: string | null): string {
+    return formatCountryName(this.locale(), code, nameEn);
   }
 }

@@ -7,7 +7,7 @@
           'results.eyebrow'
             | transloco
               : {
-                  country: country()?.nameEn ?? m?.country ?? '',
+                  country: countryName(),
                   mode: ('results.mode.' + mode() | transloco),
                 }
         }}
@@ -74,7 +74,7 @@
         @if (m.total === 0) {
           <vd-results-empty
             [excluded]="m.excluded"
-            [countryName]="country()?.nameEn ?? m.country"
+            [countryName]="countryName()"
             [inStockOnly]="inStockOnly()"
             [editParams]="linkParams()"
             (includeOutOfStock)="includeOutOfStock()"

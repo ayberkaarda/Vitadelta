@@ -132,6 +132,18 @@ describe('UsageMeterComponent', () => {
     expect(host.querySelectorAll('rect')[1].getAttribute('class')).toBe('svg-warn');
   });
 
+  it('uses the "used / limit" form in Turkish', async () => {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      imports: [translocoTesting({ lang: 'tr' })],
+      providers: [provideTestLocale('tr-TR')],
+    });
+    expect((await render(1, 5)).querySelector('.n')?.textContent?.trim()).toBe('1 / 5');
+    expect((await render(5, 5)).querySelector('.n')?.textContent?.trim()).toBe(
+      '5 / 5 · sınıra ulaşıldı',
+    );
+  });
+
   it('draws only the track for unlimited plans', async () => {
     const host = await render(12, null);
     expect(host.querySelector('.n')?.textContent?.trim()).toBe('12 · unlimited');

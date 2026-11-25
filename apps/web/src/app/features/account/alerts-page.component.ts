@@ -75,7 +75,8 @@ export class AlertsPageComponent {
   }
 
   protected countryName(code: string): string {
-    return this.region.countries().find((country) => country.code === code)?.nameEn ?? code;
+    const nameEn = this.region.countries().find((country) => country.code === code)?.nameEn;
+    return this.format.countryName(code, nameEn);
   }
 
   protected thresholdText(value: number | null): string {

@@ -63,7 +63,11 @@
       <p class="text-xs muted">
         {{
           'results.drawer.note'
-            | transloco: { reference: referenceSet(), country: country()?.nameEn ?? m.country }
+            | transloco
+              : {
+                  reference: referenceSet(),
+                  country: format.countryName(country()?.code ?? m.country, country()?.nameEn),
+                }
         }}
       </p>
 

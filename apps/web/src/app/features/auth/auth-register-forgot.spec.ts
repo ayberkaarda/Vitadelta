@@ -50,6 +50,7 @@ describe('AuthRegisterPageComponent', () => {
             countries: signal(FIXTURE_COUNTRIES),
             countryCode: signal('TR'),
             lang: signal('en'),
+            intlLocale: signal('en-US'),
             loadCountries: vi.fn(async () => undefined),
           },
         },

@@ -7,7 +7,7 @@
       }
       @for (country of region.countries(); track country.code) {
         <option [value]="country.code" [selected]="country.code === region.countryCode()">
-          {{ country.nameEn }}
+          {{ format.countryName(country.code, country.nameEn) }}
         </option>
       }
     </select>

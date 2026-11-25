@@ -3,7 +3,7 @@
     <div class="stack-1">
       <h2 id="saved-title" class="h2">{{ 'account.saved.title' | transloco }}</h2>
       <p class="text-sm muted">
-        {{ 'account.saved.country' | transloco: { country: region.country()?.nameEn ?? '' } }}
+        {{ 'account.saved.country' | transloco: { country: countryName() } }}
       </p>
     </div>
     @if (usage(); as u) {
@@ -61,7 +61,7 @@
         <table class="tbl">
           <caption class="sr-only">
             {{
-              'account.saved.caption' | transloco: { country: region.country()?.nameEn ?? '' }
+              'account.saved.caption' | transloco: { country: countryName() }
             }}
           </caption>
           <thead>
@@ -119,7 +119,7 @@
                   <vd-flag-badges
                     [flags]="item.flags"
                     [currency]="list.meta.nativeCurrency"
-                    [country]="region.country()?.nameEn ?? item.countryCode"
+                    [country]="countryName() || item.countryCode"
                   />
                 </td>
                 <td>

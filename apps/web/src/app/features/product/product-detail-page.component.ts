@@ -152,7 +152,8 @@ export class ProductDetailPageComponent {
   /** Display name of the response's country (the code when the list is not loaded). */
   protected readonly countryName = computed(() => {
     const code = this.response()?.meta.country ?? this.country() ?? '';
-    return this.region.countries().find((entry) => entry.code === code)?.nameEn ?? code;
+    const nameEn = this.region.countries().find((entry) => entry.code === code)?.nameEn;
+    return this.format.countryName(code, nameEn);
   });
 
   /** The results page this product was opened from, when the URL carries its query. */

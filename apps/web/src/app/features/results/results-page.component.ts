@@ -117,6 +117,10 @@ export class ResultsPageComponent {
     const code = this.meta()?.country ?? this.store.country();
     return this.region.countries().find((entry) => entry.code === code) ?? null;
   });
+  /** Localized name of the ranking's country; the API's English name is the fallback. */
+  protected readonly countryName = computed(() =>
+    this.format.countryName(this.meta()?.country ?? this.country()?.code, this.country()?.nameEn),
+  );
   protected readonly selectedIds = computed(() => this.selection().map((entry) => entry.id));
   protected readonly inStockOnly = computed(
     () => this.store.state().stockFilter === 'IN_STOCK_ONLY',

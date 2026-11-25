@@ -116,7 +116,8 @@ export class ComparePageComponent {
 
   protected readonly countryName = computed(() => {
     const code = this.response()?.meta.country ?? this.query.country();
-    return this.region.countries().find((country) => country.code === code)?.nameEn ?? code ?? '';
+    const nameEn = this.region.countries().find((country) => country.code === code)?.nameEn;
+    return this.format.countryName(code, nameEn);
   });
 
   protected readonly referenceSet = computed(() => {

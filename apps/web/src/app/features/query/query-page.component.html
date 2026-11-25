@@ -41,7 +41,7 @@
             >
               @for (c of region.countries(); track c.code) {
                 <option [value]="c.code" [selected]="c.code === countryCode()">
-                  {{ c.nameEn }}
+                  {{ format.countryName(c.code, c.nameEn) }}
                 </option>
               }
             </select>
@@ -296,7 +296,13 @@
         <h2 class="h4 summary-title">{{ 'query.summary.title' | transloco }}</h2>
         <dl class="kv summary">
           <dt>{{ 'query.summary.country' | transloco }}</dt>
-          <dd>{{ countryInfo()?.nameEn ?? ('common.none' | transloco) }}</dd>
+          <dd>
+            @if (countryInfo(); as c) {
+              {{ format.countryName(c.code, c.nameEn) }}
+            } @else {
+              {{ 'common.none' | transloco }}
+            }
+          </dd>
           <dt>{{ 'query.summary.stock' | transloco }}</dt>
           <dd>{{ 'query.stock.' + stockFilter() | transloco }}</dd>
           <dt>{{ 'query.summary.mode' | transloco }}</dt>

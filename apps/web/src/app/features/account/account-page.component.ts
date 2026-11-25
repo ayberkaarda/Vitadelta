@@ -14,6 +14,7 @@ import { ApiClient } from '../../core/api/api-client';
 import { ApiProblem } from '../../core/api/api-problem';
 import { UpdateMeRequest } from '../../core/api/api-types';
 import { SessionStore } from '../../core/auth/session.store';
+import { Formatter } from '../../core/format/formatter';
 import { AppLang, isAppLang } from '../../core/i18n/languages';
 import { CurrencyStore } from '../../core/state/currency.store';
 import { RegionStore } from '../../core/state/region.store';
@@ -64,6 +65,7 @@ export class AccountPageComponent {
   private readonly router = inject(Router);
   protected readonly session = inject(SessionStore);
   protected readonly region = inject(RegionStore);
+  protected readonly format = inject(Formatter);
   protected readonly currency = inject(CurrencyStore);
 
   protected readonly me = this.session.me;

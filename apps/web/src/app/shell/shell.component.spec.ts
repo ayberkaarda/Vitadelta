@@ -109,6 +109,11 @@ describe('ShellComponent', () => {
       'DE',
       'US',
     ]);
+    expect(Array.from(country?.options ?? []).map((option) => option.textContent?.trim())).toEqual([
+      'Türkiye',
+      'Germany',
+      'United States',
+    ]);
     const currency = host().querySelector<HTMLSelectElement>('select[id^="vd-currency"]');
     expect(Array.from(currency?.options ?? []).map((option) => option.textContent?.trim())).toEqual(
       ['EUR', 'TRY', 'USD'],
@@ -151,6 +156,13 @@ describe('ShellComponent', () => {
     expect(TestBed.inject(TranslocoService).getActiveLang()).toBe('tr');
     expect(document.documentElement.lang).toBe('tr');
     expect(tr?.getAttribute('aria-pressed')).toBe('true');
+    // Country names follow the active language; the API only provides the English name.
+    const country = host().querySelector<HTMLSelectElement>('select[id^="vd-country"]');
+    expect(Array.from(country?.options ?? []).map((option) => option.textContent?.trim())).toEqual([
+      'Türkiye',
+      'Almanya',
+      'Amerika Birleşik Devletleri',
+    ]);
   });
 
   it('updates region, query and currency stores from the header selects', async () => {

@@ -6,6 +6,7 @@ import {
   Formatter,
   MINUS,
   formatAmount,
+  formatCountryName,
   formatDate,
   formatDateTime,
   formatMoney,
@@ -58,7 +59,34 @@ describe('Formatter', () => {
     expect(format.date('2026-11-24')).toBe('Nov 24, 2026');
     expect(format.shortDate('2026-11-24')).toBe('Nov 24');
     expect(format.dateTime('2026-11-24T08:00:00Z')).toContain('2026');
+    expect(format.countryName('DE', 'Germany')).toBe('Germany');
     locale.set('tr-TR');
     expect(format.money(9, 'TRY')).toBe('₺9,00');
+    expect(format.countryName('DE', 'Germany')).toBe('Almanya');
+  });
+});
+
+describe('formatCountryName', () => {
+  it('names countries in Turkish for a Turkish locale', () => {
+    expect(formatCountryName('tr-TR', 'TR', 'Türkiye')).toBe('Türkiye');
+    expect(formatCountryName('tr-TR', 'DE', 'Germany')).toBe('Almanya');
+    expect(formatCountryName('tr-DE', 'GB', 'United Kingdom')).toBe('Birleşik Krallık');
+    expect(formatCountryName('tr', 'US', 'United States')).toBe('Amerika Birleşik Devletleri');
+  });
+
+  it('names countries in English for an English locale', () => {
+    expect(formatCountryName('en-US', 'TR', 'Türkiye')).toBe('Türkiye');
+    expect(formatCountryName('en-TR', 'DE', 'Germany')).toBe('Germany');
+    expect(formatCountryName('en-GB', 'GB', 'UK')).toBe('United Kingdom');
+    expect(formatCountryName('en', 'US', 'USA')).toBe('United States');
+  });
+
+  it('falls back to the API name, then the code, when no localized name exists', () => {
+    expect(formatCountryName('tr-TR', 'AA', 'Synthetic Land')).toBe('Synthetic Land');
+    expect(formatCountryName('tr-TR', 'de', 'Germany')).toBe('Germany');
+    expect(formatCountryName('not a locale!', 'DE', 'Germany')).toBe('Germany');
+    expect(formatCountryName('tr-TR', 'QX')).toBe('QX');
+    expect(formatCountryName('tr-TR', null, null)).toBe('');
+    expect(formatCountryName('tr-TR', undefined)).toBe('');
   });
 });

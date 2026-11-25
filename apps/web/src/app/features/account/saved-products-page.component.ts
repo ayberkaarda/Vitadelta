@@ -77,6 +77,12 @@ export class SavedProductsPageComponent {
   private readonly currency = inject(CurrencyStore);
   protected readonly format = inject(Formatter);
 
+  /** Localized name of the selected country (empty until the country list is loaded). */
+  protected readonly countryName = computed(() => {
+    const country = this.region.country();
+    return country ? this.format.countryName(country.code, country.nameEn) : '';
+  });
+
   private loadSequence = 0;
 
   protected readonly triggers = ALERT_TRIGGERS;

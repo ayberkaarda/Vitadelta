@@ -5,6 +5,7 @@ import { firstValueFrom } from 'rxjs';
 
 import { ApiClient } from '../../core/api/api-client';
 import { ApiProblem } from '../../core/api/api-problem';
+import { Formatter } from '../../core/format/formatter';
 import { RegionStore } from '../../core/state/region.store';
 import { ErrorSummaryComponent } from '../../shared/form/error-summary.component';
 import { ControlDirective, FieldComponent } from '../../shared/form/field.component';
@@ -46,6 +47,7 @@ import { authFieldMessage, isEmailShaped, MIN_PASSWORD_LENGTH } from './form-err
 export class AuthRegisterPageComponent {
   private readonly api = inject(ApiClient);
   protected readonly region = inject(RegionStore);
+  protected readonly format = inject(Formatter);
 
   protected readonly ids = {
     email: 'register-email',

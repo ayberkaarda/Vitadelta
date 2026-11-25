@@ -70,7 +70,7 @@
               >
                 @for (option of region.countries(); track option.code) {
                   <option [value]="option.code" [selected]="option.code === country()">
-                    {{ option.nameEn }}
+                    {{ format.countryName(option.code, option.nameEn) }}
                   </option>
                 }
               </select>
