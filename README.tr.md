@@ -192,6 +192,10 @@ npm run e2e:adversarial
 
 Son çalıştırmanın uçtan uca rakamları Faz 7 raporundadır; puanlama rakamları Faz 2 raporundan alınmıştır. CI her push'ta test paketlerini ve güvenlik taramasını çalıştırır; uçtan uca iş pull request'ler ve varsayılan dal için çalışır ve bilgilendirme amaçlıdır.
 
+## Lisans
+
+Kaynak kod GNU Affero Genel Kamu Lisansı v3.0 ile lisanslanmıştır ([LICENSE](LICENSE)). `data/real/` altındaki referans veriler NIH Dietary Supplement Label Database kaynaklıdır ve ADR-0012'de anlatılan kendi koşullarını korur; demo fiyatlar ve test verileri sentetiktir.
+
 ## Belgeler
 
 - [Mimari](docs/architecture.md) · [İşletim kılavuzu](docs/runbook.md) · [Sözleşmeler](contracts/)
