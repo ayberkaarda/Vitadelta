@@ -56,10 +56,11 @@ server {
     # Static files of the build (hashed bundles and chunks, styles, source maps, media,
     # icons) and the translation files: a missing file is a 404, never the app document,
     # so a stale chunk or an unknown translation fails visibly instead of as HTML.
+    # Translation files keep their names across builds, so they are always revalidated.
     location ^~ /i18n/ {
         include /etc/nginx/snippets/security-headers.conf;
         add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-        add_header Cache-Control $vitadelta_cache_control always;
+        add_header Cache-Control "no-cache" always;
         try_files $uri =404;
     }
 
@@ -67,6 +68,27 @@ server {
         include /etc/nginx/snippets/security-headers.conf;
         add_header Referrer-Policy "strict-origin-when-cross-origin" always;
         add_header Cache-Control $vitadelta_cache_control always;
+        try_files $uri =404;
+
+        # Fonts and images referenced by the styles, named <name>-<hash>.<ext> by the build.
+        # A nested location does not inherit add_header, so every header is repeated.
+        location ~ "^/media/[^/]+-[A-Za-z0-9_-]{8}\.[A-Za-z0-9]+$" {
+            include /etc/nginx/snippets/security-headers.conf;
+            add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+            add_header Cache-Control "public, max-age=31536000, immutable";
+            try_files $uri =404;
+        }
+    }
+
+    # Fingerprinted bundles and chunks of the build (main-<hash>.js, chunk-<hash>.js,
+    # styles-<hash>.css, ...): a changed file always gets a new name, so the old URL can be
+    # cached for a year without revalidation. Cache-Control is sent without "always", so a
+    # missing file (404) is never cached as immutable. Listed before the generic static
+    # pattern below, which would match first otherwise.
+    location ~ "^/(?:chunk|main|polyfills|styles|worker)-[A-Za-z0-9_-]{8}\.(?:js|mjs|css)$" {
+        include /etc/nginx/snippets/security-headers.conf;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header Cache-Control "public, max-age=31536000, immutable";
         try_files $uri =404;
     }
 
