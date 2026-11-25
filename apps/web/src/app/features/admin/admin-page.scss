@@ -37,6 +37,11 @@
   display: block;
 }
 
+// A long file name breaks inside the jobs table instead of widening it.
+.file-name {
+  max-width: 16rem;
+}
+
 .tbl-wrap.flat {
   border: 0;
   border-radius: 0;

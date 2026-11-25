@@ -4,7 +4,8 @@
   "fx": {
     "refresh": "Döviz kurlarını yenile",
     "done": "Döviz kurları yenilendi: {{ count }} satır güncellendi.",
-    "partial": "{{ count }} satır güncellendi, ancak {{ bases }} için sağlayıcı çağrısı başarısız oldu. Bunların kayıtlı kurları kullanılmaya devam eder."
+    "partial": "{{ count }} satır güncellendi, ancak {{ bases }} için sağlayıcı çağrısı başarısız oldu. Bunların kayıtlı kurları kullanılmaya devam eder.",
+    "unsupported": "Sağlayıcı {{ bases }} para birimini taban para birimi olarak kabul etmiyor; bunlar için kur kaydedilmedi."
   },
   "nav": {
     "label": "Yönetim bölümleri",

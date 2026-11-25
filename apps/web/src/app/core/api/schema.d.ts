@@ -1,4 +1,4 @@
-// contract-sha256: c57acc00e660869190505c6b645147f02a79b37189178a6d60a682e38a747736
+// contract-sha256: 3b41f5a108f40203b0bbcde6b64ebb6c4cdb4a2b3f156d5d8eb353b339a21e18
 // Types of the public API, derived from contracts/public-api.openapi.yaml.
 // Do not edit by hand: run `npm run api:types` in apps/web after changing the contract.
 
@@ -1119,7 +1119,9 @@ export interface paths {
          *     - `fx`: `newestAsOf` = newest `as_of` over all stored rates (`null`
          *       when none), `rateAgeDays` = current UTC date minus `newestAsOf` in
          *       days, `stale = rateAgeDays > 5`; `status` is `UP` when not stale,
-         *       `DEGRADED` when stale or no rate is stored, never `DOWN`.
+         *       `DEGRADED` when stale or no rate is stored, never `DOWN`;
+         *       `unsupportedBases` = the unsupported bases of the last FX refresh
+         *       run (empty before the first run).
          *     - `outbox`: the counts of `GET /admin/outbox/stats`; `status` is
          *       `DEGRADED` when `failed > 0` or the oldest pending event is older
          *       than 5 minutes (`oldestPendingAt`), else `UP`. Dead letters are
@@ -1415,6 +1417,13 @@ export interface paths {
          *     the other bases; the response is still 200 and lists the base in
          *     `failedBases`. With four supported currencies a complete run upserts
          *     12 rows.
+         *
+         *     A base is unsupported only when the provider answers 422 with the
+         *     message `invalid currency: <base>` naming exactly the requested base:
+         *     it is listed in `unsupportedBases` (not in `failedBases`), logged as
+         *     an operator warning and counted, and gets no rate. Any other
+         *     rejection (another text, another currency named, 5xx, timeout, empty
+         *     answer) is a failure of that base.
          *
          *     Problem codes: `unauthorized` (401), `forbidden` (403),
          *     `conflict_retry` (409, the refresh job is running at this moment and
@@ -2288,8 +2297,10 @@ export interface components {
         FxRefreshResult: {
             /** @description `fx_rate` rows inserted or updated by this run (a repeated refresh of the same ECB date rewrites the rows and counts them again). */
             upsertedRows: number;
-            /** @description Base currencies whose provider call failed in this run, ordered ascending; their stored rates stay in use. Empty when every call succeeded. */
+            /** @description Base currencies whose provider call failed in this run, ordered ascending; their stored rates stay in use. Empty when every call succeeded. Unsupported bases are not listed here. */
             failedBases: components["schemas"]["CurrencyCode"][];
+            /** @description Base currencies the provider rejected in this run with a 422 whose message names exactly that base as an invalid currency (`invalid currency: <base>`), ordered ascending; they get no rate and do not fail the run on their own. Empty when there is none. */
+            unsupportedBases: components["schemas"]["CurrencyCode"][];
         };
         UsageMeter: {
             used: number;
@@ -2689,6 +2700,8 @@ export interface components {
         };
         FxHealth: {
             status: components["schemas"]["HealthStatus"];
+            /** @description `FxRefreshResult.unsupportedBases` of the last FX refresh run that obtained the lock since the API started (the run reported in `jobs`), ordered ascending; empty before the first run. It does not change `status`. */
+            unsupportedBases: components["schemas"]["CurrencyCode"][];
             /**
              * Format: date
              * @description Newest `as_of` over all stored rates; `null` when no rate is stored.
@@ -2715,7 +2728,7 @@ export interface components {
              */
             lastRunAt: string | null;
             /**
-             * @description `FAILED` when the run ended with an exception (an FX run with at least one failed base also counts as `FAILED`); `null` before the first run.
+             * @description `FAILED` when the run ended with an exception; an FX run is `FAILED` when at least one base failed (`FxRefreshResult.failedBases` not empty) or when no base could be refreshed at all, while unsupported bases alone (`FxRefreshResult.unsupportedBases`) do not fail it; `null` before the first run.
              * @enum {string|null}
              */
             lastOutcome: "SUCCEEDED" | "FAILED" | null;
@@ -5601,7 +5614,8 @@ export interface operations {
                      *           "status": "UP",
                      *           "newestAsOf": "2026-11-23",
                      *           "rateAgeDays": 1,
-                     *           "stale": false
+                     *           "stale": false,
+                     *           "unsupportedBases": []
                      *         },
                      *         "outbox": {
                      *           "status": "UP",

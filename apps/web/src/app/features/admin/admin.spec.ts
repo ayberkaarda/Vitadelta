@@ -525,11 +525,14 @@ describe('AdminUsersPageComponent', () => {
 });
 
 describe('AdminLayoutComponent', () => {
-  it('refreshes the exchange rates and reports failed bases', async () => {
+  it('refreshes the exchange rates and reports failed and unsupported bases', async () => {
     const refreshFxRates = vi
       .fn()
-      .mockReturnValueOnce(of({ upsertedRows: 120, failedBases: [] }))
-      .mockReturnValueOnce(of({ upsertedRows: 80, failedBases: ['TRY'] }));
+      .mockReturnValueOnce(of({ upsertedRows: 120, failedBases: [], unsupportedBases: [] }))
+      .mockReturnValueOnce(of({ upsertedRows: 80, failedBases: ['TRY'], unsupportedBases: [] }))
+      .mockReturnValueOnce(
+        of({ upsertedRows: 12, failedBases: [], unsupportedBases: ['XAU', 'XDR'] }),
+      );
     configure({ refreshFxRates });
     const fixture = TestBed.createComponent(AdminLayoutComponent);
     await settle(fixture);
@@ -537,10 +540,22 @@ describe('AdminLayoutComponent', () => {
     const button = host.querySelector<HTMLButtonElement>('.page-head button');
     button?.click();
     await settle(fixture);
-    expect(host.querySelector('[data-fx-result]')?.textContent).toContain('120 rows updated');
+    const result = () => host.querySelector('[data-fx-result]');
+    expect(result()?.textContent).toContain('120 rows updated');
+    expect(result()?.querySelector('.notice')?.classList).toContain('t-ok');
+    expect(host.querySelector('[data-fx-unsupported]')).toBeNull();
     button?.click();
     await settle(fixture);
-    expect(host.querySelector('[data-fx-result]')?.textContent).toContain('failed for TRY');
+    expect(result()?.textContent).toContain('failed for TRY');
+    expect(result()?.querySelector('.notice')?.classList).toContain('t-warn');
+    expect(host.querySelector('[data-fx-unsupported]')).toBeNull();
+    button?.click();
+    await settle(fixture);
+    expect(result()?.textContent).toContain('12 rows updated');
+    expect(result()?.querySelector('.notice')?.classList).toContain('t-warn');
+    expect(host.querySelector('[data-fx-unsupported]')?.textContent?.trim()).toBe(
+      adminEn.fx.unsupported.replace('{{ bases }}', 'XAU, XDR'),
+    );
     expect(host.querySelectorAll('.subnav a')).toHaveLength(3);
   });
 

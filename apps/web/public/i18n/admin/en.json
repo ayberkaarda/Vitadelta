@@ -4,7 +4,8 @@
   "fx": {
     "refresh": "Refresh exchange rates",
     "done": "Exchange rates refreshed: {{ count }} rows updated.",
-    "partial": "{{ count }} rows updated, but the provider call failed for {{ bases }}. Their stored rates stay in use."
+    "partial": "{{ count }} rows updated, but the provider call failed for {{ bases }}. Their stored rates stay in use.",
+    "unsupported": "The provider does not accept {{ bases }} as a base currency, so no rates were stored for them."
   },
   "nav": {
     "label": "Admin sections",

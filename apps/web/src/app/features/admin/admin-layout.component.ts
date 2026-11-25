@@ -41,12 +41,17 @@ import { ProblemNoticeComponent } from '../../shared/notice/problem-notice.compo
       </div>
       <div class="live-region" aria-live="polite">
         @if (fxResult(); as result) {
-          @if (result.failedBases.length === 0) {
-            <vd-notice tone="ok" data-fx-result>
+          <vd-notice
+            [tone]="
+              result.failedBases.length === 0 && result.unsupportedBases.length === 0
+                ? 'ok'
+                : 'warn'
+            "
+            data-fx-result
+          >
+            @if (result.failedBases.length === 0) {
               <p>{{ 'admin.fx.done' | transloco: { count: result.upsertedRows } }}</p>
-            </vd-notice>
-          } @else {
-            <vd-notice tone="warn" data-fx-result>
+            } @else {
               <p>
                 {{
                   'admin.fx.partial'
@@ -54,8 +59,15 @@ import { ProblemNoticeComponent } from '../../shared/notice/problem-notice.compo
                       : { count: result.upsertedRows, bases: result.failedBases.join(', ') }
                 }}
               </p>
-            </vd-notice>
-          }
+            }
+            @if (result.unsupportedBases.length > 0) {
+              <p data-fx-unsupported>
+                {{
+                  'admin.fx.unsupported' | transloco: { bases: result.unsupportedBases.join(', ') }
+                }}
+              </p>
+            }
+          </vd-notice>
         }
       </div>
       @if (fxProblem(); as p) {

@@ -28,7 +28,7 @@
           />
           @if (file) {
             <vd-icon name="list" />
-            <span class="text-sm"
+            <span class="text-sm wrap-any"
               ><span class="strong">{{ file.name }}</span> ·
               {{ size(file.size).key | transloco: { size: size(file.size).size } }}</span
             >
@@ -104,7 +104,7 @@
               >
                 <td>
                   <span class="mono strong">{{ job.kind }}</span>
-                  <span class="block text-xs muted">{{ tracked.fileName }}</span>
+                  <span class="block file-name text-xs muted">{{ tracked.fileName }}</span>
                 </td>
                 <td>
                   @switch (job.status) {
