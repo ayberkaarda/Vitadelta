@@ -84,19 +84,38 @@ create_env() {
   mv "$tmp" "$ENV_FILE"
 }
 
+# Shows a newly generated bootstrap password exactly once, on the controlling terminal only
+# (/dev/tty, never stdout or stderr, so pipes, log files and CI logs never receive it). Without a
+# terminal, or in CI, it only says where the password is stored.
+show_generated_password() {
+  local email="$1" password="$2"
+  if [ -z "${CI:-}" ] && [ -z "${GITHUB_ACTIONS:-}" ] && { : > /dev/tty; } 2> /dev/null; then
+    {
+      printf '\n[dev-up] bootstrap administrator %s, generated password (shown once, also stored in %s):\n' "$email" "$ENV_FILE"
+      printf '\n    %s\n\n' "$password"
+    } > /dev/tty
+    log "the generated bootstrap password was shown once on the terminal"
+  else
+    log "no interactive terminal: the generated bootstrap password is not printed; read VITADELTA_BOOTSTRAP_ADMIN_PASSWORD in $ENV_FILE with an editor"
+  fi
+}
+
 # Gives the local bootstrap administrator an address and a fresh random password in .env when
-# either is empty; values that are already set are kept. The API creates the account at its next
-# start if it does not exist yet (the end-to-end suites sign in with it).
+# either is empty; values that are already set are kept and never printed. The API creates the
+# account at its next start if it does not exist yet (the end-to-end suites sign in with it).
 ensure_bootstrap_admin() {
-  local email password tmp line
+  local email password tmp line generated=false
   email="$(sed -n 's/^VITADELTA_BOOTSTRAP_ADMIN_EMAIL=//p' "$ENV_FILE" | tr -d '\r' | tail -n 1)"
   password="$(sed -n 's/^VITADELTA_BOOTSTRAP_ADMIN_PASSWORD=//p' "$ENV_FILE" | tr -d '\r' | tail -n 1)"
   if [ -n "$email" ] && [ -n "$password" ]; then
-    log "bootstrap administrator already configured in $ENV_FILE"
+    log "bootstrap administrator already configured in $ENV_FILE (values kept, not shown)"
     return 0
   fi
   [ -n "$email" ] || email="admin@vitadelta.localhost"
-  [ -n "$password" ] || password="$(random_hex 24 | tr -d '\r\n')"
+  if [ -z "$password" ]; then
+    password="$(random_hex 24 | tr -d '\r\n')"
+    generated=true
+  fi
   tmp="$ENV_FILE.tmp.$$"
   (
     umask 077
@@ -115,13 +134,17 @@ ensure_bootstrap_admin() {
       printf 'VITADELTA_BOOTSTRAP_ADMIN_PASSWORD=%s\n' "$password" >> "$tmp"
   )
   mv "$tmp" "$ENV_FILE"
-  log "bootstrap administrator $email configured in $ENV_FILE (the password is stored there only)"
+  log "bootstrap administrator $email configured in $ENV_FILE"
+  if [ "$generated" = true ]; then
+    show_generated_password "$email" "$password"
+  fi
 }
 
 usage() {
   printf 'Usage: %s [--bootstrap-admin]\n' "$(basename "$0")"
   printf '  --bootstrap-admin  fill an empty bootstrap administrator in .env with a local address\n'
-  printf '                     and a generated password (needed by the end-to-end suites)\n'
+  printf '                     and a generated password (needed by the end-to-end suites); a new\n'
+  printf '                     password is shown once on the terminal, never on stdout or stderr\n'
 }
 
 bootstrap_admin=false
