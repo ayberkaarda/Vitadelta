@@ -4,7 +4,7 @@
 /out-tsc
 
 # Dependencies
-/node_modules
+node_modules/
 npm-debug.log*
 
 # Caches and reports
@@ -21,3 +21,6 @@ __screenshots__/
 *.sublime-workspace
 .DS_Store
 Thumbs.db
+
+# End-to-end output (traces, screenshots, report)
+/e2e/.output

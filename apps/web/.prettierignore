@@ -3,3 +3,7 @@ coverage/
 .angular/
 node_modules/
 package-lock.json
+tools/openapi/node_modules/
+tools/openapi/package-lock.json
+src/app/core/api/schema.d.ts
+e2e/.output/

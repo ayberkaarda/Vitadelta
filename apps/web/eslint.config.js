@@ -6,7 +6,16 @@ const angular = require('angular-eslint');
 
 module.exports = defineConfig([
   {
-    ignores: ['dist/', 'coverage/', '.angular/', 'node_modules/'],
+    ignores: [
+      'dist/',
+      'coverage/',
+      '.angular/',
+      'node_modules/',
+      'tools/openapi/node_modules/',
+      'e2e/.output/',
+      // Generated from the public contract by `npm run api:types`.
+      'src/app/core/api/schema.d.ts',
+    ],
   },
   {
     files: ['**/*.ts'],
@@ -18,6 +27,8 @@ module.exports = defineConfig([
     ],
     processor: angular.processInlineTemplates,
     rules: {
+      // Angular components and directives are decorated classes that may have no members.
+      '@typescript-eslint/no-extraneous-class': ['error', { allowWithDecorator: true }],
       '@angular-eslint/directive-selector': [
         'error',
         { type: 'attribute', prefix: 'vd', style: 'camelCase' },
